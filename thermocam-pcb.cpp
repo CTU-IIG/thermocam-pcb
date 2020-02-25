@@ -16,16 +16,18 @@
 using namespace cv;
 namespace pt = boost::property_tree;
 
-#define DISPLAY_DELAY_MS 112 // The camera is 9Hz, ~111 ms
+#define CAM_FPS 9 // The camera is 9Hz
 
 /* Command line options */
 bool enter_POI = false;
 string POI_path;
 string license_dir;
+string vid_in_path;
+string vid_out_path;
 
-struct im_status{
-    uint16_t* rawtemp;
-    uint16_t min_rawtemp=UINT16_MAX, max_rawtemp=0;
+struct im_status {
+    uint16_t *rawtemp = NULL;
+    uint16_t min_rawtemp = UINT16_MAX, max_rawtemp = 0;
     Mat gray;
     vector<Point2f> POI; // Points of interest 
     vector<Point2f> IAB; // Ignored Area Boundary - no keypoints inside this polygon
@@ -84,6 +86,8 @@ void drawPOI(Mat A, vector<Point2f> POI, uint16_t *curr_rawtemp, Camera* c, Scal
         circle(A, POI[i], 3, color, -1);
         // Text with temperature
         int idx = A.cols * round(POI[i].y) + round(POI[i].x);
+        if (!curr_rawtemp[idx]) // Skip points with absolute 0 temperature - video read
+            continue;
         double temp = c->CalculateTemperatureC(curr_rawtemp[idx]);
         stringstream stream;
         stream << fixed << setprecision(2) << temp << " [C]";
@@ -97,18 +101,35 @@ uint16_t* getRawTemp(Camera* camera){
     return rawtemp;
 }
 
-void initStatus(im_status* s, Camera* camera, vector<Point2f> POI, vector<Point2f> IAB){
+void vidSetImStatus(im_status *s, VideoCapture video)
+{
+    video >> s->gray;
+    if (s->gray.empty()) {
+        video.set(CV_CAP_PROP_POS_AVI_RATIO, 0);
+        video >> s->gray;
+    }
+    cvtColor(s->gray, s->gray, COLOR_RGB2GRAY);
 
-	int height = camera->GetSettings()->GetResolutionY();
-	int width = camera->GetSettings()->GetResolutionX();
+    if (s->rawtemp == NULL)
+        s->rawtemp = new uint16_t[s->gray.cols * s->gray.rows]{ 0 };
+}
 
-    s->rawtemp = getRawTemp(camera);
-    for(int i = 0; i < height*width; i++) {
+void initStatus(im_status *s, Camera *camera, vector<Point2f> POI, vector<Point2f> IAB, VideoCapture *video = NULL)
+{
+
+    if (video) {
+        vidSetImStatus(s, *video);
+    } else {
+        int height = camera->GetSettings()->GetResolutionY();
+        int width = camera->GetSettings()->GetResolutionX();
+        s->rawtemp = getRawTemp(camera);
+        s->gray = temp2gray(s->rawtemp, height, width);
+    }
+
+    for (int i = 0; i < s->gray.cols * s->gray.rows; i++) {
         s->min_rawtemp = (s->min_rawtemp > s->rawtemp[i]) ? s->rawtemp[i] : s->min_rawtemp;
         s->max_rawtemp = (s->max_rawtemp < s->rawtemp[i]) ? s->rawtemp[i] : s->max_rawtemp;
-    }    
-
-    s->gray = temp2gray(s->rawtemp,height,width);
+    }
 
     s->POI = POI;
     // s->IAB = IAB;
@@ -116,11 +137,15 @@ void initStatus(im_status* s, Camera* camera, vector<Point2f> POI, vector<Point2
     // fillKeyDesc(s,s->gray, s->mask); 
 }
 
-void calcCurrStatus(im_status *curr, im_status *ref, Camera *camera)
+void calcCurrStatus(im_status *curr, im_status *ref, Camera *camera, VideoCapture *video = NULL)
 {
 
-    curr->rawtemp = getRawTemp(camera);
-    curr->gray = temp2gray(curr->rawtemp, ref->gray.rows, ref->gray.cols, ref->min_rawtemp, ref->max_rawtemp);
+    if (video) {
+        vidSetImStatus(curr, *video);
+    } else {
+        curr->rawtemp = getRawTemp(camera);
+        curr->gray = temp2gray(curr->rawtemp, ref->gray.rows, ref->gray.cols, ref->min_rawtemp, ref->max_rawtemp);
+    }
 
     // For 1st time run
     if (curr->POI.size() == 0) {
@@ -190,33 +215,31 @@ void onMouse(int event, int x, int y, int flags, void *param)
     }
 }
 
-void inputPOI(Camera* camera, vector<Point2f>* POI){
+void inputPOI(Camera* camera, vector<Point2f>* POI, VideoCapture* video){
 
     cout << "\nClick on the image to enter points.\nPress Esc to delete the last entered point.\nPress Enter to finish selection and store points." << endl;
     
-	int height = camera->GetSettings()->GetResolutionY();
-	int width = camera->GetSettings()->GetResolutionX();
-
     namedWindow("Selecting points of interest", WINDOW_AUTOSIZE );
     setMouseCallback("Selecting points of interest", onMouse, POI);
 
     while(1){
-        char key = (waitKey(DISPLAY_DELAY_MS) & 0xEFFFFF);
+        char key = (waitKey(1000/CAM_FPS) & 0xEFFFFF);
         if (key == 27) // Esc
             POI->pop_back();
         if (key == 10 || key == 13) // Enter
             break; 
-        uint16_t* rawtemp = getRawTemp(camera);
-        Mat img = temp2gray(rawtemp, height, width);
-        cvtColor(img,img,COLOR_GRAY2RGB);
-        drawPOI(img, *POI, rawtemp, camera, Scalar(0,0,255));
-        imshow( "Selecting points of interest", img);
+
+        im_status s;
+        initStatus(&s,camera,{},{},video);
+        cvtColor(s.gray,s.gray,COLOR_GRAY2RGB);
+        drawPOI(s.gray, *POI, s.rawtemp, camera, Scalar(0,0,255));
+        imshow( "Selecting points of interest", s.gray);
     }
     destroyWindow("Selecting points of interest");
 }
 
-void POIDialog(Camera* camera, vector<Point2f>* POI){
-    inputPOI(camera, POI);
+void POIDialog(Camera* camera, vector<Point2f>* POI, VideoCapture* video){
+    inputPOI(camera, POI, video);
     if(yesNoDialog("\nWould you like to save these points into a json config file[Y/n]?")){
         cout << "Enter the path to the config file: ";
         string name;
@@ -227,13 +250,49 @@ void POIDialog(Camera* camera, vector<Point2f>* POI){
 }
 
 void printPOITemp(Camera* camera, vector<Point2f> POI, uint16_t* rawtemp){
-
+    if(!camera)
+        return;
     cout << "Temperature of points of interest:\n";
     for(unsigned i=0; i<POI.size(); i++) {
         int idx = camera->GetSettings()->GetResolutionX() * round(POI[i].y) + round(POI[i].x);
         printf("Point %d: %.2lf [°C]\n", i, camera->CalculateTemperatureC(rawtemp[idx]));
     }
     cout << endl;
+}
+
+void recordVideo(Camera *camera, string vid_out_path)
+{
+
+    im_status ref, curr;
+    int height = camera->GetSettings()->GetResolutionY();
+    int width = camera->GetSettings()->GetResolutionX();
+    // Save lossless video to not introduce artifacts for later image processing
+    VideoWriter video(vid_out_path, CV_FOURCC('F', 'F', 'V', '1'), CAM_FPS, Size(width, height));
+
+    // Wait to start the recording
+    while (1) {
+        char key = (waitKey(1000 / CAM_FPS) & 0xEFFFFF);
+        if (key == 10 || key == 13) // Enter
+            break;
+        initStatus(&ref, camera, {}, {});
+        imshow("Press Enter to start recording", ref.gray);
+    }
+    destroyAllWindows();
+
+    // Recording
+    while (1) {
+        char key = (waitKey(1000 / CAM_FPS) & 0xEFFFFF);
+        if (key == 27) // Esc
+            break;
+        calcCurrStatus(&curr, &ref, camera);
+        Mat M;
+        cvtColor(curr.gray, M, COLOR_GRAY2RGB); // Saving only works on color video
+        video.write(M);
+        imshow("Press Esc to stop recording and save video", curr.gray);
+    }
+    destroyAllWindows();
+
+    video.release();
 }
 
 static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
@@ -248,9 +307,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
     case 'l':
         license_dir = arg;
         break;
+    case 'r':
+        vid_out_path = arg;
+        break;
+    case 'v':
+        vid_in_path = arg;
+        break;
     case ARGP_KEY_END:
-        if (license_dir.empty())
-            argp_error(argp_state, "Need path to directory with WIC license file");
+        if (license_dir.empty() && vid_in_path.empty())
+            argp_error(argp_state, "Need path to directory with WIC license file, or path to input video.");
         break;
     default:
         return ARGP_ERR_UNKNOWN;
@@ -263,6 +328,8 @@ static struct argp_option options[] = {
     { "enter_poi",       'e', 0,             0, "Enter Points of interest by hand." },
     { "poi_path",        'p', "FILE",        0, "Path to config file containing saved POIs." },
     { "license_dir",     'l', "FILE",        0, "Path to directory containing WIC license file." },
+    { "record_video",    'r', "FILE",        0, "Record video and store it with entered filename"},
+    { "load_video",      'v', "FILE",        0, "Load and process video instead of camera feed"},
     { 0 } 
 };
 
@@ -286,33 +353,46 @@ int main(int argc, char **argv)
 
     argp_parse(&argp, argc, argv, 0, 0, NULL);
 
-    Camera* camera = initCamera(license_dir);
-    camera->StartAcquisition();
+    Camera* camera = NULL;
+    VideoCapture* video = NULL;
+
+    if (!vid_in_path.empty()) {
+        video = new VideoCapture(vid_in_path);
+    } else {
+        camera = initCamera(license_dir);
+        camera->StartAcquisition();
+    }
+
+    // TODO: Set camera FPS from camera itself
+    if(!vid_out_path.empty() && camera)
+        recordVideo(camera,vid_out_path);
 
     vector<Point2f> POI;
 
     if (!POI_path.empty())
         POI = readPOI(POI_path);
-    if(enter_POI)
-        POIDialog(camera, &POI);
+    if (enter_POI)
+        POIDialog(camera, &POI, video);
 
     im_status ref, curr;
-    initStatus(&ref, camera, POI, {});
+    initStatus(&ref, camera, POI, {}, video);
     namedWindow("Thermocam-PCB (Press Esc to exit)", WINDOW_AUTOSIZE);
 
     while (1) {
-        calcCurrStatus(&curr, &ref, camera);
+        calcCurrStatus(&curr, &ref, camera, video);
         printPOITemp(camera, POI, curr.rawtemp);
         Mat img = curr.gray.clone();
         cvtColor(img, img, COLOR_GRAY2RGB);
         drawPOI(img, curr.POI, curr.rawtemp, camera, Scalar(0, 0, 255));
         imshow("Thermocam-PCB (Press Esc to exit)", img);
-        if ((waitKey(DISPLAY_DELAY_MS) & 0xEFFFFF) == 27) // Esc
+        if ((waitKey(1000/CAM_FPS) & 0xEFFFFF) == 27) // Esc
             break;
     }
 
-    camera->StopAcquisition();
-    camera->Disconnect();
+    if(camera){
+        camera->StopAcquisition();
+        camera->Disconnect();
+    }
     return 0;
 }
 
