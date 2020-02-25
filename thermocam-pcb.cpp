@@ -4,8 +4,8 @@
 
 #include "CameraCenter.h"
 
-#include <opencv2/core/mat.hpp>
 #include <opencv2/core/core.hpp>
+#include <opencv2/core/mat.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/features2d/features2d.hpp>
@@ -81,7 +81,7 @@ void drawPOI(Mat A, vector<Point2f> POI, uint16_t *curr_rawtemp, Camera* c, Scal
 {
     for (unsigned i = 0; i < POI.size(); i++) {
         // Dot at POI position
-        circle(A, POI[i], 3, color, FILLED);
+        circle(A, POI[i], 3, color, -1);
         // Text with temperature
         int idx = A.cols * round(POI[i].y) + round(POI[i].x);
         double temp = c->CalculateTemperatureC(curr_rawtemp[idx]);
@@ -319,6 +319,7 @@ int main(int argc, char **argv)
 ///////////////////////////////////////////////////////////////////////
 // Functions only used in Homography estimation
 
+/*
 Mat calcMask(vector<Point2f> IAB, int height, int width)
 {
     if (IAB.size() == 0)
@@ -393,3 +394,4 @@ Mat findHomography(vector<KeyPoint> kp_from, vector<KeyPoint> kp_to, Mat desc_fr
         cout << "RANSAC input size:" << toP.size() << endl;
     return findHomography(fromP, toP, RANSAC, 1);
 }
+*/

@@ -5,7 +5,7 @@ Tool for measuring temperature of PCB board with WorksWell thermo camera
 
 ### Operating System
 
-32/64b x86  Linux, preferably Ubuntu, for maximum compatibility with the eBUS SDK. 
+32/64b x86  Linux, preferably Ubuntu 16.04, for maximum compatibility with the eBUS SDK. 
 
 ### WIC SDK
 
@@ -38,13 +38,19 @@ Whichever solution works for you, you may want to insert it into your .bashrc to
 
 If you selected manual running of the eBUS daemon during installation, don't forget to run `service eBUSd start` before running the program.
 
-### OpenCV 4
+Alternatively, if you selected `auto` running during installation, the service may still not start properly on startup - to correct this, add runlevels at the following line to the daemon script located at `/etc/init.d`: 
 
-Install OpenCV 4 for C++. There are many guides out there, I used [this](https://www.learnopencv.com/install-opencv-4-on-ubuntu-18-04/) one.
+`Default-Start:     2 3 4 5`
+
+Adding runlevels to the script will enable `update-rc.d` to work with it.
+
+### OpenCV
+
+For development, download and compile OpenCV source version 2.4 (the latest stable build on Ubuntu 16.04). For simply running the executable on an Ubuntu 16.04 machine it is enough to install the libopencv-dev library.
 
 ## Compilation
 
-Before running make, be sure to change the variables `WIC_HOME` and `EBUS_HOME` in the Makefile to the paths where you installed the WIC and eBUS SDK.
+Before running make, be sure to change the variables `WIC_HOME`, `EBUS_HOME` and `OPENCV_HOME` in the Makefile to the paths where you installed the WIC and eBUS SDK and OpenCV respectively.
 
 After this, the program can be simply compiled with running `make` in the project folder.
 
