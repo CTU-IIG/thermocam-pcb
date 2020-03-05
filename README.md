@@ -9,11 +9,39 @@ Tool for measuring temperature of PCB board with WorksWell thermo camera
 
 ### WIC SDK
 
-To download the WIC SDK, go to the [workswell SDK website](workswell.cz/WIC_SDK/). For installation follow their [documentation steps](https://workswell.cz/WIC_SDK_new/Linux/doc/).
+You can find the official documentation of the WIC SDK at `https://software.workswell.eu/wic_sdk/Linux`.
 
-The installer installs the WIC SDK, and the eBUS SDK (required for the WIC SDK to work). 
+#### Download & prerequisites
+To download the WIC SDK installer, go to `software.workswell.eu/wic_sdk/Linux`. You need to enter your email to get the download link. Then extract and run the executable for your chosen distribution (`WIC_SDK-Linux_Ubuntu_16.04_64b-1.1.0.run` for 64bit Ubuntu 16.04). 
 
-For me, the script setting the WIC and eBUS environment variables(`/opt/workswell/wic_sdk/set_env_variables`) did not set all environment variables correctly. If this is the case for you, you may try running the following commands to set up your environment (make sure to enter the folder name with your linux distribution in the second command):
+The packages `build-essential` and `libjpeg-dev` are requied to install the WIC SDK. The installer installs the WIC SDK and the eBUS SDK (required for the WIC SDK to work). 
+
+#### Installation
+
+All files are installed in /opt folder.
+
+* The WIC SDK is found in folder: /opt/workswell/wic_sdk
+* The eBUS SDK is found in folder: /opt/pleora/ebus_sdk/YOUR_LINUX_DISTRIBUTION
+
+During the installation of the eBUS SDK:
+
+* Select to add eBUS libraries to the path
+* Don't install eBUS for Ethernet
+* Select to install the eBUS daemon
+
+ You can select for manual or automatic startup of the daemon - if you select manual, don't forget to run `service eBUSd start` before running the program.
+
+If you selected `auto` running during installation, the daemon may still not start properly on startup. You may check its status with `systemctl status eBUSd`. If status shows "inactive (dead)", add runlevels at the following line to the daemon script located in `/etc/init.d/eBUSd`: 
+
+`Default-Start:     2 3 4 5`
+
+Adding runlevels to the script will enable `update-rc.d` to work with it. Make sure to run `sudo update-rc.d eBUSd defaults` and `sudo update-rc.d eBUSd enable` afterwards so the daemon runs at startup.
+
+#### Environment setup
+
+You need to set up your environment variables to run the program and use the WIC and eBUS SDKs. Run `/opt/workswell/wic_sdk/set_env_variables` to do so.
+
+For me the script did not set all environment variables correctly. If this is the case for you, you may try running the following commands to set up your environment (make sure to enter the folder name with your linux distribution in the second command):
 
 ```
 LD_LIBRARY_PATH=/opt/workswell/wic_sdk/lib:${LD_LIBRARY_PATH}
@@ -35,14 +63,6 @@ export GENICAM_ROOT_V3_0=$GENICAM_ROOT
 ```
 
 Whichever solution works for you, you may want to insert it into your .bashrc to be loaded each time the console starts.
-
-If you selected manual running of the eBUS daemon during installation, don't forget to run `service eBUSd start` before running the program.
-
-Alternatively, if you selected `auto` running during installation, the service may still not start properly on startup - to correct this, add runlevels at the following line to the daemon script located at `/etc/init.d`: 
-
-`Default-Start:     2 3 4 5`
-
-Adding runlevels to the script will enable `update-rc.d` to work with it.
 
 ### OpenCV
 
