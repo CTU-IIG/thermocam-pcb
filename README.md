@@ -79,3 +79,19 @@ Click on the image to enter a point, press Esc to delete the last entered point,
 You can import previously saved points by running:
 
 `./thermocam-pcb -l . -p my_exported_points.json`
+
+### Recording video
+
+You can record lossless video by running:
+
+`./thermocam-pcb -l . -r video_filename.avi`
+
+Recording starts after pressing Enter, and ends with pressing Esc.
+
+### Setting video as input
+
+You can set video as input for the program by running:
+
+`./thermocam-pcb -v video_filename.avi`
+
+If the input is video, there is no need to specify the WIC license path, as the camera is not used. All functions (entering points, etc.) work exactly the same way as when the input is from the camera.
