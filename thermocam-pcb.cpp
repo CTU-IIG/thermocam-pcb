@@ -30,8 +30,6 @@ struct im_status {
     uint16_t min_rawtemp = UINT16_MAX, max_rawtemp = 0;
     Mat gray;
     vector<Point2f> POI; // Points of interest 
-    vector<Point2f> IAB; // Ignored Area Boundary - no keypoints inside this polygon
-    Mat mask;            // Mask for ignored area: 0 - ignore, 255 - don't ignore
     vector<KeyPoint> kp;
     Mat desc;
 };
@@ -85,6 +83,11 @@ void drawPOI(Mat A, vector<Point2f> POI, uint16_t *curr_rawtemp, Camera* c, Scal
         // Dot at POI position
         circle(A, POI[i], 3, color, -1);
         // Text with temperature
+        if (round(POI[i].y) < 0 || round(POI[i].y) > A.rows ||
+            round(POI[i].x) < 0 || round(POI[i].x) > A.cols){
+            cout << "POI out of image!" << endl;
+            continue;
+        }
         int idx = A.cols * round(POI[i].y) + round(POI[i].x);
         if (!curr_rawtemp[idx]) // Skip points with absolute 0 temperature - video read
             continue;
@@ -114,7 +117,7 @@ void vidSetImStatus(im_status *s, VideoCapture video)
         s->rawtemp = new uint16_t[s->gray.cols * s->gray.rows]{ 0 };
 }
 
-void initStatus(im_status *s, Camera *camera, vector<Point2f> POI, vector<Point2f> IAB, VideoCapture *video = NULL)
+void initStatus(im_status *s, Camera *camera, vector<Point2f> POI, VideoCapture *video = NULL)
 {
 
     if (video) {
@@ -132,9 +135,6 @@ void initStatus(im_status *s, Camera *camera, vector<Point2f> POI, vector<Point2
     }
 
     s->POI = POI;
-    // s->IAB = IAB;
-    // s->mask = calcMask(IAB, height, width);
-    // fillKeyDesc(s,s->gray, s->mask); 
 }
 
 void calcCurrStatus(im_status *curr, im_status *ref, Camera *camera, VideoCapture *video = NULL)
@@ -148,11 +148,8 @@ void calcCurrStatus(im_status *curr, im_status *ref, Camera *camera, VideoCaptur
     }
 
     // For 1st time run
-    if (curr->POI.size() == 0) {
+    if (curr->POI.size() == 0)
         curr->POI = ref->POI;
-        // curr->IAB = ref->IAB;
-        // curr->mask = ref->mask.clone();
-    }
 
     /*
     // Calculate new coordinates of points by homography
@@ -165,9 +162,7 @@ void calcCurrStatus(im_status *curr, im_status *ref, Camera *camera, VideoCaptur
         // to estimate a homography from them.
         // In this case, the points stay the same as before.
         perspectiveTransform(ref->POI, curr->POI, H);
-        perspectiveTransform(ref->IAB, curr->IAB, H);
     }
-    curr->mask = calcMask(curr->IAB, curr->gray.rows, curr->gray.cols);
     */
 }
 
@@ -224,13 +219,13 @@ void inputPOI(Camera* camera, vector<Point2f>* POI, VideoCapture* video){
 
     while(1){
         char key = (waitKey(1000/CAM_FPS) & 0xEFFFFF);
-        if (key == 27) // Esc
+        if (key == 27 && POI->size() > 0) // Esc
             POI->pop_back();
         if (key == 10 || key == 13) // Enter
             break; 
 
         im_status s;
-        initStatus(&s,camera,{},{},video);
+        initStatus(&s,camera,{},video);
         cvtColor(s.gray,s.gray,COLOR_GRAY2RGB);
         drawPOI(s.gray, *POI, s.rawtemp, camera, Scalar(0,0,255));
         imshow( "Selecting points of interest", s.gray);
@@ -375,103 +370,28 @@ int main(int argc, char **argv)
         POIDialog(camera, &POI, video);
 
     im_status ref, curr;
-    initStatus(&ref, camera, POI, {}, video);
+    initStatus(&ref, camera, POI, video);
     namedWindow("Thermocam-PCB (Press Esc to exit)", WINDOW_AUTOSIZE);
 
     while (1) {
+        chrono::steady_clock::time_point begin = chrono::steady_clock::now();
         calcCurrStatus(&curr, &ref, camera, video);
         printPOITemp(camera, POI, curr.rawtemp);
         Mat img = curr.gray.clone();
         cvtColor(img, img, COLOR_GRAY2RGB);
         drawPOI(img, curr.POI, curr.rawtemp, camera, Scalar(0, 0, 255));
         imshow("Thermocam-PCB (Press Esc to exit)", img);
-        if ((waitKey(1000/CAM_FPS) & 0xEFFFFF) == 27) // Esc
+
+        chrono::steady_clock::time_point end = chrono::steady_clock::now();
+        double process_time = chrono::duration_cast<chrono::microseconds>(end - begin).count();
+        int wait = (process_time > 1000 / CAM_FPS) ? 1 : 1000 / CAM_FPS - process_time;
+        if ((waitKey(wait) & 0xEFFFFF) == 27) // Esc
             break;
     }
 
-    if(camera){
+    if (camera) {
         camera->StopAcquisition();
         camera->Disconnect();
     }
     return 0;
 }
-
-///////////////////////////////////////////////////////////////////////
-// Functions only used in Homography estimation
-
-/*
-Mat calcMask(vector<Point2f> IAB, int height, int width)
-{
-    if (IAB.size() == 0)
-        return Mat();
-
-    Mat mask = Mat::ones(height, width, CV_8U) * 255;
-
-    // fillPoly only accepts 2d Point array as input
-    vector<Point> v(IAB.begin(), IAB.end());
-    Point *a = &v[0];
-    const Point *bb[1] = { &a[0] };
-    int npt[] = { (int) IAB.size() };
-    fillPoly(mask, bb, npt, 1, Scalar(0), 8);
-    
-    return mask;
-}
-
-void drawIA(Mat img, vector<Point2f> IAB, Scalar color)
-{
-    Mat roi = img.clone();
-    Mat mask = calcMask(IAB, img.rows, img.cols);
-    if (mask.empty())
-        return;
-    roi.setTo(color, mask == 0);
-    // Semitransparent polygon
-    double alpha = 0.8;
-    addWeighted(img, alpha, roi, 1.0 - alpha, 0.0, img);
-}
-
-static const Mat default_mat = Mat();
-void fillKeyDesc(im_status *s, Mat A, Mat mask = default_mat)
-{
-    Ptr<BRISK> brisk = BRISK::create(10, 6);
-    brisk->detectAndCompute(A, mask, s->kp, s->desc);
-}
-
-Mat findHomography(vector<KeyPoint> kp_from, vector<KeyPoint> kp_to, Mat desc_from, Mat desc_to)
-{
-    // Convert descriptors to float form
-    desc_to.convertTo(desc_to, CV_32F);
-    desc_from.convertTo(desc_from, CV_32F);
-
-    // FLANN keypoint matching
-    vector<vector<DMatch>> matches;
-    Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
-    matcher->knnMatch(desc_to, desc_from, matches, 2);
-    sort(matches.begin(), matches.end());
-
-    if (DEBUG) {
-        cout << "from kp: " << kp_from.size() << ", to kp: " << kp_to.size() << endl;
-        cout << "matches size: " << matches.size() << endl;
-    }
-
-    // Select good matches
-    double thresh = 0.9;
-    vector<DMatch> good_matches;
-    for (size_t i = 0; i < matches.size(); i++) {
-        if (matches[i][0].distance < thresh * matches[i][1].distance)
-            good_matches.push_back(matches[i][0]);
-    }
-
-    if (good_matches.size() == 0)
-        return Mat();
-
-    vector<Point2f> toP, fromP;
-    for (size_t i = 0; i < good_matches.size(); i++) {
-        toP.push_back(kp_to[good_matches[i].queryIdx].pt);
-        fromP.push_back(kp_from[good_matches[i].trainIdx].pt);
-    }
-
-    if (DEBUG)
-        cout << "RANSAC input size:" << toP.size() << endl;
-    return findHomography(fromP, toP, RANSAC, 1);
-}
-*/
