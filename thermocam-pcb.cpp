@@ -371,7 +371,7 @@ int main(int argc, char **argv)
 
     im_status ref, curr;
     initStatus(&ref, camera, POI, video);
-    namedWindow("Thermocam-PCB (Press Esc to exit)", WINDOW_AUTOSIZE);
+    namedWindow("Thermocam-PCB (Press Esc to exit)", WINDOW_NORMAL);
 
     while (1) {
         chrono::steady_clock::time_point begin = chrono::steady_clock::now();
