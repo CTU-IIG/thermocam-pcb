@@ -1,4 +1,5 @@
 #include <argp.h>
+#include <err.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
@@ -40,17 +41,13 @@ void initCamera(string license_dir, CameraCenter*& cc, Camera*& c)
     // Path to directory containing license file
     cc = new CameraCenter(license_dir);
 
-    if (cc->getCameras().size() == 0) {
-        cout << "No camera found!" << endl;
-        exit(1);
-    }
+    if (cc->getCameras().size() == 0)
+        err(1,"No camera found");
 
     c = cc->getCameras().at(0);
 
-    if (c->Connect() != 0) {
-        cout << "Error connecting camera!" << endl;
-        exit(1);
-    }
+    if (c->Connect() != 0)
+        err(1,"Error connecting camera");
 }
 
 Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
@@ -82,7 +79,7 @@ void drawPOI(Mat A, vector<Point2f> POI, uint16_t *curr_rawtemp, Camera* c, Scal
         // Text with temperature
         if (round(POI[i].y) < 0 || round(POI[i].y) > A.rows ||
             round(POI[i].x) < 0 || round(POI[i].x) > A.cols){
-            cout << "POI out of image!" << endl;
+            cerr << "POI out of image!" << endl;
             continue;
         }
         int idx = A.cols * round(POI[i].y) + round(POI[i].x);
