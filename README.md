@@ -92,7 +92,13 @@ To enter points manually, run the command:
 
 `./thermocam-pcb -l . -e`
 
-Click on the image to enter a point, press Esc to delete the last entered point, press enter to finish selection. After finishing, you will be given the option to export them in a json format, that can be imported in subsequent runs.
+Click on the image to enter a point, press Esc to delete the last entered point, press enter to finish selection.
+
+To export the points to a json format that can be imported in subsequent runs, enter the path to the export file after the option `-e/--enter_poi` as follows:
+
+`./thermocam-pcb -l . -epath/to/myfile.json`
+or
+`./thermocam-pcb -l . --enter_poi=path/to/myfile.json`
 
 ### Importing points
 

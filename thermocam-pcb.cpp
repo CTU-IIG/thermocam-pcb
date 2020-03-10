@@ -21,7 +21,8 @@ namespace pt = boost::property_tree;
 
 /* Command line options */
 bool enter_POI = false;
-string POI_path;
+string POI_export_path;
+string POI_import_path;
 string license_dir;
 string vid_in_path;
 string vid_out_path;
@@ -200,18 +201,6 @@ vector<Point2f> readPOI(string path)
     return POI;
 }
 
-bool yesNoDialog(string s){
-    cout << s << endl;
-    char key;
-    while(1){
-        cin >> key;
-        if (key == 'Y' || key == 'y')
-            return true;
-        if (key == 'N' || key == 'n')
-            return false;
-    }
-}
-
 void onMouse(int event, int x, int y, int flags, void *param)
 {
     if (event == CV_EVENT_LBUTTONDOWN) {
@@ -242,17 +231,6 @@ void inputPOI(Camera* camera, vector<Point2f>* POI, VideoCapture* video){
     }
     clearStatusImgs(&s);
     destroyWindow("Selecting points of interest");
-}
-
-void POIDialog(Camera* camera, vector<Point2f>* POI, VideoCapture* video){
-    inputPOI(camera, POI, video);
-    if(yesNoDialog("\nWould you like to save these points into a json config file[Y/n]?")){
-        cout << "Enter the path to the config file: ";
-        string name;
-        cin >> name;
-        writePOI(*POI, name);
-        cout << "Points saved to " << name << endl;
-    }
 }
 
 void printPOITemp(Camera* camera, vector<Point2f> POI, uint16_t* rawtemp){
@@ -308,10 +286,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
 {
     switch (key) {
     case 'e':
-        enter_POI=true;
+        enter_POI = true;
+        if(arg != NULL)
+            POI_export_path = arg;
         break;
     case 'p':
-        POI_path = arg;
+        POI_import_path = arg;
         break;
     case 'l':
         license_dir = arg;
@@ -334,7 +314,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
 
 /* The options we understand. */
 static struct argp_option options[] = {
-    { "enter_poi",       'e', 0,             0, "Enter Points of interest by hand." },
+    { "enter_poi",       'e', "FILE",        OPTION_ARG_OPTIONAL, "Enter Points of interest by hand, optionally save them to json file at supplied path." },
     { "poi_path",        'p', "FILE",        0, "Path to config file containing saved POIs." },
     { "license_dir",     'l', "FILE",        0, "Path to directory containing WIC license file." },
     { "record_video",    'r', "FILE",        0, "Record video and store it with entered filename"},
@@ -379,10 +359,15 @@ int main(int argc, char **argv)
 
     vector<Point2f> POI;
 
-    if (!POI_path.empty())
-        POI = readPOI(POI_path);
-    if (enter_POI)
-        POIDialog(camera, &POI, video);
+    if (!POI_import_path.empty())
+        POI = readPOI(POI_import_path);
+    if (enter_POI) {
+        inputPOI(camera, &POI, video);
+        if (!POI_export_path.empty()) {
+            writePOI(POI, POI_export_path);
+            cout << "Points saved to " << POI_export_path << endl;
+        }
+    }
 
     im_status ref, curr;
     initStatus(&ref, camera, POI, video);
