@@ -26,6 +26,7 @@ string vid_in_path;
 string vid_out_path;
 
 struct im_status {
+    int height=0,width=0;
     uint16_t *rawtemp = NULL;
     uint16_t min_rawtemp = UINT16_MAX, max_rawtemp = 0;
     Mat gray;
@@ -34,24 +35,22 @@ struct im_status {
     Mat desc;
 };
 
-Camera* initCamera(string license_dir)
+void initCamera(string license_dir, CameraCenter*& cc, Camera*& c)
 {
     // Path to directory containing license file
-    CameraCenter *cameras = new CameraCenter(license_dir);
+    cc = new CameraCenter(license_dir);
 
-    if (cameras->getCameras().size() == 0) {
+    if (cc->getCameras().size() == 0) {
         cout << "No camera found!" << endl;
         exit(1);
     }
 
-    Camera* c = cameras->getCameras().at(0);
+    c = cc->getCameras().at(0);
 
     if (c->Connect() != 0) {
         cout << "Error connecting camera!" << endl;
         exit(1);
     }
-
-    return c;
 }
 
 Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
@@ -66,14 +65,12 @@ Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
         }
     }
 
-    uint8_t *gray = (uint8_t *)malloc(h * w);
-
+    Mat G(h, w, CV_8U);
     // Write gray values
     double step = 255 / (double)(max - min); // Make pix values to 0-255
     for (int i = 0; i < h * w; ++i)
-        gray[i] = (temp[i] < min) ? 0 : (temp[i] > max) ? 255 : (temp[i] - min) * step;
+        G.data[i] = (temp[i] < min) ? 0 : (temp[i] > max) ? 255 : (temp[i] - min) * step;
 
-    Mat G(h, w, CV_8U, gray);
     return G;
 }
 
@@ -98,38 +95,59 @@ void drawPOI(Mat A, vector<Point2f> POI, uint16_t *curr_rawtemp, Camera* c, Scal
     }
 }
 
-uint16_t* getRawTemp(Camera* camera){
-    uint16_t *rawtemp = (uint16_t *) camera->RetreiveBuffer();
-    camera->ReleaseBuffer();
-    return rawtemp;
+void setStatusHeightWidth(im_status *s, Camera *camera, VideoCapture *video)
+{
+    if (video) {
+        s->height = video->get(CV_CAP_PROP_FRAME_HEIGHT);
+        s->width = video->get(CV_CAP_PROP_FRAME_WIDTH);
+    } else {
+        s->height = camera->GetSettings()->GetResolutionY();
+        s->width = camera->GetSettings()->GetResolutionX();
+    }
 }
 
-void vidSetImStatus(im_status *s, VideoCapture video)
+void setStatusImgs(im_status *s, Camera *camera, VideoCapture *video, im_status *ref = NULL)
 {
-    video >> s->gray;
-    if (s->gray.empty()) {
-        video.set(CV_CAP_PROP_POS_AVI_RATIO, 0);
-        video >> s->gray;
-    }
-    cvtColor(s->gray, s->gray, COLOR_RGB2GRAY);
+
+    if (!s->height || !s->width)
+        setStatusHeightWidth(&(*s), camera, video);
 
     if (s->rawtemp == NULL)
-        s->rawtemp = new uint16_t[s->gray.cols * s->gray.rows]{ 0 };
+        s->rawtemp = new uint16_t[s->height * s->width]{ 0 };
+
+    if (video) {
+        *video >> s->gray;
+        if (s->gray.empty()) {
+            video->set(CV_CAP_PROP_POS_AVI_RATIO, 0);
+            *video >> s->gray;
+        }
+        cvtColor(s->gray, s->gray, COLOR_RGB2GRAY);
+    } else {
+        uint16_t *tmp = (uint16_t *)camera->RetreiveBuffer();
+        memcpy(s->rawtemp, tmp, s->height * s->width * sizeof(uint16_t));
+        camera->ReleaseBuffer();
+        if (ref == NULL)
+            s->gray = temp2gray(s->rawtemp, s->height, s->width);
+        else
+            s->gray = temp2gray(s->rawtemp, s->height, s->width, ref->min_rawtemp, ref->max_rawtemp);
+    }
+}
+
+void clearStatusImgs(im_status *s)
+{
+    if (s->rawtemp) {
+        delete[] s->rawtemp;
+        s->rawtemp = NULL;
+    }
+    s->gray.release();
 }
 
 void initStatus(im_status *s, Camera *camera, vector<Point2f> POI, VideoCapture *video = NULL)
 {
 
-    if (video) {
-        vidSetImStatus(s, *video);
-    } else {
-        int height = camera->GetSettings()->GetResolutionY();
-        int width = camera->GetSettings()->GetResolutionX();
-        s->rawtemp = getRawTemp(camera);
-        s->gray = temp2gray(s->rawtemp, height, width);
-    }
+    setStatusImgs(s,camera,video);
 
-    for (int i = 0; i < s->gray.cols * s->gray.rows; i++) {
+    for (int i = 0; i < s->height * s->width; i++) {
         s->min_rawtemp = (s->min_rawtemp > s->rawtemp[i]) ? s->rawtemp[i] : s->min_rawtemp;
         s->max_rawtemp = (s->max_rawtemp < s->rawtemp[i]) ? s->rawtemp[i] : s->max_rawtemp;
     }
@@ -140,12 +158,7 @@ void initStatus(im_status *s, Camera *camera, vector<Point2f> POI, VideoCapture 
 void calcCurrStatus(im_status *curr, im_status *ref, Camera *camera, VideoCapture *video = NULL)
 {
 
-    if (video) {
-        vidSetImStatus(curr, *video);
-    } else {
-        curr->rawtemp = getRawTemp(camera);
-        curr->gray = temp2gray(curr->rawtemp, ref->gray.rows, ref->gray.cols, ref->min_rawtemp, ref->max_rawtemp);
-    }
+    setStatusImgs(curr,camera,video,ref);
 
     // For 1st time run
     if (curr->POI.size() == 0)
@@ -217,6 +230,7 @@ void inputPOI(Camera* camera, vector<Point2f>* POI, VideoCapture* video){
     namedWindow("Selecting points of interest", WINDOW_AUTOSIZE );
     setMouseCallback("Selecting points of interest", onMouse, POI);
 
+    im_status s;
     while(1){
         char key = (waitKey(1000/CAM_FPS) & 0xEFFFFF);
         if (key == 27 && POI->size() > 0) // Esc
@@ -224,12 +238,12 @@ void inputPOI(Camera* camera, vector<Point2f>* POI, VideoCapture* video){
         if (key == 10 || key == 13) // Enter
             break; 
 
-        im_status s;
         initStatus(&s,camera,{},video);
         cvtColor(s.gray,s.gray,COLOR_GRAY2RGB);
         drawPOI(s.gray, *POI, s.rawtemp, camera, Scalar(0,0,255));
         imshow( "Selecting points of interest", s.gray);
     }
+    clearStatusImgs(&s);
     destroyWindow("Selecting points of interest");
 }
 
@@ -288,6 +302,9 @@ void recordVideo(Camera *camera, string vid_out_path)
     destroyAllWindows();
 
     video.release();
+
+    clearStatusImgs(&ref);
+    clearStatusImgs(&curr);
 }
 
 static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
@@ -348,13 +365,14 @@ int main(int argc, char **argv)
 
     argp_parse(&argp, argc, argv, 0, 0, NULL);
 
+    CameraCenter* cc = NULL;
     Camera* camera = NULL;
     VideoCapture* video = NULL;
 
     if (!vid_in_path.empty()) {
         video = new VideoCapture(vid_in_path);
     } else {
-        camera = initCamera(license_dir);
+        initCamera(license_dir, cc, camera);
         camera->StartAcquisition();
     }
 
@@ -371,14 +389,15 @@ int main(int argc, char **argv)
 
     im_status ref, curr;
     initStatus(&ref, camera, POI, video);
+
     namedWindow("Thermocam-PCB (Press Esc to exit)", WINDOW_NORMAL);
 
     while (1) {
         chrono::steady_clock::time_point begin = chrono::steady_clock::now();
         calcCurrStatus(&curr, &ref, camera, video);
         printPOITemp(camera, POI, curr.rawtemp);
-        Mat img = curr.gray.clone();
-        cvtColor(img, img, COLOR_GRAY2RGB);
+        Mat img;
+        cvtColor(curr.gray, img, COLOR_GRAY2RGB);
         drawPOI(img, curr.POI, curr.rawtemp, camera, Scalar(0, 0, 255));
         imshow("Thermocam-PCB (Press Esc to exit)", img);
 
@@ -389,9 +408,17 @@ int main(int argc, char **argv)
             break;
     }
 
+    clearStatusImgs(&ref);
+    clearStatusImgs(&curr);
+
     if (camera) {
         camera->StopAcquisition();
         camera->Disconnect();
+        delete cc;
     }
+
+    if(video)
+        delete video;
+
     return 0;
 }
