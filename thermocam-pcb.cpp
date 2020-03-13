@@ -436,8 +436,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         vid_in_path = arg;
         break;
     case ARGP_KEY_END:
-        if (license_dir.empty() && vid_in_path.empty() && show_POI_path.empty())
-            argp_error(argp_state, "Need path to directory with WIC license file, or path to input video.");
+        if (license_dir.empty())
+            license_dir = ".";
         break;
     default:
         return ARGP_ERR_UNKNOWN;
