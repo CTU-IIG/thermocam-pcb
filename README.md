@@ -86,6 +86,16 @@ During entering points, the points you have imported will be visible and you can
 
 After the entering phase, the temperature of the points will be written to stdout. 
 
+### Changing between views
+
+There are 3 views available to display points and their temperature:
+
+* Full view - the name of the point and its temperature is displayed next to the point
+* Temperature only view - only the temperature is displayed next to the point
+* Legend view - the point names and temperatures are listed next to the image and only their index is displayed next to the point
+
+You can change between these views by pressing Tab.
+
 ### Entering points
 
 To enter points manually, run the command:

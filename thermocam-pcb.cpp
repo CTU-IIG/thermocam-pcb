@@ -27,12 +27,25 @@ string license_dir;
 string vid_in_path;
 string vid_out_path;
 
+
+enum draw_mode { FULL, TEMP, NUM };
+constexpr draw_mode next(draw_mode m)
+{
+    return (draw_mode)((underlying_type<draw_mode>::type(m) + 1) % 3);
+}
+draw_mode curr_draw_mode = FULL;
+
+struct poi {
+    string name;
+    Point2f p;
+};
+
 struct im_status {
     int height=0,width=0;
     uint16_t *rawtemp = NULL;
     uint16_t min_rawtemp = UINT16_MAX, max_rawtemp = 0;
     Mat gray;
-    vector<Point2f> POI; // Points of interest 
+    vector<poi> POI; // Points of interest
     vector<KeyPoint> kp;
     Mat desc;
 };
@@ -72,25 +85,98 @@ Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
     return G;
 }
 
-void drawPOI(Mat A, vector<Point2f> POI, uint16_t *curr_rawtemp, Camera* c, Scalar color)
+vector<double> getPOITemp(vector<poi> POI, uint16_t *rawtemp, Camera *c, int max_x, int max_y)
 {
+    vector<double> temp(POI.size());
     for (unsigned i = 0; i < POI.size(); i++) {
-        // Dot at POI position
-        circle(A, POI[i], 3, color, -1);
-        // Text with temperature
-        if (round(POI[i].y) < 0 || round(POI[i].y) > A.rows ||
-            round(POI[i].x) < 0 || round(POI[i].x) > A.cols){
-            cerr << "POI out of image!" << endl;
+        if (round(POI[i].p.y) < 0 || round(POI[i].p.y) > max_y ||
+            round(POI[i].p.x) < 0 || round(POI[i].p.x) > max_x) {
+            cerr << POI[i].name << " out of image!" << endl;
+            temp[i] = nan("");
             continue;
         }
-        int idx = A.cols * round(POI[i].y) + round(POI[i].x);
-        if (!curr_rawtemp[idx]) // Skip points with absolute 0 temperature - video read
-            continue;
-        double temp = c->CalculateTemperatureC(curr_rawtemp[idx]);
-        stringstream stream;
-        stream << fixed << setprecision(2) << temp << " [C]";
-        putText(A, stream.str(), POI[i], FONT_HERSHEY_PLAIN, 1, color, 2);
+        int idx = max_x * round(POI[i].p.y) + round(POI[i].p.x);
+        temp[i] = (c) ? c->CalculateTemperatureC(rawtemp[idx]) : nan("");
     }
+    return temp;
+}
+
+string temp2str(double temp)
+{
+    stringstream ss;
+    ss << fixed << setprecision(2) << temp << " C";
+    return ss.str();
+}
+
+// Prints vector of strings at given point in a column
+// Workaround for the missing support of linebreaks from OpenCV
+void imgPrintStrings(Mat& img, vector<string> strings, Point2f p, Scalar color)
+{
+    // p += {10,10};
+    int bl = 0;
+    Size sz = getTextSize("A", FONT_HERSHEY_COMPLEX_SMALL, 1, 2, &bl);
+    for (string s : strings) {
+        p.y += sz.height + 5;
+        putText(img, s, p, FONT_HERSHEY_COMPLEX_SMALL, 1, color, 2, CV_AA);
+    }
+}
+
+int getSidebarWidth(vector<poi> POI)
+{
+    int max = 0; // max text width
+    int bl = 0; // baseline
+    for (unsigned i = 0; i < POI.size(); i++) {
+        string s = "00: " + POI[i].name + " 000.00 C";
+        Size sz = getTextSize(s, FONT_HERSHEY_COMPLEX_SMALL, 1, 2, &bl);
+        max = (sz.width > max) ? sz.width : max;
+    }
+    return max;
+}
+
+void drawSidebar(Mat& img, vector<poi> POI, vector<double> temp)
+{
+    // Draw sidebar
+    int sbw = getSidebarWidth(POI);
+    copyMakeBorder(img, img, 0, 0, 0, sbw, BORDER_CONSTANT, Scalar(255, 255, 255));
+
+    // Print point names and temperatures
+    vector<string> s(POI.size());
+    for (unsigned i = 0; i < POI.size(); i++)
+        s[i] = to_string(i) + ": " + POI[i].name + ": " + temp2str(temp[i]);
+    Point2f print_coords = { (float)(img.cols - sbw + 5), 0 };
+    imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
+}
+
+void drawPOI(Mat &A, vector<poi> POI, uint16_t *curr_rawtemp, Camera *c, draw_mode mode,
+             Scalar color = Scalar(0, 0, 255))
+{
+
+    // Temperatures at POI positions from rawtemp
+    vector<double> temp = getPOITemp(POI, curr_rawtemp, c, A.cols, A.rows);
+
+    resize(A, A, Size(), 2, 2); // Enlarge image 2x for better looking fonts
+    for (unsigned i = 0; i < POI.size(); i++) {
+        POI[i].p *= 2; // Rescale points with image
+        circle(A, POI[i].p, 4, color, -1); // Dot at POI position
+
+        // Print point labels
+        vector<string> label;
+        switch (mode) {
+        case FULL:
+            label = { POI[i].name, temp2str(temp[i]) };
+            break;
+        case TEMP:
+            label = { temp2str(temp[i]) };
+            break;
+        case NUM:
+            label = { to_string(i) };
+            break;
+        }
+        imgPrintStrings(A, label, POI[i].p, color);
+    }
+
+    if (mode == NUM)
+        drawSidebar(A, POI, temp);
 }
 
 void setStatusHeightWidth(im_status *s, Camera *camera, VideoCapture *video)
@@ -140,7 +226,7 @@ void clearStatusImgs(im_status *s)
     s->gray.release();
 }
 
-void initStatus(im_status *s, Camera *camera, vector<Point2f> POI, VideoCapture *video = NULL)
+void initStatus(im_status *s, Camera *camera, vector<poi> POI, VideoCapture *video = NULL)
 {
 
     setStatusImgs(s,camera,video);
@@ -177,41 +263,45 @@ void calcCurrStatus(im_status *curr, im_status *ref, Camera *camera, VideoCaptur
     */
 }
 
-void writePOI(vector<Point2f> POI, string path)
+void writePOI(vector<poi> POI, string path)
 {
     pt::ptree root;
     pt::ptree POI_pt;
     for (unsigned i = 0; i < POI.size(); i++) {
         pt::ptree elem;
-        elem.put("x", POI[i].x);
-        elem.put("y", POI[i].y);
+        elem.put("name", POI[i].name);
+        elem.put("x", POI[i].p.x);
+        elem.put("y", POI[i].p.y);
         POI_pt.push_back(std::make_pair("", elem));
     }
     root.add_child("POI", POI_pt);
     pt::write_json(path, root);
 }
 
-vector<Point2f> readPOI(string path)
+vector<poi> readPOI(string path)
 {
-    vector<Point2f> POI;
+    vector<poi> POI;
     pt::ptree root;
     pt::read_json(path, root);
     for (pt::ptree::value_type &p : root.get_child("POI"))
-        POI.push_back({ p.second.get<float>("x"), p.second.get<float>("y") });
+        POI.push_back({ p.second.get<string>("name"), { p.second.get<float>("x"), p.second.get<float>("y") } });
     return POI;
 }
 
 void onMouse(int event, int x, int y, int flags, void *param)
 {
     if (event == CV_EVENT_LBUTTONDOWN) {
-        vector<Point2f> &POI = *((vector<Point2f> *)(param));
-        POI.push_back({ (float) x, (float) y });
+        vector<poi> &POI = *((vector<poi> *)(param));
+        string name = "Point " + to_string(POI.size());
+        // The image is upscaled 2x when displaying POI
+        // Thus we need to divide coords by 2 when getting mouse input
+        POI.push_back({ name, { (float)x/2, (float)y/2 } });
     }
 }
 
-void inputPOI(Camera* camera, vector<Point2f>* POI, VideoCapture* video){
+void inputPOI(Camera* camera, vector<poi>* POI, VideoCapture* video){
 
-    cout << "\nClick on the image to enter points.\nPress Esc to delete the last entered point.\nPress Enter to finish selection and store points." << endl;
+    cout << "\nClick on the image to enter points.\nPress Esc to delete the last entered point.\nPress Enter to finish selection and store points.\nPress Tab to change between different views." << endl;
     
     namedWindow("Selecting points of interest", WINDOW_AUTOSIZE );
     setMouseCallback("Selecting points of interest", onMouse, POI);
@@ -223,24 +313,23 @@ void inputPOI(Camera* camera, vector<Point2f>* POI, VideoCapture* video){
             POI->pop_back();
         if (key == 10 || key == 13) // Enter
             break; 
-
+        if (key == 9) // Tab
+            curr_draw_mode = next(curr_draw_mode);
         initStatus(&s,camera,{},video);
         cvtColor(s.gray,s.gray,COLOR_GRAY2RGB);
-        drawPOI(s.gray, *POI, s.rawtemp, camera, Scalar(0,0,255));
+        drawPOI(s.gray, *POI, s.rawtemp, camera, curr_draw_mode);
         imshow( "Selecting points of interest", s.gray);
     }
     clearStatusImgs(&s);
     destroyWindow("Selecting points of interest");
 }
 
-void printPOITemp(Camera* camera, vector<Point2f> POI, uint16_t* rawtemp){
-    if(!camera)
-        return;
+void printPOITemp(Camera *c, vector<poi> POI, im_status *s)
+{
     cout << "Temperature of points of interest:\n";
-    for(unsigned i=0; i<POI.size(); i++) {
-        int idx = camera->GetSettings()->GetResolutionX() * round(POI[i].y) + round(POI[i].x);
-        printf("Point %d: %.2lf [°C]\n", i, camera->CalculateTemperatureC(rawtemp[idx]));
-    }
+    vector<double> temps = getPOITemp(POI, s->rawtemp, c, s->width, s->height);
+    for (unsigned i = 0; i < POI.size(); i++)
+        printf("%s=%.2lf\n", POI[i].name.c_str(), temps[i]);
     cout << endl;
 }
 
@@ -357,7 +446,7 @@ int main(int argc, char **argv)
     if(!vid_out_path.empty() && camera)
         recordVideo(camera,vid_out_path);
 
-    vector<Point2f> POI;
+    vector<poi> POI;
 
     if (!POI_import_path.empty())
         POI = readPOI(POI_import_path);
@@ -377,17 +466,20 @@ int main(int argc, char **argv)
     while (1) {
         chrono::steady_clock::time_point begin = chrono::steady_clock::now();
         calcCurrStatus(&curr, &ref, camera, video);
-        printPOITemp(camera, POI, curr.rawtemp);
+        printPOITemp(camera, POI, &curr);
         Mat img;
         cvtColor(curr.gray, img, COLOR_GRAY2RGB);
-        drawPOI(img, curr.POI, curr.rawtemp, camera, Scalar(0, 0, 255));
+        drawPOI(img, curr.POI, curr.rawtemp, camera, curr_draw_mode);
         imshow("Thermocam-PCB (Press Esc to exit)", img);
 
         chrono::steady_clock::time_point end = chrono::steady_clock::now();
         double process_time = chrono::duration_cast<chrono::microseconds>(end - begin).count();
         int wait = (process_time > 1000 / CAM_FPS) ? 1 : 1000 / CAM_FPS - process_time;
-        if ((waitKey(wait) & 0xEFFFFF) == 27) // Esc
+        char key = waitKey(wait) & 0xEFFFFF;
+        if (key == 27) // Esc
             break;
+        if (key == 9) // Tab
+            curr_draw_mode = next(curr_draw_mode);
     }
 
     clearStatusImgs(&ref);
