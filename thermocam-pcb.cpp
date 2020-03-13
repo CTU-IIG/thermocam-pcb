@@ -447,12 +447,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
 
 /* The options we understand. */
 static struct argp_option options[] = {
-    { "enter_poi",       'e', "FILE",        OPTION_ARG_OPTIONAL, "Enter Points of interest by hand, optionally save them to json file at supplied path." },
-    { "poi_path",        'p', "FILE",        0, "Path to config file containing saved POIs." },
+    { "enter-poi",       'e', "FILE",        OPTION_ARG_OPTIONAL, "Enter Points of interest by hand, optionally save them to json file at supplied path." },
+    { "poi-path",        'p', "FILE",        0, "Path to config file containing saved POIs." },
     { "show-poi",        's', "FILE",        0, "Show camera image taken at saving POIs." },
-    { "license_dir",     'l', "FILE",        0, "Path to directory containing WIC license file." },
-    { "record_video",    'r', "FILE",        0, "Record video and store it with entered filename"},
-    { "load_video",      'v', "FILE",        0, "Load and process video instead of camera feed"},
+    { "license-dir",     'l', "FILE",        0, "Path to directory containing WIC license file." },
+    { "record-video",    'r', "FILE",        0, "Record video and store it with entered filename"},
+    { "load-video",      'v', "FILE",        0, "Load and process video instead of camera feed"},
     { 0 } 
 };
 
