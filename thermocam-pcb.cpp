@@ -2,6 +2,7 @@
 #include <err.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include "Base64.h"
 
 #include "CameraCenter.h"
 
@@ -23,6 +24,7 @@ namespace pt = boost::property_tree;
 bool enter_POI = false;
 string POI_export_path;
 string POI_import_path;
+string show_POI_path;
 string license_dir;
 string vid_in_path;
 string vid_out_path;
@@ -263,10 +265,9 @@ void calcCurrStatus(im_status *curr, im_status *ref, Camera *camera, VideoCaptur
     */
 }
 
-void writePOI(vector<poi> POI, string path)
+void writePOI(vector<poi> POI, Mat last_img, string path)
 {
-    pt::ptree root;
-    pt::ptree POI_pt;
+    pt::ptree root, POI_pt, POI_img;
     for (unsigned i = 0; i < POI.size(); i++) {
         pt::ptree elem;
         elem.put("name", POI[i].name);
@@ -275,6 +276,13 @@ void writePOI(vector<poi> POI, string path)
         POI_pt.push_back(std::make_pair("", elem));
     }
     root.add_child("POI", POI_pt);
+
+    vector<uchar> img_v;
+    imencode(".jpg",last_img,img_v);
+    string img_s(img_v.begin(),img_v.end());
+    POI_img.put("", macaron::Base64::Encode(img_s));
+    root.add_child("POI img", POI_img);
+
     pt::write_json(path, root);
 }
 
@@ -288,6 +296,19 @@ vector<poi> readPOI(string path)
     return POI;
 }
 
+Mat readJsonImg(string path)
+{
+    pt::ptree root;
+    pt::read_json(path, root);
+    pt::ptree img_ptree = root.get_child("POI img");
+    string img_encoded =  img_ptree.get_value<string>();
+    string decoded;
+    if(macaron::Base64::Decode(img_encoded,decoded) != "")
+        err(1,"Base64 decoding: input data size is not a multiple of 4.");
+    vector<uchar> decoded_v(decoded.begin(), decoded.end());
+    return imdecode(decoded_v,0);
+}
+
 void onMouse(int event, int x, int y, int flags, void *param)
 {
     if (event == CV_EVENT_LBUTTONDOWN) {
@@ -299,7 +320,7 @@ void onMouse(int event, int x, int y, int flags, void *param)
     }
 }
 
-void inputPOI(Camera* camera, vector<poi>* POI, VideoCapture* video){
+void inputPOI(Camera* camera, vector<poi>* POI, VideoCapture* video, Mat& last_img){
 
     cout << "\nClick on the image to enter points.\nPress Esc to delete the last entered point.\nPress Enter to finish selection and store points.\nPress Tab to change between different views." << endl;
     
@@ -316,10 +337,12 @@ void inputPOI(Camera* camera, vector<poi>* POI, VideoCapture* video){
         if (key == 9) // Tab
             curr_draw_mode = next(curr_draw_mode);
         initStatus(&s,camera,{},video);
-        cvtColor(s.gray,s.gray,COLOR_GRAY2RGB);
-        drawPOI(s.gray, *POI, s.rawtemp, camera, curr_draw_mode);
-        imshow( "Selecting points of interest", s.gray);
+        Mat img;
+        cvtColor(s.gray,img,COLOR_GRAY2RGB);
+        drawPOI(img, *POI, s.rawtemp, camera, curr_draw_mode);
+        imshow( "Selecting points of interest", img);
     }
+    last_img = s.gray.clone();
     clearStatusImgs(&s);
     destroyWindow("Selecting points of interest");
 }
@@ -371,6 +394,24 @@ void recordVideo(Camera *camera, string vid_out_path)
     clearStatusImgs(&curr);
 }
 
+void showPOIImg(string path){
+    vector<poi> POI =  readPOI(path);
+    Mat img = readJsonImg(path);
+    while(1) {
+        Mat imdraw;
+        cvtColor(img, imdraw, COLOR_GRAY2RGB);
+        drawPOI(imdraw, POI, NULL, NULL, curr_draw_mode);
+        string title = "Showing POI from " + path + " - Press Esc to exit";
+        imshow(title,imdraw);
+        char key = waitKey(0) & 0xEFFFFF;
+        if(key == 27) // Esc
+            break;
+        if(key == 9) // Tab
+            curr_draw_mode = next(curr_draw_mode);
+    }
+    destroyAllWindows();
+}
+
 static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
 {
     switch (key) {
@@ -382,6 +423,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
     case 'p':
         POI_import_path = arg;
         break;
+    case 's':
+        show_POI_path = arg;
+        break;
     case 'l':
         license_dir = arg;
         break;
@@ -392,7 +436,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         vid_in_path = arg;
         break;
     case ARGP_KEY_END:
-        if (license_dir.empty() && vid_in_path.empty())
+        if (license_dir.empty() && vid_in_path.empty() && show_POI_path.empty())
             argp_error(argp_state, "Need path to directory with WIC license file, or path to input video.");
         break;
     default:
@@ -405,6 +449,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
 static struct argp_option options[] = {
     { "enter_poi",       'e', "FILE",        OPTION_ARG_OPTIONAL, "Enter Points of interest by hand, optionally save them to json file at supplied path." },
     { "poi_path",        'p', "FILE",        0, "Path to config file containing saved POIs." },
+    { "show-poi",        's', "FILE",        0, "Show camera image taken at saving POIs." },
     { "license_dir",     'l', "FILE",        0, "Path to directory containing WIC license file." },
     { "record_video",    'r', "FILE",        0, "Record video and store it with entered filename"},
     { "load_video",      'v', "FILE",        0, "Load and process video instead of camera feed"},
@@ -435,6 +480,11 @@ int main(int argc, char **argv)
     Camera* camera = NULL;
     VideoCapture* video = NULL;
 
+    if (!show_POI_path.empty()) {
+        showPOIImg(show_POI_path);
+        exit(0);
+    }
+
     if (!vid_in_path.empty()) {
         video = new VideoCapture(vid_in_path);
     } else {
@@ -451,9 +501,10 @@ int main(int argc, char **argv)
     if (!POI_import_path.empty())
         POI = readPOI(POI_import_path);
     if (enter_POI) {
-        inputPOI(camera, &POI, video);
+        Mat last_img;
+        inputPOI(camera, &POI, video, last_img);
         if (!POI_export_path.empty()) {
-            writePOI(POI, POI_export_path);
+            writePOI(POI, last_img, POI_export_path);
             cout << "Points saved to " << POI_export_path << endl;
         }
     }

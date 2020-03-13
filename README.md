@@ -110,6 +110,10 @@ To export the points to a json format that can be imported in subsequent runs, e
 or
 `./thermocam-pcb -l . --enter_poi=path/to/myfile.json`
 
+You can view the points you saved and the camera image at the time of saving by running:
+
+`./thermocam-pcb --show-poi my_points.json`
+
 ### Importing points
 
 You can import previously saved points by running:
