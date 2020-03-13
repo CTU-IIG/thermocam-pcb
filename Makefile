@@ -2,7 +2,7 @@ WIC_HOME = /opt/workswell/wic_sdk
 EBUS_HOME = /opt/pleora/ebus_sdk/Ubuntu-x86_64
 OPENCV_HOME = /home/work/opencv-2.4
 
-CXXFLAGS = -g -Wall -D_UNIX_ -D_LINUX_ -I/$(WIC_HOME)/include -I/$(EBUS_HOME)/include -std=c++11
+CXXFLAGS = -O2 -g -Wall -D_UNIX_ -D_LINUX_ -I/$(WIC_HOME)/include -I/$(EBUS_HOME)/include -std=c++11
 CXXFLAGS+=-DGIT_VERSION='"$(shell git describe --always || echo unknown)"'
 CXXFLAGS+=-I/$(OPENCV_HOME)/include
 SRCS = thermocam-pcb.cpp
