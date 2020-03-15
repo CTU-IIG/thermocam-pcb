@@ -1,5 +1,6 @@
 #include <argp.h>
 #include <err.h>
+#include <unistd.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include "Base64.h"
@@ -19,6 +20,7 @@ using namespace cv;
 namespace pt = boost::property_tree;
 
 #define CAM_FPS 9 // The camera is 9Hz
+int display_delay_us = 1000000 / CAM_FPS;
 
 /* Command line options */
 bool enter_POI = false;
@@ -29,6 +31,9 @@ string license_dir;
 string vid_in_path;
 string vid_out_path;
 
+/* Global switches */
+bool gui_available;
+bool sigint_received = false;;
 
 enum draw_mode { FULL, TEMP, NUM };
 constexpr draw_mode next(draw_mode m)
@@ -51,6 +56,19 @@ struct im_status {
     vector<KeyPoint> kp;
     Mat desc;
 };
+
+void detectDisplay()
+{
+    gui_available = getenv("DISPLAY") != NULL;
+    if (!gui_available)
+        cerr << "\"DISPLAY\" environment variable not set! All graphical functions(displaying, entering points, recording video) turned off.\n";
+}
+
+void signalHandler(int signal_num)
+{
+    if (signal_num == SIGINT)
+        sigint_received = true;
+}
 
 void initCamera(string license_dir, CameraCenter*& cc, Camera*& c)
 {
@@ -476,11 +494,14 @@ int main(int argc, char **argv)
 
     argp_parse(&argp, argc, argv, 0, 0, NULL);
 
+    signal(SIGINT, signalHandler);
+    detectDisplay();
+
     CameraCenter* cc = NULL;
     Camera* camera = NULL;
     VideoCapture* video = NULL;
 
-    if (!show_POI_path.empty()) {
+    if (!show_POI_path.empty() && gui_available) {
         showPOIImg(show_POI_path);
         exit(0);
     }
@@ -493,14 +514,14 @@ int main(int argc, char **argv)
     }
 
     // TODO: Set camera FPS from camera itself
-    if(!vid_out_path.empty() && camera)
+    if(!vid_out_path.empty() && camera && gui_available)
         recordVideo(camera,vid_out_path);
 
     vector<poi> POI;
 
     if (!POI_import_path.empty())
         POI = readPOI(POI_import_path);
-    if (enter_POI) {
+    if (enter_POI && gui_available) {
         Mat last_img;
         inputPOI(camera, &POI, video, last_img);
         if (!POI_export_path.empty()) {
@@ -512,7 +533,8 @@ int main(int argc, char **argv)
     im_status ref, curr;
     initStatus(&ref, camera, POI, video);
 
-    namedWindow("Thermocam-PCB (Press Esc to exit)", WINDOW_NORMAL);
+    if (gui_available)
+        namedWindow("Thermocam-PCB (Press Esc to exit)", WINDOW_NORMAL);
 
     while (1) {
         chrono::steady_clock::time_point begin = chrono::steady_clock::now();
@@ -521,16 +543,22 @@ int main(int argc, char **argv)
         Mat img;
         cvtColor(curr.gray, img, COLOR_GRAY2RGB);
         drawPOI(img, curr.POI, curr.rawtemp, camera, curr_draw_mode);
-        imshow("Thermocam-PCB (Press Esc to exit)", img);
+        if (gui_available)
+            imshow("Thermocam-PCB (Press Esc to exit)", img);
 
         chrono::steady_clock::time_point end = chrono::steady_clock::now();
-        double process_time = chrono::duration_cast<chrono::microseconds>(end - begin).count();
-        int wait = (process_time > 1000 / CAM_FPS) ? 1 : 1000 / CAM_FPS - process_time;
-        char key = waitKey(wait) & 0xEFFFFF;
-        if (key == 27) // Esc
+        double process_time_us = chrono::duration_cast<chrono::microseconds>(end - begin).count();
+        if (display_delay_us > process_time_us)
+            usleep(display_delay_us - process_time_us);
+        if (gui_available) {
+            char key = waitKey(1) & 0xEFFFFF;
+            if (key == 27) // Esc
+                break;
+            if (key == 9) // Tab
+                curr_draw_mode = next(curr_draw_mode);
+        }
+        if (sigint_received)
             break;
-        if (key == 9) // Tab
-            curr_draw_mode = next(curr_draw_mode);
     }
 
     clearStatusImgs(&ref);
