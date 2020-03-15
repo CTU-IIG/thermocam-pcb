@@ -20,7 +20,6 @@ using namespace cv;
 namespace pt = boost::property_tree;
 
 #define CAM_FPS 9 // The camera is 9Hz
-int display_delay_us = 1000000 / CAM_FPS;
 
 /* Command line options */
 bool enter_POI = false;
@@ -30,6 +29,7 @@ string show_POI_path;
 string license_dir;
 string vid_in_path;
 string vid_out_path;
+int display_delay_us = 0;
 
 /* Global switches */
 bool gui_available;
@@ -453,6 +453,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
     case 'v':
         vid_in_path = arg;
         break;
+    case 'd':
+        display_delay_us = atof(arg) * 1000000;
+        break;
     case ARGP_KEY_END:
         if (license_dir.empty())
             license_dir = ".";
@@ -471,6 +474,7 @@ static struct argp_option options[] = {
     { "license-dir",     'l', "FILE",        0, "Path to directory containing WIC license file." },
     { "record-video",    'r', "FILE",        0, "Record video and store it with entered filename"},
     { "load-video",      'v', "FILE",        0, "Load and process video instead of camera feed"},
+    { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { 0 } 
 };
 
@@ -546,10 +550,6 @@ int main(int argc, char **argv)
         if (gui_available)
             imshow("Thermocam-PCB (Press Esc to exit)", img);
 
-        chrono::steady_clock::time_point end = chrono::steady_clock::now();
-        double process_time_us = chrono::duration_cast<chrono::microseconds>(end - begin).count();
-        if (display_delay_us > process_time_us)
-            usleep(display_delay_us - process_time_us);
         if (gui_available) {
             char key = waitKey(1) & 0xEFFFFF;
             if (key == 27) // Esc
@@ -557,8 +557,14 @@ int main(int argc, char **argv)
             if (key == 9) // Tab
                 curr_draw_mode = next(curr_draw_mode);
         }
+
         if (sigint_received)
             break;
+
+        chrono::steady_clock::time_point end = chrono::steady_clock::now();
+        double process_time_us = chrono::duration_cast<chrono::microseconds>(end - begin).count();
+        if (display_delay_us > process_time_us)
+            usleep(display_delay_us - process_time_us);
     }
 
     clearStatusImgs(&ref);
