@@ -61,7 +61,7 @@ void detectDisplay()
 {
     gui_available = getenv("DISPLAY") != NULL;
     if (!gui_available)
-        cerr << "\"DISPLAY\" environment variable not set! All graphical functions(displaying, entering points, recording video) turned off.\n";
+        cerr << "\"DISPLAY\" environment variable not set! All graphical functions(displaying image, entering points) turned off.\n";
 }
 
 void signalHandler(int signal_num)
