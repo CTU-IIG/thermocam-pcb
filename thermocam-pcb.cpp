@@ -358,16 +358,10 @@ void printPOITemp(Camera *c, im_status *s)
 void showPOIImg(string path){
     vector<poi> POI =  readPOI(path);
     Mat img = readJsonImg(path);
-    while(1) {
-        Mat imdraw = drawPOI(imdraw, POI, NULL, NULL, curr_draw_mode);
-        string title = "Showing POI from " + path + " - Press Esc to exit";
-        imshow(title,imdraw);
-        char key = waitKey(0) & 0xEFFFFF;
-        if(key == 27) // Esc
-            break;
-        if(key == 9) // Tab
-            curr_draw_mode = next(curr_draw_mode);
-    }
+    Mat imdraw = drawPOI(img, POI, NULL, NULL, draw_mode::NUM);
+    string title = "POI from " + path;
+    imshow(title,imdraw);
+    waitKey(0);
     destroyAllWindows();
 }
 
