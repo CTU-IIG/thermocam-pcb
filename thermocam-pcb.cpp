@@ -167,9 +167,14 @@ void drawSidebar(Mat& img, vector<poi> POI, vector<double> temp)
     imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
 }
 
-void drawPOI(Mat &A, vector<poi> POI, uint16_t *curr_rawtemp, Camera *c, draw_mode mode,
+Mat drawPOI(Mat &img_in, vector<poi> POI, uint16_t *curr_rawtemp, Camera *c, draw_mode mode,
              Scalar color = Scalar(0, 0, 255))
 {
+
+    Mat A = img_in.clone();
+
+    if (A.channels() == 1)
+        cvtColor(A, A, COLOR_GRAY2RGB); // So that drawing is not grayscale
 
     // Temperatures at POI positions from rawtemp
     vector<double> temp = getPOITemp(POI, curr_rawtemp, c, A.cols, A.rows);
@@ -197,6 +202,8 @@ void drawPOI(Mat &A, vector<poi> POI, uint16_t *curr_rawtemp, Camera *c, draw_mo
 
     if (mode == NUM)
         drawSidebar(A, POI, temp);
+
+    return A;
 }
 
 void setStatusHeightWidth(im_status *s, Camera *camera, VideoCapture *video)
@@ -352,9 +359,7 @@ void showPOIImg(string path){
     vector<poi> POI =  readPOI(path);
     Mat img = readJsonImg(path);
     while(1) {
-        Mat imdraw;
-        cvtColor(img, imdraw, COLOR_GRAY2RGB);
-        drawPOI(imdraw, POI, NULL, NULL, curr_draw_mode);
+        Mat imdraw = drawPOI(imdraw, POI, NULL, NULL, curr_draw_mode);
         string title = "Showing POI from " + path + " - Press Esc to exit";
         imshow(title,imdraw);
         char key = waitKey(0) & 0xEFFFFF;
@@ -474,18 +479,17 @@ int main(int argc, char **argv)
 
     VideoWriter *vw = NULL;
     if (!vid_out_path.empty()) // Save lossless video to not introduce artifacts for later image processing
-        vw = new VideoWriter(vid_out_path, CV_FOURCC('H', 'F', 'Y', 'U'), CAM_FPS, Size(ref.width, ref.height));
+        vw = new VideoWriter(vid_out_path, CV_FOURCC('H', 'F', 'Y', 'U'), CAM_FPS, Size(ref.width, ref.height), 0);
 
     while (1) {
 
         chrono::steady_clock::time_point begin = chrono::steady_clock::now();
         calcCurrStatus(&curr, &ref, camera, video);
         printPOITemp(camera, &curr);
-        Mat img;
-        cvtColor(curr.gray, img, COLOR_GRAY2RGB);
+        Mat img = drawPOI(curr.gray, curr.POI, curr.rawtemp, camera, curr_draw_mode);
+
         if (vw)
-            vw->write(img.clone());
-        drawPOI(img, curr.POI, curr.rawtemp, camera, curr_draw_mode);
+            vw->write(curr.gray);
 
         if (gui_available) {
             imshow(window_name, img);
