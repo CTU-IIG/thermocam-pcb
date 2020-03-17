@@ -14,7 +14,7 @@
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/calib3d.hpp>
 
-#define DEBUG 0
+#define duration_us(a) std::chrono::duration_cast<std::chrono::microseconds>(a).count()
 
 using namespace cv;
 namespace pt = boost::property_tree;
@@ -22,14 +22,17 @@ namespace pt = boost::property_tree;
 #define CAM_FPS 9 // The camera is 9Hz
 
 /* Command line options */
-bool enter_POI = false;
-string POI_export_path;
-string POI_import_path;
-string show_POI_path;
-string license_dir;
-string vid_in_path;
-string vid_out_path;
-int display_delay_us = 0;
+struct cmd_arguments{
+    bool enter_POI = false;
+    string POI_export_path;
+    string POI_import_path;
+    string show_POI_path;
+    string license_dir;
+    string vid_in_path;
+    string vid_out_path;
+    int display_delay_us = 0;
+};
+cmd_arguments args;
 
 /* Global switches */
 bool gui_available;
@@ -57,11 +60,18 @@ struct im_status {
     Mat desc;
 };
 
+struct img_stream {
+    bool is_video;
+    Camera *camera = NULL;
+    CameraCenter *cc = NULL;
+    VideoCapture *video = NULL;
+};
+
 void detectDisplay()
 {
     gui_available = getenv("DISPLAY") != NULL;
     if (!gui_available)
-        cerr << "\"DISPLAY\" environment variable not set! All graphical functions(displaying, entering points, recording video) turned off.\n";
+        cerr << "\"DISPLAY\" environment variable not set! All graphical functions(displaying image, entering points) turned off.\n";
 }
 
 void signalHandler(int signal_num)
@@ -82,6 +92,28 @@ void initCamera(string license_dir, CameraCenter*& cc, Camera*& c)
 
     if (c->Connect() != 0)
         err(1,"Error connecting camera");
+}
+
+void initImgStream(img_stream *is, string vid_in_path, string license_dir)
+{
+    is->is_video = !vid_in_path.empty();
+    if (is->is_video) {
+        is->video = new VideoCapture(vid_in_path);
+    } else {
+        initCamera(license_dir, is->cc, is->camera);
+        is->camera->StartAcquisition();
+    }
+}
+
+void clearImgStream(img_stream *is)
+{
+    if (is->is_video) {
+        delete is->video;
+    } else {
+        is->camera->StopAcquisition();
+        is->camera->Disconnect();
+        delete is->cc;
+    }
 }
 
 Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
@@ -167,9 +199,14 @@ void drawSidebar(Mat& img, vector<poi> POI, vector<double> temp)
     imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
 }
 
-void drawPOI(Mat &A, vector<poi> POI, uint16_t *curr_rawtemp, Camera *c, draw_mode mode,
+Mat drawPOI(Mat &img_in, vector<poi> POI, uint16_t *curr_rawtemp, Camera *c, draw_mode mode,
              Scalar color = Scalar(0, 0, 255))
 {
+
+    Mat A = img_in.clone();
+
+    if (A.channels() == 1)
+        cvtColor(A, A, COLOR_GRAY2RGB); // So that drawing is not grayscale
 
     // Temperatures at POI positions from rawtemp
     vector<double> temp = getPOITemp(POI, curr_rawtemp, c, A.cols, A.rows);
@@ -197,39 +234,41 @@ void drawPOI(Mat &A, vector<poi> POI, uint16_t *curr_rawtemp, Camera *c, draw_mo
 
     if (mode == NUM)
         drawSidebar(A, POI, temp);
+
+    return A;
 }
 
-void setStatusHeightWidth(im_status *s, Camera *camera, VideoCapture *video)
+void setStatusHeightWidth(im_status *s, img_stream *is)
 {
-    if (video) {
-        s->height = video->get(CV_CAP_PROP_FRAME_HEIGHT);
-        s->width = video->get(CV_CAP_PROP_FRAME_WIDTH);
+    if (is->is_video) {
+        s->height = is->video->get(CV_CAP_PROP_FRAME_HEIGHT);
+        s->width = is->video->get(CV_CAP_PROP_FRAME_WIDTH);
     } else {
-        s->height = camera->GetSettings()->GetResolutionY();
-        s->width = camera->GetSettings()->GetResolutionX();
+        s->height = is->camera->GetSettings()->GetResolutionY();
+        s->width = is->camera->GetSettings()->GetResolutionX();
     }
 }
 
-void setStatusImgs(im_status *s, Camera *camera, VideoCapture *video, im_status *ref = NULL)
+void setStatusImgs(im_status *s, img_stream *is, im_status *ref = NULL)
 {
 
     if (!s->height || !s->width)
-        setStatusHeightWidth(&(*s), camera, video);
+        setStatusHeightWidth(&(*s), is);
 
     if (s->rawtemp == NULL)
         s->rawtemp = new uint16_t[s->height * s->width]{ 0 };
 
-    if (video) {
-        *video >> s->gray;
+    if (is->is_video) {
+        *is->video >> s->gray;
         if (s->gray.empty()) {
-            video->set(CV_CAP_PROP_POS_AVI_RATIO, 0);
-            *video >> s->gray;
+            is->video->set(CV_CAP_PROP_POS_AVI_RATIO, 0);
+            *is->video >> s->gray;
         }
         cvtColor(s->gray, s->gray, COLOR_RGB2GRAY);
     } else {
-        uint16_t *tmp = (uint16_t *)camera->RetreiveBuffer();
+        uint16_t *tmp = (uint16_t *)is->camera->RetreiveBuffer();
         memcpy(s->rawtemp, tmp, s->height * s->width * sizeof(uint16_t));
-        camera->ReleaseBuffer();
+        is->camera->ReleaseBuffer();
         if (ref == NULL)
             s->gray = temp2gray(s->rawtemp, s->height, s->width);
         else
@@ -246,10 +285,10 @@ void clearStatusImgs(im_status *s)
     s->gray.release();
 }
 
-void initStatus(im_status *s, Camera *camera, vector<poi> POI, VideoCapture *video = NULL)
+void initStatus(im_status *s, img_stream *is, vector<poi> POI)
 {
 
-    setStatusImgs(s,camera,video);
+    setStatusImgs(s, is);
 
     for (int i = 0; i < s->height * s->width; i++) {
         s->min_rawtemp = (s->min_rawtemp > s->rawtemp[i]) ? s->rawtemp[i] : s->min_rawtemp;
@@ -259,15 +298,16 @@ void initStatus(im_status *s, Camera *camera, vector<poi> POI, VideoCapture *vid
     s->POI = POI;
 }
 
-void calcCurrStatus(im_status *curr, im_status *ref, Camera *camera, VideoCapture *video = NULL)
+void calcCurrStatus(im_status *curr, im_status *ref, img_stream *is)
 {
 
-    setStatusImgs(curr,camera,video,ref);
+    setStatusImgs(curr, is, ref);
 
     // For 1st time run
     if (curr->POI.size() == 0)
         curr->POI = ref->POI;
 
+    curr->POI = ref->POI; // Placeholder until tracking is implemented
     /*
     // Calculate new coordinates of points by homography
 
@@ -283,7 +323,7 @@ void calcCurrStatus(im_status *curr, im_status *ref, Camera *camera, VideoCaptur
     */
 }
 
-void writePOI(vector<poi> POI, Mat last_img, string path)
+void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
 {
     pt::ptree root, POI_pt, POI_img;
     for (unsigned i = 0; i < POI.size(); i++) {
@@ -302,10 +342,15 @@ void writePOI(vector<poi> POI, Mat last_img, string path)
     root.add_child("POI img", POI_img);
 
     pt::write_json(path, root);
+
+    if (verbose)
+        cout << "Points saved to " << path << endl;
 }
 
 vector<poi> readPOI(string path)
 {
+    if (path.empty())
+        return {};
     vector<poi> POI;
     pt::ptree root;
     pt::read_json(path, root);
@@ -338,127 +383,117 @@ void onMouse(int event, int x, int y, int flags, void *param)
     }
 }
 
-void inputPOI(Camera* camera, vector<poi>* POI, VideoCapture* video, Mat& last_img){
-
-    cout << "\nClick on the image to enter points.\nPress Esc to delete the last entered point.\nPress Enter to finish selection and store points.\nPress Tab to change between different views." << endl;
-    
-    namedWindow("Selecting points of interest", WINDOW_AUTOSIZE );
-    setMouseCallback("Selecting points of interest", onMouse, POI);
-
-    im_status s;
-    while(1){
-        char key = (waitKey(1000/CAM_FPS) & 0xEFFFFF);
-        if (key == 27 && POI->size() > 0) // Esc
-            POI->pop_back();
-        if (key == 10 || key == 13) // Enter
-            break; 
-        if (key == 9) // Tab
-            curr_draw_mode = next(curr_draw_mode);
-        initStatus(&s,camera,{},video);
-        Mat img;
-        cvtColor(s.gray,img,COLOR_GRAY2RGB);
-        drawPOI(img, *POI, s.rawtemp, camera, curr_draw_mode);
-        imshow( "Selecting points of interest", img);
-    }
-    last_img = s.gray.clone();
-    clearStatusImgs(&s);
-    destroyWindow("Selecting points of interest");
-}
-
-void printPOITemp(Camera *c, vector<poi> POI, im_status *s)
+void printPOITemp(Camera *c, im_status *s)
 {
+    if (s->POI.size() == 0)
+        return;
     cout << "Temperature of points of interest:\n";
-    vector<double> temps = getPOITemp(POI, s->rawtemp, c, s->width, s->height);
-    for (unsigned i = 0; i < POI.size(); i++)
-        printf("%s=%.2lf\n", POI[i].name.c_str(), temps[i]);
+    vector<double> temps = getPOITemp(s->POI, s->rawtemp, c, s->width, s->height);
+    for (unsigned i = 0; i < s->POI.size(); i++)
+        printf("%s=%.2lf\n", s->POI[i].name.c_str(), temps[i]);
     cout << endl;
-}
-
-void recordVideo(Camera *camera, string vid_out_path)
-{
-
-    im_status ref, curr;
-    int height = camera->GetSettings()->GetResolutionY();
-    int width = camera->GetSettings()->GetResolutionX();
-    // Save lossless video to not introduce artifacts for later image processing
-    VideoWriter video(vid_out_path, CV_FOURCC('F', 'F', 'V', '1'), CAM_FPS, Size(width, height));
-
-    // Wait to start the recording
-    while (1) {
-        char key = (waitKey(1000 / CAM_FPS) & 0xEFFFFF);
-        if (key == 10 || key == 13) // Enter
-            break;
-        initStatus(&ref, camera, {}, {});
-        imshow("Press Enter to start recording", ref.gray);
-    }
-    destroyAllWindows();
-
-    // Recording
-    while (1) {
-        char key = (waitKey(1000 / CAM_FPS) & 0xEFFFFF);
-        if (key == 27) // Esc
-            break;
-        calcCurrStatus(&curr, &ref, camera);
-        Mat M;
-        cvtColor(curr.gray, M, COLOR_GRAY2RGB); // Saving only works on color video
-        video.write(M);
-        imshow("Press Esc to stop recording and save video", curr.gray);
-    }
-    destroyAllWindows();
-
-    video.release();
-
-    clearStatusImgs(&ref);
-    clearStatusImgs(&curr);
 }
 
 void showPOIImg(string path){
     vector<poi> POI =  readPOI(path);
     Mat img = readJsonImg(path);
-    while(1) {
-        Mat imdraw;
-        cvtColor(img, imdraw, COLOR_GRAY2RGB);
-        drawPOI(imdraw, POI, NULL, NULL, curr_draw_mode);
-        string title = "Showing POI from " + path + " - Press Esc to exit";
-        imshow(title,imdraw);
-        char key = waitKey(0) & 0xEFFFFF;
-        if(key == 27) // Esc
-            break;
-        if(key == 9) // Tab
-            curr_draw_mode = next(curr_draw_mode);
-    }
+    Mat imdraw = drawPOI(img, POI, NULL, NULL, draw_mode::NUM);
+    string title = "POI from " + path;
+    imshow(title,imdraw);
+    waitKey(0);
     destroyAllWindows();
+}
+
+int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
+                     string window_name, bool enter_POI, VideoWriter *vw)
+{
+    calcCurrStatus(curr, ref, is);
+    printPOITemp(is->camera, curr);
+    Mat img = drawPOI(curr->gray, curr->POI, curr->rawtemp,
+                      is->camera, curr_draw_mode);
+
+    if (vw)
+        vw->write(curr->gray);
+
+    if (gui_available) {
+        imshow(window_name, img);
+        char key = waitKey(1) & 0xEFFFFF;
+        if (key == 8 && enter_POI && ref->POI.size() > 0) // Backspace
+            ref->POI.pop_back();
+        if (key == 9) // Tab
+            curr_draw_mode = next(curr_draw_mode);
+        if (key == 27) // Esc
+            return 1;
+    }
+
+    if (sigint_received)
+        return 1;
+
+    return 0;
+}
+
+void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_arguments *args)
+
+{
+    int exit = 0;
+    VideoWriter *vw = NULL;
+    string window_name = "Thermocam-PCB";
+
+    initStatus(ref, is, readPOI(args->POI_import_path));
+
+    if (gui_available)
+        namedWindow(window_name, WINDOW_AUTOSIZE);
+    if (gui_available && args->enter_POI)
+        setMouseCallback(window_name, onMouse, &ref->POI);
+    if (!args->vid_out_path.empty())
+        vw = new VideoWriter(args->vid_out_path, CV_FOURCC('H', 'F', 'Y', 'U'),
+                             CAM_FPS, Size(ref->width, ref->height), 0);
+
+    while (!exit) {
+        auto begin = chrono::steady_clock::now();
+        exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw);
+        auto end = chrono::steady_clock::now();
+
+        double process_time_us = duration_us(end - begin);
+        if (args->display_delay_us > process_time_us)
+            usleep(args->display_delay_us - process_time_us);
+    }
+
+    if (gui_available)
+        destroyAllWindows();
+    if (vw)
+        delete vw; // Destructor calls VideoWriter.release to close stream
 }
 
 static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
 {
     switch (key) {
     case 'e':
-        enter_POI = true;
+        args.enter_POI = true;
         if(arg != NULL)
-            POI_export_path = arg;
+            args.POI_export_path = arg;
         break;
     case 'p':
-        POI_import_path = arg;
+        args.POI_import_path = arg;
         break;
     case 's':
-        show_POI_path = arg;
+        args.show_POI_path = arg;
         break;
     case 'l':
-        license_dir = arg;
+        args.license_dir = arg;
         break;
     case 'r':
-        vid_out_path = arg;
+        args.vid_out_path = arg;
         break;
     case 'v':
-        vid_in_path = arg;
+        args.vid_in_path = arg;
         break;
     case 'd':
-        display_delay_us = atof(arg) * 1000000;
+        args.display_delay_us = atof(arg) * 1000000;
         break;
     case ARGP_KEY_END:
-        if (license_dir.empty())
-            license_dir = ".";
+        if (args.license_dir.empty())
+            args.license_dir = ".";
         break;
     default:
         return ARGP_ERR_UNKNOWN;
@@ -490,7 +525,13 @@ static struct argp argp = {
 
     "\v"
 
-    "Requires path to directory containing WIC license file to run."
+    "Requires path to directory containing WIC license file to run with camera.\n\n"
+
+    "Controls:\n"
+    "Tab                - Change view  (Full | Temperature only | Legend)\n"
+    "Mouse click (left) - Enter point  (only with --enter-poi)\n"
+    "Backspace          - Remove point (only with --enter-poi)\n"
+    "Esc                - Exit program\n"
 };
 
 int main(int argc, char **argv)
@@ -501,83 +542,23 @@ int main(int argc, char **argv)
     signal(SIGINT, signalHandler);
     detectDisplay();
 
-    CameraCenter* cc = NULL;
-    Camera* camera = NULL;
-    VideoCapture* video = NULL;
-
-    if (!show_POI_path.empty() && gui_available) {
-        showPOIImg(show_POI_path);
+    if (!args.show_POI_path.empty() && gui_available) {
+        showPOIImg(args.show_POI_path);
         exit(0);
     }
 
-    if (!vid_in_path.empty()) {
-        video = new VideoCapture(vid_in_path);
-    } else {
-        initCamera(license_dir, cc, camera);
-        camera->StartAcquisition();
-    }
-
-    // TODO: Set camera FPS from camera itself
-    if(!vid_out_path.empty() && camera && gui_available)
-        recordVideo(camera,vid_out_path);
-
-    vector<poi> POI;
-
-    if (!POI_import_path.empty())
-        POI = readPOI(POI_import_path);
-    if (enter_POI && gui_available) {
-        Mat last_img;
-        inputPOI(camera, &POI, video, last_img);
-        if (!POI_export_path.empty()) {
-            writePOI(POI, last_img, POI_export_path);
-            cout << "Points saved to " << POI_export_path << endl;
-        }
-    }
-
+    img_stream is;
     im_status ref, curr;
-    initStatus(&ref, camera, POI, video);
+    initImgStream(&is, args.vid_in_path, args.license_dir);
 
-    if (gui_available)
-        namedWindow("Thermocam-PCB (Press Esc to exit)", WINDOW_NORMAL);
+    processStream(&is, &ref, &curr, &args);
 
-    while (1) {
-        chrono::steady_clock::time_point begin = chrono::steady_clock::now();
-        calcCurrStatus(&curr, &ref, camera, video);
-        printPOITemp(camera, POI, &curr);
-        Mat img;
-        cvtColor(curr.gray, img, COLOR_GRAY2RGB);
-        drawPOI(img, curr.POI, curr.rawtemp, camera, curr_draw_mode);
-        if (gui_available)
-            imshow("Thermocam-PCB (Press Esc to exit)", img);
-
-        if (gui_available) {
-            char key = waitKey(1) & 0xEFFFFF;
-            if (key == 27) // Esc
-                break;
-            if (key == 9) // Tab
-                curr_draw_mode = next(curr_draw_mode);
-        }
-
-        if (sigint_received)
-            break;
-
-        chrono::steady_clock::time_point end = chrono::steady_clock::now();
-        double process_time_us = chrono::duration_cast<chrono::microseconds>(end - begin).count();
-        if (display_delay_us > process_time_us)
-            usleep(display_delay_us - process_time_us);
-    }
+    if (!args.POI_export_path.empty())
+        writePOI(ref.POI, curr.gray, args.POI_export_path, true);
 
     clearStatusImgs(&ref);
     clearStatusImgs(&curr);
-
-    if (camera) {
-        camera->StopAcquisition();
-        camera->Disconnect();
-        delete cc;
-    }
-
-    if(video)
-        delete video;
+    clearImgStream(&is);
 
     return 0;
 }
