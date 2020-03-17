@@ -385,6 +385,8 @@ void onMouse(int event, int x, int y, int flags, void *param)
 
 void printPOITemp(Camera *c, im_status *s)
 {
+    if (s->POI.size() == 0)
+        return;
     cout << "Temperature of points of interest:\n";
     vector<double> temps = getPOITemp(s->POI, s->rawtemp, c, s->width, s->height);
     for (unsigned i = 0; i < s->POI.size(); i++)
