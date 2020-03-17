@@ -68,6 +68,8 @@ Whichever solution works for you, you may want to insert it into your .bashrc to
 
 For development, download and compile OpenCV source version 2.4 (the latest stable build on Ubuntu 16.04). For simply running the executable on an Ubuntu 16.04 machine it is enough to install the libopencv-dev library.
 
+Recorded video is stored in a lossless HuffYUV(HFYU) format which OpenCV does not have built in, so it is needed to be installed externally, e.g. by part of `ffmpeg`.
+
 ## Compilation
 
 Before running make, be sure to change the variables `WIC_HOME`, `EBUS_HOME` and `OPENCV_HOME` in the Makefile to the paths where you installed the WIC and eBUS SDK and OpenCV respectively.
@@ -76,15 +78,34 @@ After this, the program can be simply compiled with running `make` in the projec
 
 ## Usage
 
-The program requires the path to the directory where the WIC license file is stored to run. To simply display the thermocamera image, place the license file to the project directory and run:
+### Basic functionality
 
-`./thermocam-pcb -l .`
+To simply display the thermocamera image, run without any arguments:
 
-You can use the additional arguments of the program to import and/or enter coordinates of points to be measured. 
+`./thermocam-pcb`
 
-During entering points, the points you have imported will be visible and you can modify them. 
+This requires the WIC license file to be in the same directory as the executable. If your license file is elsewhere, you need to specify its directory with `--license-dir` to be able to use the camera.
 
-After the entering phase, the temperature of the points will be written to stdout. 
+### Additional functionality
+
+You can use multiple functions, most even at the same time:
+
+* Enter points on the image and print their temperature
+* Export or import these points to a json format
+* Record video or set video as input
+* Set delay between prints/display 
+* Display exported points and their corresponding camera image
+
+For example, to import previously saved points, enter points by hand, export both into a single file and record video, run:
+
+`./thermocam-pcb -p import.json --enter-poi=export.json -r recording.avi`
+
+### Setting video as input instead of camera
+
+Add the path to your video to the arguments as `-v myvideo.avi`. 
+Running the previous example(enter,import,export,record) with video input instead of camera can thus be done with:
+
+`./thermocam-pcb -v myvideo.avi -p import.json --enter-poi=export.json -r recording.avi`
 
 ### Changing between views
 
@@ -96,42 +117,38 @@ There are 3 views available to display points and their temperature:
 
 You can change between these views by pressing Tab.
 
-### Entering points
+## Command line reference
 
-To enter points manually, run the command:
+<!-- help start -->
+```
+Usage: thermocam-pcb [OPTION...] [--] COMMAND...
+Displays thermocamera image and entered points of interest and their
+temperature. Writes the temperatures of entered POIs to stdout.
 
-`./thermocam-pcb -l . -e`
+  -d, --delay=NUM            Set delay between each measurement/display in
+                             seconds.
+  -e, --enter-poi[=FILE]     Enter Points of interest by hand, optionally save
+                             them to json file at supplied path.
+  -l, --license-dir=FILE     Path to directory containing WIC license file.
+  -p, --poi-path=FILE        Path to config file containing saved POIs.
+  -r, --record-video=FILE    Record video and store it with entered filename
+  -s, --show-poi=FILE        Show camera image taken at saving POIs.
+  -v, --load-video=FILE      Load and process video instead of camera feed
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
+  -V, --version              Print program version
 
-Click on the image to enter a point, press Esc to delete the last entered point, press enter to finish selection.
+Mandatory or optional arguments to long options are also mandatory or optional
+for any corresponding short options.
 
-To export the points to a json format that can be imported in subsequent runs, enter the path to the export file after the option `-e/--enter_poi` as follows:
+Requires path to directory containing WIC license file to run with camera.
 
-`./thermocam-pcb -l . -epath/to/myfile.json`
-or
-`./thermocam-pcb -l . --enter_poi=path/to/myfile.json`
+Controls:
+Tab                - Change view  (Full | Temperature only | Legend)
+Mouse click (left) - Enter point  (only with --enter-poi)
+Backspace          - Remove point (only with --enter-poi)
+Esc                - Exit program
 
-You can view the points you saved and the camera image at the time of saving by running:
-
-`./thermocam-pcb --show-poi my_points.json`
-
-### Importing points
-
-You can import previously saved points by running:
-
-`./thermocam-pcb -l . -p my_exported_points.json`
-
-### Recording video
-
-You can record lossless video by running:
-
-`./thermocam-pcb -l . -r video_filename.avi`
-
-Recording starts after pressing Enter, and ends with pressing Esc.
-
-### Setting video as input
-
-You can set video as input for the program by running:
-
-`./thermocam-pcb -v video_filename.avi`
-
-If the input is video, there is no need to specify the WIC license path, as the camera is not used. All functions (entering points, etc.) work exactly the same way as when the input is from the camera.
+Report bugs to https://github.com/CTU-IIG/thermocam-pcb/issues.
+```
+<!-- help end -->
