@@ -68,7 +68,7 @@ Whichever solution works for you, you may want to insert it into your .bashrc to
 
 For development, download and compile OpenCV source version 2.4 (the latest stable build on Ubuntu 16.04). For simply running the executable on an Ubuntu 16.04 machine it is enough to install the libopencv-dev library.
 
-Recorded video is stored in a lossless HuffYUV(HFYU) format which OpenCV does not have built in, so it is needed to be installed externally, e.g. by part of `ffmpeg`.
+Recorded video is stored in a lossless HuffYUV(HFYU) format which OpenCV does not have built in, so its codec is needed to be installed externally, e.g. by part of `libavcodec`.
 
 ## Compilation
 

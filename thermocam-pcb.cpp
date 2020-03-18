@@ -14,8 +14,6 @@
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/calib3d.hpp>
 
-#define duration_us(a) std::chrono::duration_cast<std::chrono::microseconds>(a).count()
-
 using namespace cv;
 namespace pt = boost::property_tree;
 
@@ -52,7 +50,7 @@ struct poi {
 
 struct im_status {
     int height=0,width=0;
-    uint16_t *rawtemp = NULL;
+    uint16_t *rawtemp = nullptr;
     uint16_t min_rawtemp = UINT16_MAX, max_rawtemp = 0;
     Mat gray;
     vector<poi> POI; // Points of interest
@@ -62,10 +60,16 @@ struct im_status {
 
 struct img_stream {
     bool is_video;
-    Camera *camera = NULL;
-    CameraCenter *cc = NULL;
-    VideoCapture *video = NULL;
+    Camera *camera = nullptr;
+    CameraCenter *cc = nullptr;
+    VideoCapture *video = nullptr;
 };
+
+inline double duration_us(chrono::time_point<chrono::steady_clock> begin,
+                          chrono::time_point<chrono::steady_clock> end)
+{
+    return chrono::duration_cast<chrono::microseconds>(end - begin).count();
+}
 
 void detectDisplay()
 {
@@ -249,13 +253,13 @@ void setStatusHeightWidth(im_status *s, img_stream *is)
     }
 }
 
-void setStatusImgs(im_status *s, img_stream *is, im_status *ref = NULL)
+void setStatusImgs(im_status *s, img_stream *is, im_status *ref = nullptr)
 {
 
     if (!s->height || !s->width)
         setStatusHeightWidth(&(*s), is);
 
-    if (s->rawtemp == NULL)
+    if (!s->rawtemp)
         s->rawtemp = new uint16_t[s->height * s->width]{ 0 };
 
     if (is->is_video) {
@@ -269,7 +273,7 @@ void setStatusImgs(im_status *s, img_stream *is, im_status *ref = NULL)
         uint16_t *tmp = (uint16_t *)is->camera->RetreiveBuffer();
         memcpy(s->rawtemp, tmp, s->height * s->width * sizeof(uint16_t));
         is->camera->ReleaseBuffer();
-        if (ref == NULL)
+        if (!ref)
             s->gray = temp2gray(s->rawtemp, s->height, s->width);
         else
             s->gray = temp2gray(s->rawtemp, s->height, s->width, ref->min_rawtemp, ref->max_rawtemp);
@@ -280,7 +284,7 @@ void clearStatusImgs(im_status *s)
 {
     if (s->rawtemp) {
         delete[] s->rawtemp;
-        s->rawtemp = NULL;
+        s->rawtemp = nullptr;
     }
     s->gray.release();
 }
@@ -397,7 +401,7 @@ void printPOITemp(Camera *c, im_status *s)
 void showPOIImg(string path){
     vector<poi> POI =  readPOI(path);
     Mat img = readJsonImg(path);
-    Mat imdraw = drawPOI(img, POI, NULL, NULL, draw_mode::NUM);
+    Mat imdraw = drawPOI(img, POI, nullptr, nullptr, draw_mode::NUM);
     string title = "POI from " + path;
     imshow(title,imdraw);
     waitKey(0);
@@ -436,7 +440,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
 
 {
     int exit = 0;
-    VideoWriter *vw = NULL;
+    VideoWriter *vw = nullptr;
     string window_name = "Thermocam-PCB";
 
     initStatus(ref, is, readPOI(args->POI_import_path));
@@ -454,7 +458,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
         exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw);
         auto end = chrono::steady_clock::now();
 
-        double process_time_us = duration_us(end - begin);
+        double process_time_us = duration_us(begin, end);
         if (args->display_delay_us > process_time_us)
             usleep(args->display_delay_us - process_time_us);
     }
