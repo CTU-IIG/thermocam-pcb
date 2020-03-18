@@ -17,6 +17,9 @@
 using namespace cv;
 namespace pt = boost::property_tree;
 
+// The colors 0-255 in recordings correspond to temperatures 15-120C
+#define RECORD_MIN_C 15
+#define RECORD_MAX_C 120
 #define CAM_FPS 9 // The camera is 9Hz
 
 /* Command line options */
@@ -51,7 +54,6 @@ struct poi {
 struct im_status {
     int height=0,width=0;
     uint16_t *rawtemp = nullptr;
-    uint16_t min_rawtemp = UINT16_MAX, max_rawtemp = 0;
     Mat gray;
     vector<poi> POI; // Points of interest
     vector<KeyPoint> kp;
@@ -63,6 +65,8 @@ struct img_stream {
     Camera *camera = nullptr;
     CameraCenter *cc = nullptr;
     VideoCapture *video = nullptr;
+    uint16_t min_rawtemp;
+    uint16_t max_rawtemp;
 };
 
 inline double duration_us(chrono::time_point<chrono::steady_clock> begin,
@@ -98,6 +102,23 @@ void initCamera(string license_dir, CameraCenter*& cc, Camera*& c)
         err(1,"Error connecting camera");
 }
 
+// Find the closest raw value corresponding to a Celsius temperature
+// Linear search for simplicity
+// Only use for initialization, or rewrite to log complexity!
+uint16_t findRawtempC(double temp, Camera *c)
+{
+    uint16_t raw;
+    for (raw = 0; raw < 1 << 16; raw++)
+        if (c->CalculateTemperatureC(raw) >= temp)
+            return raw;
+}
+
+inline double pixel2Temp(uint8_t px, double min = RECORD_MIN_C,
+                         double max = RECORD_MAX_C)
+{
+    return ((double)px) / 255 * (max - min) + min;
+}
+
 void initImgStream(img_stream *is, string vid_in_path, string license_dir)
 {
     is->is_video = !vid_in_path.empty();
@@ -106,6 +127,8 @@ void initImgStream(img_stream *is, string vid_in_path, string license_dir)
     } else {
         initCamera(license_dir, is->cc, is->camera);
         is->camera->StartAcquisition();
+        is->min_rawtemp = findRawtempC(RECORD_MIN_C, is->camera);
+        is->max_rawtemp = findRawtempC(RECORD_MAX_C, is->camera);
     }
 }
 
@@ -141,18 +164,21 @@ Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
     return G;
 }
 
-vector<double> getPOITemp(vector<poi> POI, uint16_t *rawtemp, Camera *c, int max_x, int max_y)
+vector<double> getPOITemp(im_status *s, img_stream *is)
 {
-    vector<double> temp(POI.size());
-    for (unsigned i = 0; i < POI.size(); i++) {
-        if (round(POI[i].p.y) < 0 || round(POI[i].p.y) > max_y ||
-            round(POI[i].p.x) < 0 || round(POI[i].p.x) > max_x) {
-            cerr << POI[i].name << " out of image!" << endl;
+    vector<double> temp(s->POI.size());
+    for (unsigned i = 0; i < s->POI.size(); i++) {
+        if (round(s->POI[i].p.y) < 0 || round(s->POI[i].p.y) > s->height ||
+            round(s->POI[i].p.x) < 0 || round(s->POI[i].p.x) > s->width) {
+            cerr << s->POI[i].name << " out of image!" << endl;
             temp[i] = nan("");
             continue;
         }
-        int idx = max_x * round(POI[i].p.y) + round(POI[i].p.x);
-        temp[i] = (c) ? c->CalculateTemperatureC(rawtemp[idx]) : nan("");
+        int idx = s->width * round(s->POI[i].p.y) + round(s->POI[i].p.x);
+        if (is->is_video)
+            temp[i] = pixel2Temp(s->gray.data[idx]);
+        else
+            temp[i] = is->camera->CalculateTemperatureC(s->rawtemp[idx]);
     }
     return temp;
 }
@@ -203,17 +229,18 @@ void drawSidebar(Mat& img, vector<poi> POI, vector<double> temp)
     imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
 }
 
-Mat drawPOI(Mat &img_in, vector<poi> POI, uint16_t *curr_rawtemp, Camera *c, draw_mode mode,
-             Scalar color = Scalar(0, 0, 255))
+Mat drawPOI(im_status *s, img_stream *is, draw_mode mode,
+            Scalar color = Scalar(0, 0, 255))
 {
 
-    Mat A = img_in.clone();
+    Mat A = s->gray.clone();
+    vector<poi> POI = s->POI;
 
     if (A.channels() == 1)
         cvtColor(A, A, COLOR_GRAY2RGB); // So that drawing is not grayscale
 
     // Temperatures at POI positions from rawtemp
-    vector<double> temp = getPOITemp(POI, curr_rawtemp, c, A.cols, A.rows);
+    vector<double> temp = getPOITemp(s, is);
 
     resize(A, A, Size(), 2, 2); // Enlarge image 2x for better looking fonts
     for (unsigned i = 0; i < POI.size(); i++) {
@@ -253,7 +280,7 @@ void setStatusHeightWidth(im_status *s, img_stream *is)
     }
 }
 
-void setStatusImgs(im_status *s, img_stream *is, im_status *ref = nullptr)
+void updateStatusImgs(im_status *s, img_stream *is)
 {
 
     if (!s->height || !s->width)
@@ -273,10 +300,7 @@ void setStatusImgs(im_status *s, img_stream *is, im_status *ref = nullptr)
         uint16_t *tmp = (uint16_t *)is->camera->RetreiveBuffer();
         memcpy(s->rawtemp, tmp, s->height * s->width * sizeof(uint16_t));
         is->camera->ReleaseBuffer();
-        if (!ref)
-            s->gray = temp2gray(s->rawtemp, s->height, s->width);
-        else
-            s->gray = temp2gray(s->rawtemp, s->height, s->width, ref->min_rawtemp, ref->max_rawtemp);
+        s->gray = temp2gray(s->rawtemp, s->height, s->width, is->min_rawtemp, is->max_rawtemp);
     }
 }
 
@@ -289,29 +313,12 @@ void clearStatusImgs(im_status *s)
     s->gray.release();
 }
 
-void initStatus(im_status *s, img_stream *is, vector<poi> POI)
+void updateImStatus(im_status *s, img_stream *is, im_status *ref = nullptr)
 {
 
-    setStatusImgs(s, is);
-
-    for (int i = 0; i < s->height * s->width; i++) {
-        s->min_rawtemp = (s->min_rawtemp > s->rawtemp[i]) ? s->rawtemp[i] : s->min_rawtemp;
-        s->max_rawtemp = (s->max_rawtemp < s->rawtemp[i]) ? s->rawtemp[i] : s->max_rawtemp;
-    }
-
-    s->POI = POI;
-}
-
-void calcCurrStatus(im_status *curr, im_status *ref, img_stream *is)
-{
-
-    setStatusImgs(curr, is, ref);
-
-    // For 1st time run
-    if (curr->POI.size() == 0)
-        curr->POI = ref->POI;
-
-    curr->POI = ref->POI; // Placeholder until tracking is implemented
+    updateStatusImgs(s, is);
+    if(ref)
+        s->POI = ref->POI; // Placeholder until tracking is implemented
     /*
     // Calculate new coordinates of points by homography
 
@@ -353,8 +360,6 @@ void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
 
 vector<poi> readPOI(string path)
 {
-    if (path.empty())
-        return {};
     vector<poi> POI;
     pt::ptree root;
     pt::read_json(path, root);
@@ -387,21 +392,26 @@ void onMouse(int event, int x, int y, int flags, void *param)
     }
 }
 
-void printPOITemp(Camera *c, im_status *s)
+void printPOITemp(im_status *s, img_stream *is)
 {
     if (s->POI.size() == 0)
         return;
     cout << "Temperature of points of interest:\n";
-    vector<double> temps = getPOITemp(s->POI, s->rawtemp, c, s->width, s->height);
+    vector<double> temps = getPOITemp(s, is);
     for (unsigned i = 0; i < s->POI.size(); i++)
         printf("%s=%.2lf\n", s->POI[i].name.c_str(), temps[i]);
     cout << endl;
 }
 
 void showPOIImg(string path){
-    vector<poi> POI =  readPOI(path);
-    Mat img = readJsonImg(path);
-    Mat imdraw = drawPOI(img, POI, nullptr, nullptr, draw_mode::NUM);
+    im_status s;
+    img_stream is;
+    s.POI =  readPOI(path);
+    s.gray = readJsonImg(path);
+    s.height = s.gray.rows;
+    s.width = s.gray.cols;
+    is.is_video = true;
+    Mat imdraw = drawPOI(&s, &is, draw_mode::NUM);
     string title = "POI from " + path;
     imshow(title,imdraw);
     waitKey(0);
@@ -411,10 +421,9 @@ void showPOIImg(string path){
 int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
                      string window_name, bool enter_POI, VideoWriter *vw)
 {
-    calcCurrStatus(curr, ref, is);
-    printPOITemp(is->camera, curr);
-    Mat img = drawPOI(curr->gray, curr->POI, curr->rawtemp,
-                      is->camera, curr_draw_mode);
+    updateImStatus(curr, is, ref);
+    printPOITemp(curr, is);
+    Mat img = drawPOI(curr, is, curr_draw_mode);
 
     if (vw)
         vw->write(curr->gray);
@@ -443,7 +452,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     VideoWriter *vw = nullptr;
     string window_name = "Thermocam-PCB";
 
-    initStatus(ref, is, readPOI(args->POI_import_path));
+    updateImStatus(ref,is);
 
     if (gui_available)
         namedWindow(window_name, WINDOW_AUTOSIZE);
@@ -554,6 +563,8 @@ int main(int argc, char **argv)
     img_stream is;
     im_status ref, curr;
     initImgStream(&is, args.vid_in_path, args.license_dir);
+    if (!args.POI_import_path.empty())
+        ref.POI = readPOI(args.POI_import_path);
 
     processStream(&is, &ref, &curr, &args);
 
