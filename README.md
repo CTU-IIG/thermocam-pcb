@@ -125,6 +125,8 @@ Usage: thermocam-pcb [OPTION...] [--] COMMAND...
 Displays thermocamera image and entered points of interest and their
 temperature. Writes the temperatures of entered POIs to stdout.
 
+  -c, --csv-log=FILE         Log temperature of POIs to a csv file instead of
+                             printing them to stdout.
   -d, --delay=NUM            Set delay between each measurement/display in
                              seconds.
   -e, --enter-poi[=FILE]     Enter Points of interest by hand, optionally save

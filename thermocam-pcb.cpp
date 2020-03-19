@@ -1,6 +1,7 @@
 #include <argp.h>
 #include <err.h>
 #include <unistd.h>
+#include <time.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include "Base64.h"
@@ -32,6 +33,7 @@ struct cmd_arguments{
     string vid_in_path;
     string vid_out_path;
     int display_delay_us = 0;
+    string poi_csv_file;
 };
 cmd_arguments args;
 
@@ -392,15 +394,49 @@ void onMouse(int event, int x, int y, int flags, void *param)
     }
 }
 
-void printPOITemp(im_status *s, img_stream *is)
+string csvHeaderPOI(vector<poi> POI){
+    string s;
+    s = "Time";
+    for (unsigned i = 0; i < POI.size(); i++)
+        s += ", " + POI[i].name + " [°C]";
+    s += "\n";
+    return s;
+}
+
+string csvRowPOI(vector<double> temps){
+    stringstream ss;
+    time_t curr_time = chrono::system_clock::to_time_t(chrono::system_clock::now());
+    char buf[64];
+    if (!strftime(buf, 64, "%F %T", localtime(&curr_time)))
+        err(1, "strftime");
+    ss << buf;
+    for (unsigned i = 0; i < temps.size(); i++)
+        ss << ", " << fixed << setprecision(2) << temps[i];
+    ss << endl;
+    return ss.str();
+}
+
+void printPOITemp(im_status *s, img_stream *is, string file)
 {
     if (s->POI.size() == 0)
         return;
-    cout << "Temperature of points of interest:\n";
+
     vector<double> temps = getPOITemp(s, is);
-    for (unsigned i = 0; i < s->POI.size(); i++)
-        printf("%s=%.2lf\n", s->POI[i].name.c_str(), temps[i]);
-    cout << endl;
+
+    if (file.empty()) {
+        cout << "Temperature of points of interest:\n";
+        for (unsigned i = 0; i < s->POI.size(); i++)
+            printf("%s=%.2lf\n", s->POI[i].name.c_str(), temps[i]);
+        cout << endl;
+    } else {
+        string str;
+        if (access(file.c_str(), F_OK) == -1) // File does not exist
+            str += csvHeaderPOI(s->POI);
+        str += csvRowPOI(temps);
+        ofstream f(file, ofstream::app);
+        f << str;
+        f.close();
+    }
 }
 
 void showPOIImg(string path){
@@ -419,10 +455,11 @@ void showPOIImg(string path){
 }
 
 int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
-                     string window_name, bool enter_POI, VideoWriter *vw)
+                     string window_name, bool enter_POI, VideoWriter *vw,
+                     string poi_csv_file)
 {
     updateImStatus(curr, is, ref);
-    printPOITemp(curr, is);
+    printPOITemp(curr, is, poi_csv_file);
     Mat img = drawPOI(curr, is, curr_draw_mode);
 
     if (vw)
@@ -464,7 +501,8 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
 
     while (!exit) {
         auto begin = chrono::steady_clock::now();
-        exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw);
+        exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw,
+                                args->poi_csv_file);
         auto end = chrono::steady_clock::now();
 
         double process_time_us = duration_us(begin, end);
@@ -501,6 +539,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
     case 'v':
         args.vid_in_path = arg;
         break;
+    case 'c':
+        args.poi_csv_file = arg;
+        break;
     case 'd':
         args.display_delay_us = atof(arg) * 1000000;
         break;
@@ -522,6 +563,7 @@ static struct argp_option options[] = {
     { "license-dir",     'l', "FILE",        0, "Path to directory containing WIC license file." },
     { "record-video",    'r', "FILE",        0, "Record video and store it with entered filename"},
     { "load-video",      'v', "FILE",        0, "Load and process video instead of camera feed"},
+    { "csv-log",         'c', "FILE",        0, "Log temperature of POIs to a csv file instead of printing them to stdout."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { 0 } 
 };
