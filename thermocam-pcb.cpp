@@ -34,6 +34,9 @@ struct cmd_arguments{
     string vid_out_path;
     int display_delay_us = 0;
     string poi_csv_file;
+    bool save_img = false;
+    string save_img_dir;
+    double save_img_period = 0;
 };
 cmd_arguments args;
 
@@ -71,8 +74,8 @@ struct img_stream {
     uint16_t max_rawtemp;
 };
 
-inline double duration_us(chrono::time_point<chrono::steady_clock> begin,
-                          chrono::time_point<chrono::steady_clock> end)
+inline double duration_us(chrono::time_point<chrono::system_clock> begin,
+                          chrono::time_point<chrono::system_clock> end)
 {
     return chrono::duration_cast<chrono::microseconds>(end - begin).count();
 }
@@ -394,6 +397,15 @@ void onMouse(int event, int x, int y, int flags, void *param)
     }
 }
 
+string clkDateTimeString(chrono::time_point<chrono::system_clock> clk){
+    time_t t = chrono::system_clock::to_time_t(clk);
+    char buf[64];
+    if (!strftime(buf, 64, "%F %T", localtime(&t)))
+        err(1, "strftime");
+    string s(buf);
+    return s;
+}
+
 string csvHeaderPOI(vector<poi> POI){
     string s;
     s = "Time";
@@ -405,11 +417,7 @@ string csvHeaderPOI(vector<poi> POI){
 
 string csvRowPOI(vector<double> temps){
     stringstream ss;
-    time_t curr_time = chrono::system_clock::to_time_t(chrono::system_clock::now());
-    char buf[64];
-    if (!strftime(buf, 64, "%F %T", localtime(&curr_time)))
-        err(1, "strftime");
-    ss << buf;
+    ss << clkDateTimeString(chrono::system_clock::now());
     for (unsigned i = 0; i < temps.size(); i++)
         ss << ", " << fixed << setprecision(2) << temps[i];
     ss << endl;
@@ -488,6 +496,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     int exit = 0;
     VideoWriter *vw = nullptr;
     string window_name = "Thermocam-PCB";
+    chrono::time_point<chrono::system_clock> save_img_clk;
 
     updateImStatus(ref,is);
 
@@ -498,13 +507,22 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     if (!args->vid_out_path.empty())
         vw = new VideoWriter(args->vid_out_path, CV_FOURCC('H', 'F', 'Y', 'U'),
                              CAM_FPS, Size(ref->width, ref->height), 0);
+    if (args->save_img)
+        save_img_clk = chrono::system_clock::now();
 
     while (!exit) {
-        auto begin = chrono::steady_clock::now();
+        auto begin = chrono::system_clock::now();
         exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw,
                                 args->poi_csv_file);
-        auto end = chrono::steady_clock::now();
+        auto end = chrono::system_clock::now();
 
+        if (args->save_img &&
+            duration_us(save_img_clk, end) > args->save_img_period * 1000000) {
+            save_img_clk = chrono::system_clock::now();
+            string img_path = args->save_img_dir + "/"
+                              + clkDateTimeString(save_img_clk) + ".png";
+            imwrite(img_path, drawPOI(curr, is, draw_mode::NUM));
+        }
         double process_time_us = duration_us(begin, end);
         if (args->display_delay_us > process_time_us)
             usleep(args->display_delay_us - process_time_us);
@@ -545,9 +563,21 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
     case 'd':
         args.display_delay_us = atof(arg) * 1000000;
         break;
+    case -1:
+        args.save_img_dir = arg;
+        args.save_img = true;
+        break;
+    case -2:
+        args.save_img_period = atof(arg);
+        args.save_img = true;
+        break;
     case ARGP_KEY_END:
         if (args.license_dir.empty())
             args.license_dir = ".";
+        if (args.save_img && args.save_img_dir.empty())
+            args.save_img_dir = ".";
+        if (args.save_img &&args.save_img_period == 0)
+            args.save_img_period = 1;
         break;
     default:
         return ARGP_ERR_UNKNOWN;
@@ -560,10 +590,12 @@ static struct argp_option options[] = {
     { "enter-poi",       'e', "FILE",        OPTION_ARG_OPTIONAL, "Enter Points of interest by hand, optionally save them to json file at supplied path." },
     { "poi-path",        'p', "FILE",        0, "Path to config file containing saved POIs." },
     { "show-poi",        's', "FILE",        0, "Show camera image taken at saving POIs." },
-    { "license-dir",     'l', "FILE",        0, "Path to directory containing WIC license file." },
+    { "license-dir",     'l', "FILE",        0, "Path to directory containing WIC license file.\n\".\" by default." },
     { "record-video",    'r', "FILE",        0, "Record video and store it with entered filename"},
     { "load-video",      'v', "FILE",        0, "Load and process video instead of camera feed"},
     { "csv-log",         'c', "FILE",        0, "Log temperature of POIs to a csv file instead of printing them to stdout."},
+    { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
+    { "save-img-period", -2,  "NUM",         0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { 0 } 
 };

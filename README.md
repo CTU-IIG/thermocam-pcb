@@ -132,9 +132,16 @@ temperature. Writes the temperatures of entered POIs to stdout.
   -e, --enter-poi[=FILE]     Enter Points of interest by hand, optionally save
                              them to json file at supplied path.
   -l, --license-dir=FILE     Path to directory containing WIC license file.
+                             "." by default.
   -p, --poi-path=FILE        Path to config file containing saved POIs.
   -r, --record-video=FILE    Record video and store it with entered filename
   -s, --show-poi=FILE        Show camera image taken at saving POIs.
+      --save-img-dir=FILE    Target directory for saving an image with POIs
+                             every "save-img-period" seconds.
+                             "." by default.
+      --save-img-period=NUM  Period for saving an image with POIs to
+                             "save-img-dir".
+                             1s by default.
   -v, --load-video=FILE      Load and process video instead of camera feed
   -?, --help                 Give this help list
       --usage                Give a short usage message
