@@ -161,3 +161,15 @@ Esc                - Exit program
 Report bugs to https://github.com/CTU-IIG/thermocam-pcb/issues.
 ```
 <!-- help end -->
+
+# Webserver
+
+## Requirements
+
+Requires the `boost` and `pthread` libraries.
+
+## Usage
+
+Run `./thermocam-webserver` to be able to access the thermocam-pcb website on port 8000, which is periodically refreshing the image `images/thermocam-current.png`.
+
+Combine with `./thermocam-pcb -f webserver/images/thermocam-current.png` for live video feed from camera.

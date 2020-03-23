@@ -5,8 +5,6 @@ OPENCV_HOME = /home/work/opencv-2.4
 CXXFLAGS = -O2 -g -Wall -D_UNIX_ -D_LINUX_ -I/$(WIC_HOME)/include -I/$(EBUS_HOME)/include -std=c++11
 CXXFLAGS+=-DGIT_VERSION='"$(shell git describe --always || echo unknown)"'
 CXXFLAGS+=-I/$(OPENCV_HOME)/include
-SRCS = thermocam-pcb.cpp
-PROG = thermocam-pcb
 
 LDFLAGS = -L/$(OPENCV_HOME)/lib -L/$(WIC_HOME)/lib -L/$(EBUS_HOME)/lib -Wl,-rpath-link=$(EBUS_HOME)/lib -Wl,-rpath-link=$(EBUS_HOME)/lib/genicam/bin/Linux64_x64
 
@@ -20,8 +18,12 @@ LDFLAGS = -L/$(OPENCV_HOME)/lib -L/$(WIC_HOME)/lib -L/$(EBUS_HOME)/lib -Wl,-rpat
 
 LIBS = -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_features2d -lopencv_calib3d -lWIC_SDK -ljpeg -lPvBase -lPvDevice -lPvBuffer -lPvGenICam -lPvTransmitter -lPvVirtualDevice -lPvAppUtils -lPvPersistence -lPvSerial -lPvStream -pthread
 
-$(PROG):$(SRCS)
-	$(CXX) $(CXXFLAGS) -o $(PROG) $(SRCS) $(LDFLAGS) $(LDFLAGS_EXTRA) $(LIBS)
+all: thermocam-pcb thermocam-webserver
 
+thermocam-pcb: thermocam-pcb.cpp
+	$(CXX) $(CXXFLAGS) -o thermocam-pcb thermocam-pcb.cpp $(LDFLAGS) $(LDFLAGS_EXTRA) $(LIBS)
+
+thermocam-webserver: webserver/thermocam-webserver.cpp
+	$(CXX) -std=c++11 -O2 -o webserver/thermocam-webserver webserver/thermocam-webserver.cpp -lboost_system -lboost_thread -lpthread
 clean:
 	-rm thermocam-pcb

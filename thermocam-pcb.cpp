@@ -37,6 +37,7 @@ struct cmd_arguments{
     bool save_img = false;
     string save_img_dir;
     double save_img_period = 0;
+    string save_frame_path;
 };
 cmd_arguments args;
 
@@ -464,7 +465,7 @@ void showPOIImg(string path){
 
 int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
                      string window_name, bool enter_POI, VideoWriter *vw,
-                     string poi_csv_file)
+                     string poi_csv_file, string save_frame_path)
 {
     updateImStatus(curr, is, ref);
     printPOITemp(curr, is, poi_csv_file);
@@ -472,6 +473,9 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
 
     if (vw)
         vw->write(curr->gray);
+
+    if (!save_frame_path.empty())
+        imwrite(save_frame_path, img);
 
     if (gui_available) {
         imshow(window_name, img);
@@ -491,7 +495,6 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
 }
 
 void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_arguments *args)
-
 {
     int exit = 0;
     VideoWriter *vw = nullptr;
@@ -513,7 +516,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     while (!exit) {
         auto begin = chrono::system_clock::now();
         exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw,
-                                args->poi_csv_file);
+                                args->poi_csv_file, args->save_frame_path);
         auto end = chrono::system_clock::now();
 
         if (args->save_img &&
@@ -571,6 +574,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         args.save_img_period = atof(arg);
         args.save_img = true;
         break;
+    case 'f':
+        args.save_frame_path = arg;
+        break;
     case ARGP_KEY_END:
         if (args.license_dir.empty())
             args.license_dir = ".";
@@ -596,6 +602,7 @@ static struct argp_option options[] = {
     { "csv-log",         'c', "FILE",        0, "Log temperature of POIs to a csv file instead of printing them to stdout."},
     { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
     { "save-img-period", -2,  "NUM",         0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
+    { "save-frame",      'f', "FILE",        0, "Save each frame into the same image file with given name."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { 0 } 
 };
