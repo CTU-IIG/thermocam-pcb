@@ -7,6 +7,7 @@
 #include "Base64.h"
 
 #include "CameraCenter.h"
+#include "point_tracking.h"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/mat.hpp>
@@ -43,6 +44,7 @@ cmd_arguments args;
 /* Global switches */
 bool gui_available;
 bool sigint_received = false;;
+bool tracking_on = false;
 
 enum draw_mode { FULL, TEMP, NUM };
 constexpr draw_mode next(draw_mode m)
@@ -322,21 +324,25 @@ void updateImStatus(im_status *s, img_stream *is, im_status *ref = nullptr)
 {
 
     updateStatusImgs(s, is);
-    if(ref)
-        s->POI = ref->POI; // Placeholder until tracking is implemented
-    /*
-    // Calculate new coordinates of points by homography
 
-    fillKeyDesc(curr,curr->gray, curr->mask);
+    Mat pre = preprocess(s->gray);
+    s->kp = getKeyPoints(pre);
+    s->desc = getDescriptors(pre, s->kp);
 
-    Mat H = findHomography(ref->kp, curr->kp, ref->desc, curr->desc);
-    if (!H.empty()){
-        // findHomography may return an empty matrix if there aren't enough points(4)
-        // to estimate a homography from them.
-        // In this case, the points stay the same as before.
-        perspectiveTransform(ref->POI, curr->POI, H);
+    if (ref) {
+        Mat H = findHomography(ref->kp, s->kp, ref->desc, s->desc);
+        if (!H.empty() && ref->POI.size() > 0) {
+            // findHomography may return an empty matrix if there aren't
+            // enough points(4) to estimate a homography from them.
+            // In this case, the points stay the same as before.
+            s->POI = ref->POI;
+            for (unsigned i=0; i<ref->POI.size(); i++) {
+                vector<Point2f> t = { ref->POI[i].p };
+                perspectiveTransform(t, t, H);
+                s->POI[i].p = t[0];
+            }
+        }
     }
-    */
 }
 
 void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
@@ -563,6 +569,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
     case 'd':
         args.display_delay_us = atof(arg) * 1000000;
         break;
+    case 't':
+        if (!args.enter_POI)
+            tracking_on = true;
+        break;
     case -1:
         args.save_img_dir = arg;
         args.save_img = true;
@@ -596,6 +606,7 @@ static struct argp_option options[] = {
     { "csv-log",         'c', "FILE",        0, "Log temperature of POIs to a csv file instead of printing them to stdout."},
     { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
     { "save-img-period", -2,  "NUM",         0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
+    { "track-points",    't', 0,             0, "Turn on tracking of points."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { 0 } 
 };
