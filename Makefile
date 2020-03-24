@@ -5,7 +5,7 @@ OPENCV_HOME = /home/work/opencv-2.4
 CXXFLAGS = -O2 -g -Wall -D_UNIX_ -D_LINUX_ -I/$(WIC_HOME)/include -I/$(EBUS_HOME)/include -std=c++11
 CXXFLAGS+=-DGIT_VERSION='"$(shell git describe --always || echo unknown)"'
 CXXFLAGS+=-I/$(OPENCV_HOME)/include
-SRCS = thermocam-pcb.cpp
+SRCS = thermocam-pcb.cpp point_tracking.cpp
 PROG = thermocam-pcb
 
 LDFLAGS = -L/$(OPENCV_HOME)/lib -L/$(WIC_HOME)/lib -L/$(EBUS_HOME)/lib -Wl,-rpath-link=$(EBUS_HOME)/lib -Wl,-rpath-link=$(EBUS_HOME)/lib/genicam/bin/Linux64_x64
@@ -18,10 +18,13 @@ LDFLAGS = -L/$(OPENCV_HOME)/lib -L/$(WIC_HOME)/lib -L/$(EBUS_HOME)/lib -Wl,-rpat
 
 #LDFLAGS_EXTRA = -static-libstdc++
 
-LIBS = -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_features2d -lopencv_calib3d -lWIC_SDK -ljpeg -lPvBase -lPvDevice -lPvBuffer -lPvGenICam -lPvTransmitter -lPvVirtualDevice -lPvAppUtils -lPvPersistence -lPvSerial -lPvStream -pthread
+LIBS = -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_features2d -lopencv_calib3d -lopencv_flann -lWIC_SDK -ljpeg -lPvBase -lPvDevice -lPvBuffer -lPvGenICam -lPvTransmitter -lPvVirtualDevice -lPvAppUtils -lPvPersistence -lPvSerial -lPvStream -pthread
 
 $(PROG):$(SRCS)
 	$(CXX) $(CXXFLAGS) -o $(PROG) $(SRCS) $(LDFLAGS) $(LDFLAGS_EXTRA) $(LIBS)
+
+track-test: track_test.cpp point_tracking.cpp
+	$(CXX) $(CXXFLAGS) -o track_test point_tracking.cpp track_test.cpp $(LDFLAGS) $(LDFLAGS_EXTRA) $(LIBS)
 
 clean:
 	-rm thermocam-pcb
