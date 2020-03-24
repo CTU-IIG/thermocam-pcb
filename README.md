@@ -131,6 +131,8 @@ temperature. Writes the temperatures of entered POIs to stdout.
                              seconds.
   -e, --enter-poi[=FILE]     Enter Points of interest by hand, optionally save
                              them to json file at supplied path.
+  -f, --save-frame=FILE      Save each frame into the same image file with
+                             given name.
   -l, --license-dir=FILE     Path to directory containing WIC license file.
                              "." by default.
   -p, --poi-path=FILE        Path to config file containing saved POIs.
