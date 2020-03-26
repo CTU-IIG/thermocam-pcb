@@ -24,6 +24,6 @@ thermocam-pcb: thermocam-pcb.cpp
 	$(CXX) $(CXXFLAGS) -o thermocam-pcb thermocam-pcb.cpp $(LDFLAGS) $(LDFLAGS_EXTRA) $(LIBS)
 
 thermocam-webserver: webserver/thermocam-webserver.cpp
-	$(CXX) -std=c++11 -O2 -o webserver/thermocam-webserver webserver/thermocam-webserver.cpp -lboost_system -lboost_thread -lpthread
+	$(CXX) -std=c++11 -O2 -o webserver/thermocam-webserver webserver/thermocam-webserver.cpp -lboost_system -lpthread
 clean:
 	-rm thermocam-pcb
