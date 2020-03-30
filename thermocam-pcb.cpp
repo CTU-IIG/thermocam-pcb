@@ -48,11 +48,6 @@ cmd_arguments args;
 bool gui_available;
 bool sigint_received = false;;
 
-/* Webserver globals */
-mutex web_img_lock;
-Mat web_img;
-pthread_t web_thread;
-
 enum draw_mode { FULL, TEMP, NUM };
 constexpr draw_mode next(draw_mode m)
 {
@@ -84,6 +79,12 @@ struct img_stream {
     uint16_t max_rawtemp;
 };
 
+/* Webserver globals */
+mutex web_lock;
+Mat web_img;
+vector<poi> web_POI;
+pthread_t web_thread;
+
 inline double duration_us(chrono::time_point<chrono::system_clock> begin,
                           chrono::time_point<chrono::system_clock> end)
 {
@@ -103,11 +104,37 @@ void signalHandler(int signal_num)
         sigint_received = true;
 }
 
+string POI2Str(poi p, bool print_name = true)
+{
+    stringstream ss;
+    if(print_name)
+        ss << p.name << "=";
+    ss << fixed << setprecision(2) << p.temp;
+    return ss.str();
+}
+
+void sendCurrPOITemp(crow::response& res){
+
+    string s;
+    vector<poi> POI;
+
+    unique_lock<mutex> ulock(web_lock);
+    POI = web_POI;
+    ulock.unlock();
+
+    for (auto p : POI)
+        s+= POI2Str(p) + "\n";
+
+    res.write(s);
+    res.end();
+
+}
+
 void sendCurrImage(crow::response& res){
 
     vector<uchar> img_v;
 
-    unique_lock<mutex> ulock(web_img_lock);
+    unique_lock<mutex> ulock(web_lock);
     imencode(".jpg",web_img,img_v);
     ulock.unlock();
 
@@ -132,11 +159,11 @@ void *startWebServer(void *)
         sendCurrImage(res);
     });
 
-/*    CROW_ROUTE(app, "/temperatures.txt")
+    CROW_ROUTE(app, "/temperatures.txt")
     ([](const crow::request& req, crow::response& res){
         sendCurrPOITemp(res);
     });
-*/
+
     app.port(8000)
         .multithreaded()
         .run();
@@ -220,13 +247,6 @@ Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
     return G;
 }
 
-string temp2str(double temp)
-{
-    stringstream ss;
-    ss << fixed << setprecision(2) << temp << " C";
-    return ss.str();
-}
-
 // Prints vector of strings at given point in a column
 // Workaround for the missing support of linebreaks from OpenCV
 void imgPrintStrings(Mat& img, vector<string> strings, Point2f p, Scalar color)
@@ -261,7 +281,7 @@ void drawSidebar(Mat& img, vector<poi> POI)
     // Print point names and temperatures
     vector<string> s(POI.size());
     for (unsigned i = 0; i < POI.size(); i++)
-        s[i] = to_string(i) + ": " + POI[i].name + ": " + temp2str(POI[i].temp);
+        s[i] = to_string(i) + ": " + POI2Str(POI[i]) + " C";
     Point2f print_coords = { (float)(img.cols - sbw + 5), 0 };
     imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
 }
@@ -284,10 +304,10 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode,
         vector<string> label;
         switch (mode) {
         case FULL:
-            label = { POI[i].name, temp2str(POI[i].temp) };
+            label = { POI[i].name, POI2Str(POI[i], false).append(" C") };
             break;
         case TEMP:
-            label = { temp2str(POI[i].temp) };
+            label = { POI2Str(POI[i], false).append(" C") };
             break;
         case NUM:
             label = { to_string(i) };
@@ -483,7 +503,7 @@ void printPOITemp(vector<poi> POI, string file)
     if (file.empty()) {
         cout << "Temperature of points of interest:\n";
         for (unsigned i = 0; i < POI.size(); i++)
-            printf("%s=%.2lf\n", POI[i].name.c_str(), POI[i].temp);
+            cout << POI2Str(POI[i]) << endl;
         cout << endl;
     } else {
         string str;
@@ -518,8 +538,9 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
         vw->write(curr->gray);
 
     if (webserver_active) {
-        unique_lock<mutex> ulock(web_img_lock);
+        unique_lock<mutex> ulock(web_lock);
         web_img = img.clone();
+        web_POI = curr->POI;
         ulock.unlock();
     }
 
