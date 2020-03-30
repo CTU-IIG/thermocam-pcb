@@ -1,6 +1,0 @@
-# This file only exists so I can commit an empty directory
-# And thus reserve the directory structure for the webserver
-#
-# Ignore everything in this directory
-# Except this file
-!.gitignore

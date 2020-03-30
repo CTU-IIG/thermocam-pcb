@@ -2,9 +2,12 @@
 #include <err.h>
 #include <unistd.h>
 #include <time.h>
+#include <mutex>
+#include <pthread.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include "Base64.h"
+#include "crow_all.h"
 
 #include "CameraCenter.h"
 
@@ -37,13 +40,18 @@ struct cmd_arguments{
     bool save_img = false;
     string save_img_dir;
     double save_img_period = 0;
-    string save_frame_path;
+    bool webserver_active = false;
 };
 cmd_arguments args;
 
 /* Global switches */
 bool gui_available;
 bool sigint_received = false;;
+
+/* Webserver globals */
+mutex web_img_lock;
+Mat web_img;
+pthread_t web_thread;
 
 enum draw_mode { FULL, TEMP, NUM };
 constexpr draw_mode next(draw_mode m)
@@ -55,6 +63,7 @@ draw_mode curr_draw_mode = FULL;
 struct poi {
     string name;
     Point2f p;
+    double temp;
 };
 
 struct im_status {
@@ -92,6 +101,47 @@ void signalHandler(int signal_num)
 {
     if (signal_num == SIGINT)
         sigint_received = true;
+}
+
+void sendCurrImage(crow::response& res){
+
+    vector<uchar> img_v;
+
+    unique_lock<mutex> ulock(web_img_lock);
+    imencode(".jpg",web_img,img_v);
+    ulock.unlock();
+
+    string img_s(img_v.begin(),img_v.end());
+    res.write(img_s);
+    res.end();
+
+}
+
+void *startWebServer(void *)
+{
+    crow::SimpleApp app;
+    crow::mustache::set_base(".");
+
+    CROW_ROUTE(app, "/")
+    ([]{
+        return crow::mustache::load("thermocam-web.html").render();
+    });
+
+    CROW_ROUTE(app, "/thermocam-current.jpg")
+    ([](const crow::request& req, crow::response& res){
+        sendCurrImage(res);
+    });
+
+    CROW_ROUTE(app, "/temperatures.txt")
+    ([](const crow::request& req, crow::response& res){
+        sendCurrPOITemp(res);
+    });
+
+    app.port(8000)
+        .multithreaded()
+        .run();
+
+    pthread_exit(NULL);
 }
 
 void initCamera(string license_dir, CameraCenter*& cc, Camera*& c)
@@ -465,7 +515,7 @@ void showPOIImg(string path){
 
 int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
                      string window_name, bool enter_POI, VideoWriter *vw,
-                     string poi_csv_file, string save_frame_path)
+                     string poi_csv_file, bool webserver_active)
 {
     updateImStatus(curr, is, ref);
     printPOITemp(curr, is, poi_csv_file);
@@ -474,8 +524,11 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     if (vw)
         vw->write(curr->gray);
 
-    if (!save_frame_path.empty())
-        imwrite(save_frame_path, img);
+    if (webserver_active) {
+        unique_lock<mutex> ulock(web_img_lock);
+        web_img = img.clone();
+        ulock.unlock();
+    }
 
     if (gui_available) {
         imshow(window_name, img);
@@ -516,7 +569,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     while (!exit) {
         auto begin = chrono::system_clock::now();
         exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw,
-                                args->poi_csv_file, args->save_frame_path);
+                                args->poi_csv_file, args->webserver_active);
         auto end = chrono::system_clock::now();
 
         if (args->save_img &&
@@ -574,8 +627,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         args.save_img_period = atof(arg);
         args.save_img = true;
         break;
-    case 'f':
-        args.save_frame_path = arg;
+    case 'w':
+        args.webserver_active = true;
         break;
     case ARGP_KEY_END:
         if (args.license_dir.empty())
@@ -602,8 +655,8 @@ static struct argp_option options[] = {
     { "csv-log",         'c', "FILE",        0, "Log temperature of POIs to a csv file instead of printing them to stdout."},
     { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
     { "save-img-period", -2,  "NUM",         0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
-    { "save-frame",      'f', "FILE",        0, "Save each frame into the same image file with given name."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
+    { "webserver",       'w', 0,             0, "Start webserver to display image and temperatures."},
     { 0 } 
 };
 
@@ -635,6 +688,12 @@ int main(int argc, char **argv)
 
     signal(SIGINT, signalHandler);
     detectDisplay();
+
+    if (args.webserver_active) {
+        int ret = pthread_create(&web_thread, nullptr, startWebServer, nullptr);
+        if (ret)
+            err(1, "pthread_create");
+    }
 
     if (!args.show_POI_path.empty() && gui_available) {
         showPOIImg(args.show_POI_path);

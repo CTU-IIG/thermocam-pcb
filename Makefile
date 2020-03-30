@@ -16,14 +16,10 @@ LDFLAGS = -L/$(OPENCV_HOME)/lib -L/$(WIC_HOME)/lib -L/$(EBUS_HOME)/lib -Wl,-rpat
 
 #LDFLAGS_EXTRA = -static-libstdc++
 
-LIBS = -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_features2d -lopencv_calib3d -lWIC_SDK -ljpeg -lPvBase -lPvDevice -lPvBuffer -lPvGenICam -lPvTransmitter -lPvVirtualDevice -lPvAppUtils -lPvPersistence -lPvSerial -lPvStream -pthread
-
-all: thermocam-pcb thermocam-webserver
+LIBS = -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_features2d -lopencv_calib3d -lWIC_SDK -ljpeg -lPvBase -lPvDevice -lPvBuffer -lPvGenICam -lPvTransmitter -lPvVirtualDevice -lPvAppUtils -lPvPersistence -lPvSerial -lPvStream -pthread -lboost_system -fsanitize=thread
 
 thermocam-pcb: thermocam-pcb.cpp
 	$(CXX) $(CXXFLAGS) -o thermocam-pcb thermocam-pcb.cpp $(LDFLAGS) $(LDFLAGS_EXTRA) $(LIBS)
 
-thermocam-webserver: webserver/thermocam-webserver.cpp
-	$(CXX) -std=c++11 -O2 -o webserver/thermocam-webserver webserver/thermocam-webserver.cpp -lboost_system -lpthread
 clean:
 	-rm thermocam-pcb
