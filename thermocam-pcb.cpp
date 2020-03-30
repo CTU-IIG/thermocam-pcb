@@ -132,11 +132,11 @@ void *startWebServer(void *)
         sendCurrImage(res);
     });
 
-    CROW_ROUTE(app, "/temperatures.txt")
+/*    CROW_ROUTE(app, "/temperatures.txt")
     ([](const crow::request& req, crow::response& res){
         sendCurrPOITemp(res);
     });
-
+*/
     app.port(8000)
         .multithreaded()
         .run();
@@ -220,25 +220,6 @@ Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
     return G;
 }
 
-vector<double> getPOITemp(im_status *s, img_stream *is)
-{
-    vector<double> temp(s->POI.size());
-    for (unsigned i = 0; i < s->POI.size(); i++) {
-        if (round(s->POI[i].p.y) < 0 || round(s->POI[i].p.y) > s->height ||
-            round(s->POI[i].p.x) < 0 || round(s->POI[i].p.x) > s->width) {
-            cerr << s->POI[i].name << " out of image!" << endl;
-            temp[i] = nan("");
-            continue;
-        }
-        int idx = s->width * round(s->POI[i].p.y) + round(s->POI[i].p.x);
-        if (is->is_video)
-            temp[i] = pixel2Temp(s->gray.data[idx]);
-        else
-            temp[i] = is->camera->CalculateTemperatureC(s->rawtemp[idx]);
-    }
-    return temp;
-}
-
 string temp2str(double temp)
 {
     stringstream ss;
@@ -271,7 +252,7 @@ int getSidebarWidth(vector<poi> POI)
     return max;
 }
 
-void drawSidebar(Mat& img, vector<poi> POI, vector<double> temp)
+void drawSidebar(Mat& img, vector<poi> POI)
 {
     // Draw sidebar
     int sbw = getSidebarWidth(POI);
@@ -280,23 +261,19 @@ void drawSidebar(Mat& img, vector<poi> POI, vector<double> temp)
     // Print point names and temperatures
     vector<string> s(POI.size());
     for (unsigned i = 0; i < POI.size(); i++)
-        s[i] = to_string(i) + ": " + POI[i].name + ": " + temp2str(temp[i]);
+        s[i] = to_string(i) + ": " + POI[i].name + ": " + temp2str(POI[i].temp);
     Point2f print_coords = { (float)(img.cols - sbw + 5), 0 };
     imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
 }
 
-Mat drawPOI(im_status *s, img_stream *is, draw_mode mode,
+Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode,
             Scalar color = Scalar(0, 0, 255))
 {
 
-    Mat A = s->gray.clone();
-    vector<poi> POI = s->POI;
+    Mat A = in.clone();
 
     if (A.channels() == 1)
         cvtColor(A, A, COLOR_GRAY2RGB); // So that drawing is not grayscale
-
-    // Temperatures at POI positions from rawtemp
-    vector<double> temp = getPOITemp(s, is);
 
     resize(A, A, Size(), 2, 2); // Enlarge image 2x for better looking fonts
     for (unsigned i = 0; i < POI.size(); i++) {
@@ -307,10 +284,10 @@ Mat drawPOI(im_status *s, img_stream *is, draw_mode mode,
         vector<string> label;
         switch (mode) {
         case FULL:
-            label = { POI[i].name, temp2str(temp[i]) };
+            label = { POI[i].name, temp2str(POI[i].temp) };
             break;
         case TEMP:
-            label = { temp2str(temp[i]) };
+            label = { temp2str(POI[i].temp) };
             break;
         case NUM:
             label = { to_string(i) };
@@ -320,7 +297,7 @@ Mat drawPOI(im_status *s, img_stream *is, draw_mode mode,
     }
 
     if (mode == NUM)
-        drawSidebar(A, POI, temp);
+        drawSidebar(A, POI);
 
     return A;
 }
@@ -333,6 +310,23 @@ void setStatusHeightWidth(im_status *s, img_stream *is)
     } else {
         s->height = is->camera->GetSettings()->GetResolutionY();
         s->width = is->camera->GetSettings()->GetResolutionX();
+    }
+}
+
+void updatePOITemps(im_status *s, img_stream *is)
+{
+    for (unsigned i = 0; i < s->POI.size(); i++) {
+        if (round(s->POI[i].p.y) < 0 || round(s->POI[i].p.y) > s->height ||
+            round(s->POI[i].p.x) < 0 || round(s->POI[i].p.x) > s->width) {
+            cerr << s->POI[i].name << " out of image!" << endl;
+            s->POI[i].temp = nan("");
+            continue;
+        }
+        int idx = s->width * round(s->POI[i].p.y) + round(s->POI[i].p.x);
+        if (is->is_video)
+            s->POI[i].temp = pixel2Temp(s->gray.data[idx]);
+        else
+            s->POI[i].temp = is->camera->CalculateTemperatureC(s->rawtemp[idx]);
     }
 }
 
@@ -373,8 +367,11 @@ void updateImStatus(im_status *s, img_stream *is, im_status *ref = nullptr)
 {
 
     updateStatusImgs(s, is);
+
     if(ref)
         s->POI = ref->POI; // Placeholder until tracking is implemented
+    updatePOITemps(s,is);
+
     /*
     // Calculate new coordinates of points by homography
 
@@ -398,6 +395,7 @@ void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
         elem.put("name", POI[i].name);
         elem.put("x", POI[i].p.x);
         elem.put("y", POI[i].p.y);
+        elem.put("temp", POI[i].temp);
         POI_pt.push_back(std::make_pair("", elem));
     }
     root.add_child("POI", POI_pt);
@@ -420,7 +418,9 @@ vector<poi> readPOI(string path)
     pt::ptree root;
     pt::read_json(path, root);
     for (pt::ptree::value_type &p : root.get_child("POI"))
-        POI.push_back({ p.second.get<string>("name"), { p.second.get<float>("x"), p.second.get<float>("y") } });
+        POI.push_back({ p.second.get<string>("name"),
+                        { p.second.get<float>("x"), p.second.get<float>("y") },
+                        p.second.get<double>("temp") });
     return POI;
 }
 
@@ -466,32 +466,30 @@ string csvHeaderPOI(vector<poi> POI){
     return s;
 }
 
-string csvRowPOI(vector<double> temps){
+string csvRowPOI(vector<poi> POI){
     stringstream ss;
     ss << clkDateTimeString(chrono::system_clock::now());
-    for (unsigned i = 0; i < temps.size(); i++)
-        ss << ", " << fixed << setprecision(2) << temps[i];
+    for (unsigned i = 0; i < POI.size(); i++)
+        ss << ", " << fixed << setprecision(2) << POI[i].temp;
     ss << endl;
     return ss.str();
 }
 
-void printPOITemp(im_status *s, img_stream *is, string file)
+void printPOITemp(vector<poi> POI, string file)
 {
-    if (s->POI.size() == 0)
+    if (POI.size() == 0)
         return;
-
-    vector<double> temps = getPOITemp(s, is);
 
     if (file.empty()) {
         cout << "Temperature of points of interest:\n";
-        for (unsigned i = 0; i < s->POI.size(); i++)
-            printf("%s=%.2lf\n", s->POI[i].name.c_str(), temps[i]);
+        for (unsigned i = 0; i < POI.size(); i++)
+            printf("%s=%.2lf\n", POI[i].name.c_str(), POI[i].temp);
         cout << endl;
     } else {
         string str;
         if (access(file.c_str(), F_OK) == -1) // File does not exist
-            str += csvHeaderPOI(s->POI);
-        str += csvRowPOI(temps);
+            str += csvHeaderPOI(POI);
+        str += csvRowPOI(POI);
         ofstream f(file, ofstream::app);
         f << str;
         f.close();
@@ -499,14 +497,9 @@ void printPOITemp(im_status *s, img_stream *is, string file)
 }
 
 void showPOIImg(string path){
-    im_status s;
-    img_stream is;
-    s.POI =  readPOI(path);
-    s.gray = readJsonImg(path);
-    s.height = s.gray.rows;
-    s.width = s.gray.cols;
-    is.is_video = true;
-    Mat imdraw = drawPOI(&s, &is, draw_mode::NUM);
+    vector<poi> POI =  readPOI(path);
+    Mat img = readJsonImg(path);
+    Mat imdraw = drawPOI(img, POI, draw_mode::NUM);
     string title = "POI from " + path;
     imshow(title,imdraw);
     waitKey(0);
@@ -518,8 +511,8 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
                      string poi_csv_file, bool webserver_active)
 {
     updateImStatus(curr, is, ref);
-    printPOITemp(curr, is, poi_csv_file);
-    Mat img = drawPOI(curr, is, curr_draw_mode);
+    printPOITemp(curr->POI, poi_csv_file);
+    Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
 
     if (vw)
         vw->write(curr->gray);
@@ -577,7 +570,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
             save_img_clk = chrono::system_clock::now();
             string img_path = args->save_img_dir + "/"
                               + clkDateTimeString(save_img_clk) + ".png";
-            imwrite(img_path, drawPOI(curr, is, draw_mode::NUM));
+            imwrite(img_path, drawPOI(curr->gray, curr->POI, draw_mode::NUM));
         }
         double process_time_us = duration_us(begin, end);
         if (args->display_delay_us > process_time_us)
@@ -709,7 +702,7 @@ int main(int argc, char **argv)
     processStream(&is, &ref, &curr, &args);
 
     if (!args.POI_export_path.empty())
-        writePOI(ref.POI, curr.gray, args.POI_export_path, true);
+        writePOI(curr.POI, curr.gray, args.POI_export_path, true);
 
     clearStatusImgs(&ref);
     clearStatusImgs(&curr);
