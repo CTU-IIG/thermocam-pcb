@@ -30,10 +30,18 @@ else
   error('eBUS SDK not found in @0@. Run meson -Debus_home='.format(get_option('ebus_home')))
 endif
 
-opencv_dep = dependency('opencv')
+opencv_dep = dependency('opencv', required : false)
+if not opencv_dep.found()
+  opencv_dep = dependency('opencv4', required : true)
+endif
 
 version_h = vcs_tag(input : 'version.h.in', output : 'version.h',
 		    command : ['git', 'describe', '--always'])
+
+cpp_args = []
+if cxx.has_header('opencv2/videoio/legacy/constants_c.h', dependencies : opencv_dep)
+  cpp_args += '-DHAVE_LEGACY_VIDEOIO=1'
+endif
 
 executable('thermocam-pcb', ['thermocam-pcb.cpp'],
 	   dependencies: [
@@ -41,5 +49,7 @@ executable('thermocam-pcb', ['thermocam-pcb.cpp'],
 	     wic_dep,
 	     ebus_dep,
 	     dependency('boost', modules : ['system']),
+	     dependency('threads'),
 	   ],
+	   cpp_args : cpp_args,
 	  )

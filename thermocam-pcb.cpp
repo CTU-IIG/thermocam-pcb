@@ -16,8 +16,12 @@
 #include <opencv2/core/mat.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/imgproc/imgproc_c.h>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/calib3d.hpp>
+#ifdef HAVE_LEGACY_VIDEOIO
+#include <opencv2/videoio/legacy/constants_c.h>
+#endif
 
 #include "version.h"
 
@@ -464,7 +468,7 @@ Mat readJsonImg(string path)
 
 void onMouse(int event, int x, int y, int flags, void *param)
 {
-    if (event == CV_EVENT_LBUTTONDOWN) {
+    if (event == EVENT_LBUTTONDOWN) {
         vector<poi> &POI = *((vector<poi> *)(param));
         string name = "Point " + to_string(POI.size());
         // The image is upscaled 2x when displaying POI
@@ -576,7 +580,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     updateImStatus(ref,is);
 
     if (gui_available)
-        namedWindow(window_name, WINDOW_AUTOSIZE);
+        namedWindow(window_name, WINDOW_NORMAL);
     if (gui_available && args->enter_POI)
         setMouseCallback(window_name, onMouse, &ref->POI);
     if (!args->vid_out_path.empty())
