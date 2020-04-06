@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <mutex>
+#include <atomic>
 #include <pthread.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -83,6 +84,7 @@ struct img_stream {
 mutex web_lock;
 Mat web_img;
 vector<poi> web_POI;
+atomic<bool> web_finished(false);
 pthread_t web_thread;
 
 inline double duration_us(chrono::time_point<chrono::system_clock> begin,
@@ -168,6 +170,7 @@ void *startWebServer(void *)
         .multithreaded()
         .run();
 
+    web_finished = true;
     pthread_exit(NULL);
 }
 
@@ -555,7 +558,7 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
             return 1;
     }
 
-    if (sigint_received)
+    if (sigint_received || (webserver_active && web_finished))
         return 1;
 
     return 0;
@@ -724,6 +727,10 @@ int main(int argc, char **argv)
 
     if (!args.POI_export_path.empty())
         writePOI(curr.POI, curr.gray, args.POI_export_path, true);
+
+    if (args.webserver_active && !web_finished)
+        if (pthread_kill(web_thread, SIGINT) || pthread_join(web_thread, NULL))
+            err(1, "webserver kill, join");
 
     clearStatusImgs(&ref);
     clearStatusImgs(&curr);
