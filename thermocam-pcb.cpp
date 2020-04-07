@@ -19,6 +19,8 @@
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/calib3d.hpp>
 
+#include "version.h"
+
 using namespace cv;
 namespace pt = boost::property_tree;
 

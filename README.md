@@ -72,9 +72,20 @@ Recorded video is stored in a lossless HuffYUV(HFYU) format which OpenCV does no
 
 ## Compilation
 
-Before running make, be sure to change the variables `WIC_HOME`, `EBUS_HOME` and `OPENCV_HOME` in the Makefile to the paths where you installed the WIC and eBUS SDK and OpenCV respectively.
+To compile the program, run:
 
-After this, the program can be simply compiled with running `make` in the project folder.
+    meson setup build [options]
+	ninja -C build
+
+Useful `options` are:
+- `-Dpkg_config_path=$HOME/opt/opencv-2.4/lib/pkgconfig` to specify
+  path to specific OpenCV installation.
+- `-Debus_home=` or `-Dwic_home` to specify paths to the WIC SDK
+- `-Dcpp_link_args=-static-libstdc++` if you compile on a system with
+  newer libstdc++ and running the resulting binary on the target
+  systems fails with: /usr/lib/x86_64-linux-gnu/libstdc++.so.6:
+  version `GLIBCXX_3.4.26' not found
+- other options reported by `meson configure` or `meson setup -h`.
 
 ## Usage
 
@@ -82,7 +93,7 @@ After this, the program can be simply compiled with running `make` in the projec
 
 To simply display the thermocamera image, run without any arguments:
 
-`./thermocam-pcb`
+`./build/thermocam-pcb`
 
 This requires the WIC license file to be in the same directory as the executable. If your license file is elsewhere, you need to specify its directory with `--license-dir` to be able to use the camera.
 
@@ -98,14 +109,14 @@ You can use multiple functions, most even at the same time:
 
 For example, to import previously saved points, enter points by hand, export both into a single file and record video, run:
 
-`./thermocam-pcb -p import.json --enter-poi=export.json -r recording.avi`
+`./build/thermocam-pcb -p import.json --enter-poi=export.json -r recording.avi`
 
 ### Setting video as input instead of camera
 
 Add the path to your video to the arguments as `-v myvideo.avi`. 
 Running the previous example(enter,import,export,record) with video input instead of camera can thus be done with:
 
-`./thermocam-pcb -v myvideo.avi -p import.json --enter-poi=export.json -r recording.avi`
+`./build/thermocam-pcb -v myvideo.avi -p import.json --enter-poi=export.json -r recording.avi`
 
 ### Changing between views
 
@@ -172,6 +183,6 @@ Requires the `boost` and `pthread` libraries.
 
 ## Usage
 
-Run `./thermocam-webserver` to be able to access the thermocam-pcb website on port 8000, which is periodically refreshing the image `images/thermocam-current.png`.
+Run `./build/thermocam-webserver` to be able to access the thermocam-pcb website on port 8000, which is periodically refreshing the image `images/thermocam-current.png`.
 
-Combine with `./thermocam-pcb -f webserver/images/thermocam-current.png` for live video feed from camera.
+Combine with `./build/thermocam-pcb -f webserver/images/thermocam-current.png` for live video feed from camera.
