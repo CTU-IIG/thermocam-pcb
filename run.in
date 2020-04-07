@@ -1,0 +1,16 @@
+#!/bin/sh
+
+export LD_LIBRARY_PATH=@WIC_HOME@/lib:@EBUS_HOME@/lib:@EBUS_HOME@/lib/genicam/bin/Linux64_x64:@OPENCV_HOME@/lib:${LD_LIBRARY_PATH}
+
+export PUREGEV_ROOT=@EBUS_HOME@
+export GENICAM_ROOT=$PUREGEV_ROOT/lib/genicam
+export GENICAM_ROOT_V2_4=$GENICAM_ROOT
+export GENICAM_LOG_CONFIG=$GENICAM_ROOT/log/config/DefaultLogging.properties
+export GENICAM_LOG_CONFIG_V2_4=$GENICAM_LOG_CONFIG
+export GENICAM_CACHE_V2_4=$HOME/.config/Pleora/genicam_cache_v2_4
+export GENICAM_CACHE=$GENICAM_CACHE_V2_4
+export GENICAM_LIB_DIR=$GENICAM_ROOT/bin/Linux64_x64
+mkdir -p "$GENICAM_CACHE"
+export GENICAM_ROOT_V3_0=$GENICAM_ROOT
+
+exec "$(dirname "$0")/thermocam-pcb" "$@"

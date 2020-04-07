@@ -53,3 +53,12 @@ executable('thermocam-pcb', ['thermocam-pcb.cpp'],
 	   ],
 	   cpp_args : cpp_args,
 	  )
+
+conf_data = configuration_data()
+conf_data.set('EBUS_HOME', get_option('ebus_home'))
+conf_data.set('WIC_HOME', get_option('wic_home'))
+conf_data.set('OPENCV_HOME', opencv_dep.get_pkgconfig_variable('prefix'))
+
+configure_file(input : 'run.in',
+               output : 'run',
+               configuration : conf_data)

@@ -41,7 +41,9 @@ Adding runlevels to the script will enable `update-rc.d` to work with it. Make s
 
 You need to set up your environment variables to run the program and use the WIC and eBUS SDKs. Run `/opt/workswell/wic_sdk/set_env_variables` to do so.
 
-For me the script did not set all environment variables correctly. If this is the case for you, you may try running the following commands to set up your environment (make sure to enter the folder name with your linux distribution in the second command):
+For me the script did not set all environment variables correctly. If this is the case for you, you may try use the `build/run` script produced by meson, which sets up the environment according to the meson configuration and runs the compiled binary.
+
+Alternatively, write the script yourself according to the following (make sure to enter the folder name with your Linux distribution in the second command):
 
 ```
 LD_LIBRARY_PATH=/opt/workswell/wic_sdk/lib:${LD_LIBRARY_PATH}
@@ -91,11 +93,15 @@ Useful `options` are:
 
 ### Basic functionality
 
-To simply display the thermocamera image, run without any arguments:
+To simply display the thermocamera image, run the program without any arguments:
 
 `./build/thermocam-pcb`
 
-This requires the WIC license file to be in the same directory as the executable. If your license file is elsewhere, you need to specify its directory with `--license-dir` to be able to use the camera.
+or
+
+    ./build/run
+
+This requires the WIC license file to be in the current directory. If your license file is elsewhere, you need to specify its directory with `--license-dir` to be able to use the camera.
 
 ### Additional functionality
 
