@@ -3,7 +3,13 @@
         <title>Thermocam-PCB</title>
         <h2>Thermocam-PCB</h2>
     </head>
-    <body onload="setTimeout(function(){location.reload()}, 100);">
-        <img src="thermocam-current.jpg"/>
+    <body onload="setInterval(reloadImg, 100);">
+      <img src="thermocam-current.jpg" id=camera />
+      <script>
+	var counter = 0;
+	function reloadImg() {
+	    document.getElementById('camera').src='thermocam-current.jpg?c=' + counter++;
+	}
+      </script>
     </body>
 </html>
