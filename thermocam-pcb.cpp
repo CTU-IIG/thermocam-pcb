@@ -1,16 +1,15 @@
+#include "thermocam-pcb.hpp"
+#include "webserver.hpp"
+#include "CameraCenter.h"
+
 #include <argp.h>
 #include <err.h>
 #include <unistd.h>
 #include <time.h>
-#include <mutex>
-#include <atomic>
 #include <pthread.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include "Base64.h"
-#include "crow_all.h"
-
-#include "CameraCenter.h"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/mat.hpp>
@@ -62,12 +61,6 @@ constexpr draw_mode next(draw_mode m)
 }
 draw_mode curr_draw_mode = FULL;
 
-struct poi {
-    string name;
-    Point2f p;
-    double temp;
-};
-
 struct im_status {
     int height=0,width=0;
     uint16_t *rawtemp = nullptr;
@@ -87,11 +80,9 @@ struct img_stream {
 };
 
 /* Webserver globals */
-mutex web_lock;
-Mat web_img;
-vector<poi> web_POI;
-atomic<bool> web_finished(false);
+Webserver *webserver = nullptr;
 pthread_t web_thread;
+typedef void * (*THREADFUNCPTR)(void *);
 
 inline double duration_us(chrono::time_point<chrono::system_clock> begin,
                           chrono::time_point<chrono::system_clock> end)
@@ -119,65 +110,6 @@ string POI2Str(poi p, bool print_name = true)
         ss << p.name << "=";
     ss << fixed << setprecision(2) << p.temp;
     return ss.str();
-}
-
-void sendCurrPOITemp(crow::response& res){
-
-    string s;
-    vector<poi> POI;
-
-    unique_lock<mutex> ulock(web_lock);
-    POI = web_POI;
-    ulock.unlock();
-
-    for (auto p : POI)
-        s+= POI2Str(p) + "\n";
-
-    res.write(s);
-    res.end();
-
-}
-
-void sendCurrImage(crow::response& res){
-
-    vector<uchar> img_v;
-
-    unique_lock<mutex> ulock(web_lock);
-    imencode(".jpg",web_img,img_v);
-    ulock.unlock();
-
-    string img_s(img_v.begin(),img_v.end());
-    res.write(img_s);
-    res.end();
-
-}
-
-void *startWebServer(void *)
-{
-    crow::SimpleApp app;
-    crow::mustache::set_base(".");
-
-    CROW_ROUTE(app, "/")
-    ([]{
-        return crow::mustache::load("thermocam-web.html").render();
-    });
-
-    CROW_ROUTE(app, "/thermocam-current.jpg")
-    ([](const crow::request& req, crow::response& res){
-        sendCurrImage(res);
-    });
-
-    CROW_ROUTE(app, "/temperatures.txt")
-    ([](const crow::request& req, crow::response& res){
-        sendCurrPOITemp(res);
-    });
-
-    app.port(8000)
-        .multithreaded()
-        .run();
-
-    web_finished = true;
-    pthread_exit(NULL);
 }
 
 void initCamera(string license_dir, CameraCenter*& cc, Camera*& c)
@@ -537,7 +469,7 @@ void showPOIImg(string path){
 
 int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
                      string window_name, bool enter_POI, VideoWriter *vw,
-                     string poi_csv_file, bool webserver_active)
+                     string poi_csv_file)
 {
     updateImStatus(curr, is, ref);
     printPOITemp(curr->POI, poi_csv_file);
@@ -546,11 +478,9 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     if (vw)
         vw->write(curr->gray);
 
-    if (webserver_active) {
-        unique_lock<mutex> ulock(web_lock);
-        web_img = img.clone();
-        web_POI = curr->POI;
-        ulock.unlock();
+    if (webserver) {
+        webserver->setImg(img);
+        webserver->setPOI(curr->POI);
     }
 
     if (gui_available) {
@@ -564,7 +494,7 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
             return 1;
     }
 
-    if (sigint_received || (webserver_active && web_finished))
+    if (sigint_received || (webserver && webserver->finished))
         return 1;
 
     return 0;
@@ -592,7 +522,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     while (!exit) {
         auto begin = chrono::system_clock::now();
         exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw,
-                                args->poi_csv_file, args->webserver_active);
+                                args->poi_csv_file);
         auto end = chrono::system_clock::now();
 
         if (args->save_img &&
@@ -713,7 +643,8 @@ int main(int argc, char **argv)
     detectDisplay();
 
     if (args.webserver_active) {
-        int ret = pthread_create(&web_thread, nullptr, startWebServer, nullptr);
+        webserver = new Webserver();
+        int ret = pthread_create(&web_thread, nullptr, (THREADFUNCPTR)&Webserver::start, webserver);
         if (ret)
             err(1, "pthread_create");
     }
@@ -734,7 +665,7 @@ int main(int argc, char **argv)
     if (!args.POI_export_path.empty())
         writePOI(curr.POI, curr.gray, args.POI_export_path, true);
 
-    if (args.webserver_active && !web_finished)
+    if (args.webserver_active && !webserver->finished)
         if (pthread_kill(web_thread, SIGINT) || pthread_join(web_thread, NULL))
             err(1, "webserver kill, join");
 

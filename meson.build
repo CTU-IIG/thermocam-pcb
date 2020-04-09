@@ -43,14 +43,22 @@ if cxx.has_header('opencv2/videoio/legacy/constants_c.h', dependencies : opencv_
   cpp_args += '-DHAVE_LEGACY_VIDEOIO=1'
 endif
 
+webserver = static_library('webserver', ['webserver.cpp'],
+        dependencies: [
+          opencv_dep,
+          dependency('boost', modules : ['system']),
+          dependency('threads')
+        ],
+        cpp_args : cpp_args,
+       )
+
 executable('thermocam-pcb', ['thermocam-pcb.cpp'],
 	   dependencies: [
 	     opencv_dep,
 	     wic_dep,
 	     ebus_dep,
-	     dependency('boost', modules : ['system']),
-	     dependency('threads'),
 	   ],
+       link_with : webserver,
 	   cpp_args : cpp_args,
 	  )
 
