@@ -72,6 +72,10 @@ For development, download and compile OpenCV source version 2.4 (the latest stab
 
 Recorded video is stored in a lossless HuffYUV(HFYU) format which OpenCV does not have built in, so its codec is needed to be installed externally, e.g. by part of `libavcodec`.
 
+### Webserver
+
+We use the crow C++ webserver, which requires the `boost` and `pthread` libraries.
+
 ## Compilation
 
 To compile the program, run:
@@ -148,8 +152,6 @@ temperature. Writes the temperatures of entered POIs to stdout.
                              seconds.
   -e, --enter-poi[=FILE]     Enter Points of interest by hand, optionally save
                              them to json file at supplied path.
-  -f, --save-frame=FILE      Save each frame into the same image file with
-                             given name.
   -l, --license-dir=FILE     Path to directory containing WIC license file.
                              "." by default.
   -p, --poi-path=FILE        Path to config file containing saved POIs.
@@ -162,6 +164,8 @@ temperature. Writes the temperatures of entered POIs to stdout.
                              "save-img-dir".
                              1s by default.
   -v, --load-video=FILE      Load and process video instead of camera feed
+  -w, --webserver            Start webserver to display image and
+                             temperatures.
   -?, --help                 Give this help list
       --usage                Give a short usage message
   -V, --version              Print program version
@@ -180,15 +184,3 @@ Esc                - Exit program
 Report bugs to https://github.com/CTU-IIG/thermocam-pcb/issues.
 ```
 <!-- help end -->
-
-# Webserver
-
-## Requirements
-
-Requires the `boost` and `pthread` libraries.
-
-## Usage
-
-Run `./build/thermocam-webserver` to be able to access the thermocam-pcb website on port 8000, which is periodically refreshing the image `images/thermocam-current.png`.
-
-Combine with `./build/thermocam-pcb -f webserver/images/thermocam-current.png` for live video feed from camera.
