@@ -1,0 +1,11 @@
+[Unit]
+Description=Thermocam-pcb startup launch
+
+[Service]
+User=ubuntu
+Environment="LD_LIBRARY_PATH=/opt/workswell/wic_sdk/lib" "GENICAM_ROOT_V3_0=/opt/pleora/ebus_sdk/Ubuntu-x86_64/lib/genicam"
+ExecStart=/home/ubuntu/thermocam-pcb/thermocam-pcb -l /home/ubuntu/thermocam-pcb -p /home/ubuntu/thermocam-pcb/points.json -w
+StandardOutput=null
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,2 @@
+option('wic_home',  type : 'string', value : '/opt/workswell/wic_sdk')
+option('ebus_home', type : 'string', value : '/opt/pleora/ebus_sdk/Ubuntu-x86_64')
