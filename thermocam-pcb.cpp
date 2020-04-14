@@ -147,6 +147,8 @@ void initImgStream(img_stream *is, string vid_in_path, string license_dir)
 {
     is->is_video = !vid_in_path.empty();
     if (is->is_video) {
+        if (access(vid_in_path.c_str(), F_OK) == -1) // File does not exist
+            err(1,"Video open");
         is->video = new VideoCapture(vid_in_path);
     } else {
         initCamera(license_dir, is->cc, is->camera);
