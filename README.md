@@ -138,6 +138,13 @@ There are 3 views available to display points and their temperature:
 
 You can change between these views by pressing Tab.
 
+### Access webserver
+
+The parameter `-w` starts a webserver on port `8080`.
+
+* `ip_address:8080` shows the current thermocamera stream
+* `ip_address:8080/temperatures.txt` returns the current POI Celsius temperatures in `name=temp` format
+
 ## Command line reference
 
 <!-- help start -->
