@@ -2,6 +2,25 @@
 #include "crow_all.h"
 #include <opencv2/highgui/highgui.hpp>
 
+const std::string html_code =
+R"(
+<html>
+    <head>
+        <title>Thermocam-PCB</title>
+        <h2>Thermocam-PCB</h2>
+    </head>
+    <body onload="setInterval(reloadImg, 100);">
+      <img src="thermocam-current.jpg" id=camera />
+      <script>
+    var counter = 0;
+    function reloadImg() {
+        document.getElementById('camera').src='thermocam-current.jpg?c=' + counter++;
+    }
+      </script>
+    </body>
+</html>
+)";
+
 void sendPOI(crow::response &res, std::vector<poi> POI)
 {
     std::stringstream ss; 
@@ -28,7 +47,7 @@ void* Webserver::start(void*)
 
     CROW_ROUTE(app, "/")
     ([]{
-        return crow::mustache::load("thermocam-web.html").render();
+        return html_code;
     });
 
     CROW_ROUTE(app, "/thermocam-current.jpg")
