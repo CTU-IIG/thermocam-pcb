@@ -531,7 +531,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
             duration_us(save_img_clk, end) > args->save_img_period * 1000000) {
             save_img_clk = chrono::system_clock::now();
             string img_path = args->save_img_dir + "/"
-                              + clkDateTimeString(save_img_clk) + ".png";
+                              + clkDateTimeString(save_img_clk) + ".jpg";
             imwrite(img_path, drawPOI(curr->gray, curr->POI, draw_mode::NUM));
         }
         double process_time_us = duration_us(begin, end);
