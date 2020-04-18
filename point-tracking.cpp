@@ -1,4 +1,4 @@
-#include "point_tracking.h"
+#include "point-tracking.hpp"
 #include <iostream>
 
 std::vector<cv::KeyPoint> getKeyPoints(cv::Mat A) {

@@ -31,3 +31,5 @@
 *.out
 *.app
 /thermocam-pcb
+/webserver/thermocam-webserver
+/webserver/images/*

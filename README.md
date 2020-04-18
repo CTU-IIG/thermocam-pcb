@@ -41,7 +41,9 @@ Adding runlevels to the script will enable `update-rc.d` to work with it. Make s
 
 You need to set up your environment variables to run the program and use the WIC and eBUS SDKs. Run `/opt/workswell/wic_sdk/set_env_variables` to do so.
 
-For me the script did not set all environment variables correctly. If this is the case for you, you may try running the following commands to set up your environment (make sure to enter the folder name with your linux distribution in the second command):
+For me the script did not set all environment variables correctly. If this is the case for you, you may try use the `build/run` script produced by meson, which sets up the environment according to the meson configuration and runs the compiled binary.
+
+Alternatively, write the script yourself according to the following (make sure to enter the folder name with your Linux distribution in the second command):
 
 ```
 LD_LIBRARY_PATH=/opt/workswell/wic_sdk/lib:${LD_LIBRARY_PATH}
@@ -70,21 +72,40 @@ For development, download and compile OpenCV source version 2.4 (the latest stab
 
 Recorded video is stored in a lossless HuffYUV(HFYU) format which OpenCV does not have built in, so its codec is needed to be installed externally, e.g. by part of `libavcodec`.
 
+### Webserver
+
+We use the crow C++ webserver, which requires the `boost` and `pthread` libraries.
+
 ## Compilation
 
-Before running make, be sure to change the variables `WIC_HOME`, `EBUS_HOME` and `OPENCV_HOME` in the Makefile to the paths where you installed the WIC and eBUS SDK and OpenCV respectively.
+To compile the program, run:
 
-After this, the program can be simply compiled with running `make` in the project folder.
+    meson setup build [options]
+	ninja -C build
+
+Useful `options` are:
+- `-Dpkg_config_path=$HOME/opt/opencv-2.4/lib/pkgconfig` to specify
+  path to specific OpenCV installation.
+- `-Debus_home=` or `-Dwic_home` to specify paths to the WIC SDK
+- `-Dcpp_link_args=-static-libstdc++` if you compile on a system with
+  newer libstdc++ and running the resulting binary on the target
+  systems fails with: /usr/lib/x86_64-linux-gnu/libstdc++.so.6:
+  version `GLIBCXX_3.4.26' not found
+- other options reported by `meson configure` or `meson setup -h`.
 
 ## Usage
 
 ### Basic functionality
 
-To simply display the thermocamera image, run without any arguments:
+To simply display the thermocamera image, run the program without any arguments:
 
-`./thermocam-pcb`
+`./build/thermocam-pcb`
 
-This requires the WIC license file to be in the same directory as the executable. If your license file is elsewhere, you need to specify its directory with `--license-dir` to be able to use the camera.
+or
+
+    ./build/run
+
+This requires the WIC license file to be in the current directory. If your license file is elsewhere, you need to specify its directory with `--license-dir` to be able to use the camera.
 
 ### Additional functionality
 
@@ -98,14 +119,14 @@ You can use multiple functions, most even at the same time:
 
 For example, to import previously saved points, enter points by hand, export both into a single file and record video, run:
 
-`./thermocam-pcb -p import.json --enter-poi=export.json -r recording.avi`
+`./build/thermocam-pcb -p import.json --enter-poi=export.json -r recording.avi`
 
 ### Setting video as input instead of camera
 
 Add the path to your video to the arguments as `-v myvideo.avi`. 
 Running the previous example(enter,import,export,record) with video input instead of camera can thus be done with:
 
-`./thermocam-pcb -v myvideo.avi -p import.json --enter-poi=export.json -r recording.avi`
+`./build/thermocam-pcb -v myvideo.avi -p import.json --enter-poi=export.json -r recording.avi`
 
 ### Changing between views
 
@@ -116,6 +137,13 @@ There are 3 views available to display points and their temperature:
 * Legend view - the point names and temperatures are listed next to the image and only their index is displayed next to the point
 
 You can change between these views by pressing Tab.
+
+### Access webserver
+
+The parameter `-w` starts a webserver on port `8080`.
+
+* `ip_address:8080` shows the current thermocamera stream
+* `ip_address:8080/temperatures.txt` returns the current POI Celsius temperatures in `name=temp` format
 
 ## Command line reference
 
@@ -143,6 +171,8 @@ temperature. Writes the temperatures of entered POIs to stdout.
                              "save-img-dir".
                              1s by default.
   -v, --load-video=FILE      Load and process video instead of camera feed
+  -w, --webserver            Start webserver to display image and
+                             temperatures.
   -?, --help                 Give this help list
       --usage                Give a short usage message
   -V, --version              Print program version
