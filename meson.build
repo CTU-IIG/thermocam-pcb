@@ -62,6 +62,13 @@ executable('thermocam-pcb', ['thermocam-pcb.cpp','point-tracking.cpp'],
 	   cpp_args : cpp_args,
 	  )
 
+executable('track-test', ['track-test.cpp'],
+	   dependencies: [
+         dependency('opencv4', required : true)
+	   ],
+	   cpp_args : cpp_args,
+	  )
+
 conf_data = configuration_data()
 conf_data.set('EBUS_HOME', get_option('ebus_home'))
 conf_data.set('WIC_HOME', get_option('wic_home'))
