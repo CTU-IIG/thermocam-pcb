@@ -229,19 +229,24 @@ void drawSidebar(Mat& img, vector<poi> POI)
     imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
 }
 
-Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode,
-            Scalar color = Scalar(0, 0, 255))
+// Only draw points into red channel, so original image can be retrieved
+Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
 {
 
-    Mat A = in.clone();
+    Mat BG, R, BGR;
 
-    if (A.channels() == 1)
-        cvtColor(A, A, COLOR_GRAY2RGB); // So that drawing is not grayscale
+    R = in.clone();
+    if (R.channels() == 3)
+        cvtColor(R, R, COLOR_RGB2GRAY); // We only draw to red channel
 
-    resize(A, A, Size(), 2, 2); // Enlarge image 2x for better looking fonts
+    resize(R, R, Size(), 2, 2); // Enlarge image 2x for better looking fonts
+    if (mode == NUM)
+        drawSidebar(R, POI);
+    BG = R.clone();
+
     for (unsigned i = 0; i < POI.size(); i++) {
         POI[i].p *= 2; // Rescale points with image
-        circle(A, POI[i].p, 4, color, -1); // Dot at POI position
+        circle(R, POI[i].p, 4, (255,255,255), -1); // Dot at POI position
 
         // Print point labels
         vector<string> label;
@@ -256,13 +261,13 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode,
             label = { to_string(i) };
             break;
         }
-        imgPrintStrings(A, label, POI[i].p, color);
+        imgPrintStrings(R, label, POI[i].p, (255,255,255));
     }
 
-    if (mode == NUM)
-        drawSidebar(A, POI);
+    vector<Mat> v = {BG,BG,R};
+    merge(v, BGR);
 
-    return A;
+    return BGR;
 }
 
 void setStatusHeightWidth(im_status *s, img_stream *is)
@@ -531,7 +536,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
             duration_us(save_img_clk, end) > args->save_img_period * 1000000) {
             save_img_clk = chrono::system_clock::now();
             string img_path = args->save_img_dir + "/"
-                              + clkDateTimeString(save_img_clk) + ".jpg";
+                              + clkDateTimeString(save_img_clk) + ".png";
             imwrite(img_path, drawPOI(curr->gray, curr->POI, draw_mode::NUM));
         }
         double process_time_us = duration_us(begin, end);
@@ -638,7 +643,6 @@ static struct argp argp = {
 
 int main(int argc, char **argv)
 {
-
     argp_parse(&argp, argc, argv, 0, 0, NULL);
 
     signal(SIGINT, signalHandler);
