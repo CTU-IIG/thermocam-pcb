@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
@@ -16,19 +17,6 @@ struct h_params {
     double sx, sy;        // Scale
     double shx, shy;      // Shear
     double p1, p2;        // Projective
-};
-
-struct method {
-    std::string name;
-    unsigned n; // Number of params
-    std::vector<double> p_min; // Parameter min value
-    std::vector<double> p_max; // Parameter max value
-    std::vector<double> step;
-};
-
-struct kpdesc {
-    std::vector<cv::KeyPoint> kp;
-    cv::Mat desc;
 };
 
 cv::Mat C, iC; // Centering transformation and inverse
@@ -66,6 +54,216 @@ void init(int img_width, int img_height)
                    1.1,  1.1,  0.1,  0.1,  0.0001,  0.0001 };
     }
 }
+
+class Method {
+public:
+    enum Type {KP_FAST, KP_BRISK, DESC_BRISK};
+    Type type;
+    std::string name;
+    unsigned n; // Number of params
+    std::vector<double> params;
+
+    Method(Type type, int n, std::vector<double> p_min,
+           std::vector<double> p_max, std::vector<double> step)
+    : type(type), n(n), params(p_min), p_min(p_min), p_max(p_max), step(step) {}
+    virtual void init() = 0;
+    virtual void setParams(std::vector<double> p) = 0;
+    void incrementParams();
+    void printParams();
+    void generate(cv::Mat img, std::vector<cv::KeyPoint> kp_in);
+    virtual void calc(cv::Mat img, std::vector<cv::KeyPoint>) = 0;
+    virtual void serialize(std::ostream &os) = 0;
+    virtual void deserialize(std::istream &is) = 0;
+    void load()
+    {
+        std::string filename = name + ".dat";
+        std::ifstream ifs(filename, std::ifstream::in);
+        deserialize(ifs);
+        ifs.close();
+    }
+    void store()
+    {
+        std::string filename = name + ".dat";
+        std::ofstream ofs(filename, std::ofstream::out);
+        serialize(ofs);
+        ofs.close();
+    }
+
+protected:
+    cv::Ptr<cv::Feature2D> f2d;
+    std::vector<double> p_min; // Parameter min value
+    std::vector<double> p_max; // Parameter max value
+    std::vector<double> step;
+};
+
+void Method::printParams()
+{
+    std::cout << "Params: ";
+    for (unsigned i = 0; i < n; i++)
+        std::cout << params[i] << ", ";
+    std::cout << std::endl;
+}
+
+void Method::incrementParams() 
+{
+    params[0] += step[0];
+    for (unsigned i = 0; i < n - 1; i++) {
+        if (params[i] > p_max[i]) {
+            params[i] = p_min[i];
+            params[i + 1] += step[i + 1];
+        }
+    }
+}
+
+void Method::generate(cv::Mat img, std::vector<cv::KeyPoint> kp_in = {})
+{
+    setParams(p_min);
+    while (1) {
+        calc(img, kp_in);
+        incrementParams();
+        if (params.back() > p_max.back())
+            break;
+        setParams(params);
+    }
+}
+
+class KeyPointMethod : public Method {
+    public:
+        std::vector<std::vector<cv::KeyPoint>> kp;
+        KeyPointMethod(Type type, int n, std::vector<double> p_min,
+                       std::vector<double> p_max, std::vector<double> step)
+            : Method(type, n, p_min, p_max, step)
+            {
+                init();
+            }
+        void init()
+        {
+            switch(type) {
+                case Type::KP_FAST:
+                    f2d = cv::FastFeatureDetector::create(p_min[0], p_min[1]);
+                    name = "kp_fast";
+                    break;
+                case Type::KP_BRISK:
+                    f2d = cv::BRISK::create(p_min[0], p_min[1]);
+                    name = "kp_brisk";
+                    break;
+                default:
+                    err(1,"Unknown KeyPointMethod type");
+                    break;
+            }
+        }
+        void setParams(std::vector<double> p)
+        {
+            switch(type) {
+                case Type::KP_FAST:{
+                    dynamic_cast<cv::FastFeatureDetector*>(f2d.get())->setThreshold(p[0]);
+                    dynamic_cast<cv::FastFeatureDetector*>(f2d.get())->setNonmaxSuppression(p[1]);
+                    dynamic_cast<cv::FastFeatureDetector*>(f2d.get())->setType(static_cast<cv::FastFeatureDetector::DetectorType>(p[2]));
+                    break;
+                }
+                case Type::KP_BRISK:
+                    delete f2d;
+                    f2d = cv::BRISK::create(p[0], p[1]);
+                    break;
+                default:
+                    err(1,"Unknown KeyPointMethod type");
+                    break;
+            }
+
+        }
+        void calc(cv::Mat img, std::vector<cv::KeyPoint> kp_in) {
+            kp.push_back({});
+            f2d->detect(img, kp.back());
+        }
+        void serialize(std::ostream &os)
+        {
+            size_t kpsize = kp.size();
+            os.write((char *)&kpsize, sizeof(kpsize));
+            for (unsigned i=0; i<kpsize; i++) {
+                size_t vsize = kp[i].size();
+                os.write((char *)&vsize, sizeof(vsize));
+                os.write((char *)&kp[i][0], vsize * sizeof(cv::KeyPoint));
+            }
+        }
+        void deserialize(std::istream &is)
+        {
+            kp.clear();
+            size_t kpsize;
+            is.read((char *)&kpsize, sizeof(kpsize));
+            for (unsigned i = 0; i < kpsize; i++) {
+                size_t vsize;
+                is.read((char *)&vsize, sizeof(vsize));
+                kp[i].resize(vsize);
+                is.read((char *)&kp[i][0], vsize * sizeof(cv::KeyPoint));
+            }
+        }
+};
+
+
+class DescriptorMethod : public Method {
+    public:
+        std::vector<cv::Mat> desc;
+        DescriptorMethod(Type type, int n, std::vector<double> p_min,
+                       std::vector<double> p_max, std::vector<double> step)
+            : Method(type, n, p_min, p_max, step)
+            {
+                init();
+            }
+        void init() {
+            switch(type) {
+                case Type::DESC_BRISK:
+                    f2d = cv::BRISK::create(0,0,p_min[0]);
+                    name = "desc_brisk";
+                    break;
+                default:
+                    err(1,"Unknown DescriptorMethod type");
+                    break;
+            }
+        }
+        void calc(cv::Mat img, std::vector<cv::KeyPoint> kp_in) {
+            desc.push_back(cv::Mat());
+            f2d->compute(img, kp_in, desc.back());
+            desc.back().convertTo(desc.back(),CV_32F);
+        }
+        void setParams(std::vector<double> p)
+        {
+            switch(type) {
+                case Type::DESC_BRISK:
+                    f2d = cv::BRISK::create(0,0,p[0]);
+                    name = "desc_brisk";
+                    break;
+                default:
+                    err(1,"Unknown DescriptorMethod type");
+                    break;
+            }
+        }
+        void serialize(std::ostream &os)
+        {
+            size_t dsize = desc.size();
+            os.write((char *)&dsize, sizeof(dsize));
+            for (unsigned i=0; i<dsize; i++) {
+                int type = desc[i].type();
+                os.write((const char*)(&desc[i].rows), sizeof(int));
+                os.write((const char*)(&desc[i].cols), sizeof(int));
+                os.write((const char*)(&type), sizeof(int));
+                os.write((const char*)(desc[i].data), desc[i].elemSize() * desc[i].total());
+            }
+        }
+        void deserialize(std::istream &is)
+        {
+            size_t dsize;
+            is.read((char *)&dsize, sizeof(dsize));
+            for (unsigned i=0; i<dsize; i++) {
+                int rows, cols, type;
+                is.read((char*)(&rows), sizeof(int));
+                is.read((char*)(&cols), sizeof(int));
+                is.read((char*)(&type), sizeof(int));
+
+                desc[i].create(rows, cols, type);
+                is.read((char*)(desc[i].data), desc[i].elemSize() * desc[i].total());
+            }
+        }
+};
 
 double randd(double min, double max)
 {
@@ -154,98 +352,53 @@ std::vector<cv::Mat> generateTransformedImgs(std::vector<cv::Mat> H,
     return I;
 }
 
-void updateMethodParams(std::vector<double> &params, method *m) 
+double evaluateMatching(cv::FlannBasedMatcher *m, cv::Mat d0, cv::Mat d1)
 {
-    params[0] += m->step[0];
-    for (unsigned i = 0; i < m->n - 1; i++) {
-        if (params[i] > m->p_max[i]) {
-            params[i] = m->p_min[i];
-            params[i + 1] += m->step[i + 1];
+    std::vector<std::vector<cv::DMatch>> matches;
+    m->knnMatch(d0, d1, matches, 2);
+    double thresh = 0.8;
+
+    double dist = 0;
+    double good_matches = 0;
+    for (size_t i = 0; i < matches.size(); i++) {
+        if (matches[i][0].distance < thresh * matches[i][1].distance) {
+            dist += matches[i][0].distance;
+            good_matches++;
         }
-    }
+    }      
+
+    return dist/good_matches;
 }
 
-// We do not need to store all keypoints - methods with chaning parameters may generate the same keypoint many times, and we just need to store the parameters which generated it
-std::vector<std::vector<cv::KeyPoint>> generateKeypoints(method *m,
-                                                         cv::Mat img)
-{
-    cv::Ptr<cv::Feature2D> f2d;
-    std::vector<std::vector<cv::KeyPoint>> kp;
-
-    std::vector<double> params = m->p_min;
-    while (1) {
-        std::cout << "Params: ";
-        for (unsigned i = 0; i < m->n; i++)
-            std::cout << params[i] << ", ";
-        std::cout << std::endl;
-
-        if(!m->name.compare("FAST"))
-            f2d = cv::FastFeatureDetector::create(params[0], params[1]);
-        else if (!m->name.compare("BRISK"))
-            f2d = cv::BRISK::create(params[0], params[1]);
-        else 
-            err(1,"Unknown method");
-
-        kp.push_back({});
-        f2d->detect(img, kp.back());
-
-        updateMethodParams(params, m);
-        if (params[m->n - 1] > m->p_max[m->n - 1])
-            break;
-    }
-    return kp; 
-}
-
-std::vector<kpdesc> generateDescriptors(method *m, std::vector<cv::KeyPoint> kp_in, cv::Mat img)
-{
-    cv::Ptr<cv::Feature2D> f2d;
-    std::vector<kpdesc> kpd;
-
-    std::vector<double> params = m->p_min;
-    while (1) {
-        std::cout << "Params: ";
-        for (unsigned i = 0; i < m->n; i++)
-            std::cout << params[i] << ", ";
-        std::cout << std::endl;
-
-        if(!m->name.compare("BRISK"))
-            f2d = cv::BRISK::create(0,0,params[0]);
-        else 
-            err(1,"Unknown method");
-        kpd.push_back({kp_in,cv::Mat()});
-        f2d->compute(img, kpd.back().kp, kpd.back().desc);
-
-        updateMethodParams(params, m);
-        if (params[m->n - 1] > m->p_max[m->n - 1])
-            break;
-    }
-    return kpd;
-}
+// TODO: Implement descriptor map
+// TODO: Implement storing descriptor map or something like that - save all keypoints for keypoint method in form: "KP_BRISK_DESC_ORB"
+// TODO: Implement loading descriptor map 
 
 int main()
 {
     srand (time(NULL));
     std::vector<cv::Mat> imgs(2);
-    imgs[0] = cv::imread("../../images/imx8_0.png", cv::IMREAD_GRAYSCALE);
-    imgs[1] = cv::imread("../../images/imx8_1.png", cv::IMREAD_GRAYSCALE);
+    imgs[0] = cv::imread("../images/imx8_0.png", cv::IMREAD_GRAYSCALE);
+    imgs[1] = cv::imread("../images/imx8_1.png", cv::IMREAD_GRAYSCALE);
     init(imgs[0].cols, imgs[0].rows);
-    //std::vector<cv::Mat> H = generateHomographies(10);
-    //std::vector<cv::Mat> I = generateTransformedImgs(H, imgs);
+    std::vector<cv::Mat> H = generateHomographies(10);
+    std::vector<cv::Mat> I = generateTransformedImgs(H, imgs);
     
-    method kp_fast =  {"FAST", 2,{1,0},{200,1},{1,1}};
-    method kp_brisk = {"BRISK",2,{1,0},{200,8},{1,1}};
+    KeyPointMethod kp_fast(Method::Type::KP_FAST, 3,{1,0,0},{200,1,2},{1,1,1});
+    KeyPointMethod kp_brisk(Method::Type::KP_BRISK,2,{1,0},{200,8},{1,1});
 
-    method desc_brisk = {"BRISK",1,{0.5},{2},{0.1}};
+    DescriptorMethod desc_brisk(Method::Type::DESC_BRISK,1,{1},{1},{0.1});
 
-    std::vector<std::vector<cv::KeyPoint>> kp = generateKeypoints(&kp_fast,imgs[0]);
-   
-    std::vector<kpdesc> kpd = generateDescriptors(&desc_brisk, kp[0], imgs[0]);
-    /* 
-    for (int i=0; i<kp.size(); i++) {
+    kp_fast.generate(imgs[0],{});
+
+    desc_brisk.generate(imgs[0],kp_fast.kp[1]);
+
+    for (int i=0; i<kp_fast.kp.size(); i++) {
         cv::Mat draw;
-        cv::drawKeypoints(imgs[0], kp[i], draw);
+        cv::drawKeypoints(imgs[0], kp_fast.kp[i], draw);
         cv::imshow("Keypoints", draw);
         cv::waitKey(0); 
-    }*/
+    }
+     
     return 0;
 }
