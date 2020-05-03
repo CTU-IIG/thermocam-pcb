@@ -60,6 +60,7 @@ void init(int img_width, int img_height)
 // Hashable KeyPoint to save in hashmap
 class HKeyPoint : public cv::KeyPoint {
     public:
+    int kp_param_id = 0;
     HKeyPoint(cv::KeyPoint const& kp) : cv::KeyPoint(kp) {}
     void operator = (const cv::KeyPoint& keypoint_)
     {
@@ -68,7 +69,8 @@ class HKeyPoint : public cv::KeyPoint {
 
     bool operator == (const HKeyPoint &kp) const {
         float eps = 0.000001;
-        return (abs(angle-kp.angle) < eps) &&
+        return // For some reason, descriptor calc changes angle
+               //abs(angle-kp.angle) < eps) &&
                (class_id == kp.class_id)   &&
                (octave   == kp.octave)     &&
                (abs(pt.x-kp.pt.x)   < eps) &&
@@ -84,7 +86,7 @@ struct HKeyPointHasher
   std::size_t operator () (const HKeyPoint &key) const 
   {
     std::size_t seed = 0;
-    boost::hash_combine(seed, boost::hash_value(key.angle));
+    //boost::hash_combine(seed, boost::hash_value(key.angle));
     boost::hash_combine(seed, boost::hash_value(key.class_id));
     boost::hash_combine(seed, boost::hash_value(key.octave));
     boost::hash_combine(seed, boost::hash_value(key.pt.x));
@@ -95,10 +97,20 @@ struct HKeyPointHasher
   }
 };
 
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
+{
+    os << "[";
+    for (int i = 0; i < v.size(); ++i)
+        os << v[i] << ",";
+    os << "]";
+    return os;
+}
+
 std::ostream& operator<<(std::ostream &os, cv::KeyPoint const &v) {
     os << "angle: " << v.angle << ", class_id: " << v.class_id << 
           ", octave: " << v.octave << ", x: " << v.pt.x <<  
-          ", y: " << v.pt.y << ", : " << v.response <<
+          ", y: " << v.pt.y << ", response: " << v.response <<
           ", size: " << v.size;
     return os;
 }
@@ -106,7 +118,7 @@ std::ostream& operator<<(std::ostream &os, cv::KeyPoint const &v) {
 std::ostream& operator<<(std::ostream &os, HKeyPoint const &v) {
     os << "angle: " << v.angle << ", class_id: " << v.class_id << 
           ", octave: " << v.octave << ", x: " << v.pt.x <<  
-          ", y: " << v.pt.y << ", : " << v.response <<
+          ", y: " << v.pt.y << ", response: " << v.response <<
           ", size: " << v.size;
     return os;
 }
@@ -123,11 +135,12 @@ public:
            std::vector<double> p_max, std::vector<double> step)
     : type(type), n(n), params(p_min), p_min(p_min), p_max(p_max), step(step) {}
     virtual void init() = 0;
+    virtual void reset() = 0;
     virtual void setParams(std::vector<double> p) = 0;
     void incrementParams();
     void printParams();
-    void generate(cv::Mat img, std::vector<cv::KeyPoint> kp_in, bool verbose);
-    virtual void calc(cv::Mat img, std::vector<cv::KeyPoint>) = 0;
+    void generate(std::vector<cv::Mat> imgs, std::vector<std::vector<cv::KeyPoint>> kp_in, bool verbose);
+    virtual void calc(std::vector<cv::Mat> imgs, std::vector<std::vector<cv::KeyPoint>> kp_in) = 0;
     virtual void serialize(std::ostream &os) = 0;
     virtual void deserialize(std::istream &is) = 0;
     bool load()
@@ -190,14 +203,15 @@ void Method::incrementParams()
     }
 }
 
-void Method::generate(cv::Mat img, std::vector<cv::KeyPoint> kp_in = {}, bool verbose = true)
+void Method::generate(std::vector<cv::Mat> imgs, std::vector<std::vector<cv::KeyPoint>> kp_in = {}, bool verbose = true)
 {
+    reset();
     params = p_min;
     setParams(p_min);
     while (1) {
         if (verbose)
             printParams();
-        calc(img, kp_in);
+        calc(imgs, kp_in);
         incrementParams();
         if (params.back() > p_max.back())
             break;
@@ -207,7 +221,9 @@ void Method::generate(cv::Mat img, std::vector<cv::KeyPoint> kp_in = {}, bool ve
 
 class KeyPointMethod : public Method {
     public:
-        std::vector<std::vector<cv::KeyPoint>> kp;
+        std::vector<std::vector<std::vector<cv::KeyPoint>>> kp;
+        std::vector<std::vector<cv::KeyPoint>> kp_unique;
+        std::vector<std::unordered_map<HKeyPoint, std::vector<unsigned>, HKeyPointHasher>> hkps;
         KeyPointMethod(Type type, int n, std::vector<double> p_min,
                        std::vector<double> p_max, std::vector<double> step)
             : Method(type, n, p_min, p_max, step)
@@ -229,6 +245,12 @@ class KeyPointMethod : public Method {
             }
             name = getTypeName(type);
         }
+        void reset()
+        {
+            kp.clear();
+            kp_unique.clear();
+            hkps.clear();
+        }
         void setParams(std::vector<double> p)
         {
             switch(type) {
@@ -248,23 +270,24 @@ class KeyPointMethod : public Method {
             }
 
         }
-        void calc(cv::Mat img, std::vector<cv::KeyPoint> kp_in) {
+        void calc(std::vector<cv::Mat> img, std::vector<std::vector<cv::KeyPoint>> kp_in)
+        {
             kp.push_back({});
             f2d->detect(img, kp.back());
         }
         void serialize(std::ostream &os)
         {
-            size_t kpsize = kp.size();
+/*            size_t kpsize = kp.size();
             os.write((char *)&kpsize, sizeof(kpsize));
             for (unsigned i=0; i<kpsize; i++) {
                 size_t vsize = kp[i].size();
                 os.write((char *)&vsize, sizeof(vsize));
                 os.write((char *)&kp[i][0], vsize * sizeof(cv::KeyPoint));
             }
-        }
+*/        }
         void deserialize(std::istream &is)
         {
-            kp.clear();
+/*            kp.clear();
             size_t kpsize;
             is.read((char *)&kpsize, sizeof(kpsize));
             for (unsigned i = 0; i < kpsize; i++) {
@@ -273,20 +296,23 @@ class KeyPointMethod : public Method {
                 kp[i].resize(vsize);
                 is.read((char *)&kp[i][0], vsize * sizeof(cv::KeyPoint));
             }
-        }
-
-        void getUnique(std::vector<cv::KeyPoint> &kp_unique, std::vector<std::vector<unsigned>> &idx)
+*/        }
+        void getUnique()
         {
-            std::unordered_map<HKeyPoint, unsigned, HKeyPointHasher> hkps;
-            for (unsigned i = 0; i < kp.size(); i++) {
-                for (unsigned j = 0; j < kp[i].size(); j++) {
-                    HKeyPoint hkp = kp[i][j];
-                    if (hkps.find(hkp) == hkps.end()) {
-                        hkps[hkp] = kp_unique.size();
-                        kp_unique.push_back(kp[i][j]);
-                        idx.push_back({i});
-                    } else {
-                        idx[hkps[hkp]].push_back(i);
+            unsigned num_imgs = kp[0].size();
+            kp_unique.clear();
+            kp_unique.resize(num_imgs);
+            hkps.resize(num_imgs);
+            for (unsigned i = 0; i < kp.size(); i++) { // kp params
+                for (unsigned j = 0; j < kp[i].size(); j++) { // images
+                    for (unsigned k = 0; k < kp[i][j].size(); k++) { // kp vect
+                        HKeyPoint hkp = kp[i][j][k];
+                        if (hkps[j].find(hkp) == hkps[j].end()) {
+                            hkps[j][hkp] = {i};
+                            kp_unique[j].push_back(hkp);
+                        } else {
+                            hkps[j][hkp].push_back(i);
+                        }
                     }
                 }
             }
@@ -296,9 +322,11 @@ class KeyPointMethod : public Method {
 
 class DescriptorMethod : public Method {
     public:
-        std::vector<cv::Mat> desc;
-        std::vector<std::vector<cv::Mat>> full_desc = {};
+        std::vector<std::vector<cv::Mat>> desc;
+        std::vector<std::vector<std::vector<cv::Mat>>> full_desc = {};
         std::string desc_name;
+        std::vector<std::vector<std::vector<unsigned>>> kp_id = {}; //desc - img - kp_id
+        std::vector<std::unordered_map<HKeyPoint, unsigned, HKeyPointHasher>> kp_map;
         DescriptorMethod(Type type, int n, std::vector<double> p_min,
                        std::vector<double> p_max, std::vector<double> step)
             : Method(type, n, p_min, p_max, step)
@@ -316,10 +344,39 @@ class DescriptorMethod : public Method {
             }
             desc_name = getTypeName(type);
         }
-        void calc(cv::Mat img, std::vector<cv::KeyPoint> kp_in) {
-            desc.push_back(cv::Mat());
+        void reset()
+        {
+            desc.clear();
+            full_desc.clear();
+            kp_map.clear();
+            kp_id.clear();
+        }
+        void calc(std::vector<cv::Mat> img, std::vector<std::vector<cv::KeyPoint>> kp_in)
+        {
+            if(kp_map.size() == 0)
+                initKpMap(kp_in);
+
+            desc.push_back({});
             f2d->compute(img, kp_in, desc.back());
-            desc.back().convertTo(desc.back(),CV_32F);
+            kp_id.push_back(std::vector<std::vector<unsigned>>(desc.back().size()));
+
+            for (unsigned i=0; i<desc.back().size(); i++) {
+                desc.back()[i].convertTo(desc.back()[i],CV_32F);
+                for (cv::KeyPoint keypoint : kp_in[i]) {
+                    if(kp_map[i].find(keypoint) == kp_map[i].end())
+                        err(1,"BE SPOOKED! KEYPOINT NOT FOUND IN KP_MAP!!");
+                    kp_id.back()[i].push_back(kp_map[i][keypoint]);
+                }
+            }
+        }
+        void initKpMap(std::vector<std::vector<cv::KeyPoint>> kp) {
+            kp_map.resize(kp.size());
+            for (unsigned i=0; i<kp.size(); i++) {
+                for (unsigned j=0; j<kp[i].size(); j++) {
+                    HKeyPoint hkp = kp[i][j];
+                    kp_map[i][hkp] = j;
+                }
+            }
         }
         void setParams(std::vector<double> p)
         {
@@ -334,7 +391,7 @@ class DescriptorMethod : public Method {
         }
         void serialize(std::ostream &os)
         {
-            size_t dsize = full_desc.size();
+/*            size_t dsize = full_desc.size();
             os.write((char *)&dsize, sizeof(dsize));
             for (unsigned i=0; i<dsize; i++) {
                 size_t size = full_desc[i].size();
@@ -347,10 +404,10 @@ class DescriptorMethod : public Method {
                     os.write((const char*)(full_desc[i][j].data), full_desc[i][j].elemSize() * full_desc[i][j].total());
                 }
             }
-        }
+*/        }
         void deserialize(std::istream &is)
         {
-            full_desc.clear();
+/*            full_desc.clear();
             size_t dsize;
             is.read((char *)&dsize, sizeof(dsize));
             full_desc.resize(dsize);
@@ -368,16 +425,37 @@ class DescriptorMethod : public Method {
                     is.read((char*)(full_desc[i][j].data), full_desc[i][j].elemSize() * full_desc[i][j].total());
                 }
             }
-        }
-        void reconstruct(std::vector<std::vector<unsigned>> idx,
-                         unsigned orig_len)
+*/        }
+        void reconstruct (std::vector<std::vector<cv::KeyPoint>> &kp_unique, std::vector<std::unordered_map<HKeyPoint, std::vector<unsigned>, HKeyPointHasher>> &hkps, unsigned orig_len)
         {
-            std::vector<std::vector<cv::Mat>> d(orig_len);
-            for (unsigned i = 0; i < desc.size(); i++)
-                for (unsigned j = 0; j < idx[i].size(); j++)
-                    d[i].push_back(desc[i]);
+            // reconstruct from desc_params-imgs-descriptor_mat
+            // kp is desc-params-imgs-kp
+            // reconstruct to imgs-desc_params-kp_params-descriptor_mat
+            std::cout << "Reconstructing" << std::endl;
+            std::vector<std::vector<std::vector<cv::Mat>>> d(desc[0].size(),std::vector<std::vector<cv::Mat>>(desc.size(),std::vector<cv::Mat>(orig_len)));
+            for (unsigned i = 0; i < desc.size(); i++) { // desc_params
+                for (unsigned j = 0; j < desc[i].size(); j++) { // imgs
+                    std::cout << "dparam " << i << "/" << desc.size() << ", img " << j << "/" << desc[i].size() << ", rows: " << desc[i][j].rows << std::endl;
+                    for (int k = 0; k < desc[i][j].rows; k++) { // kps
+                        HKeyPoint hkp = kp_unique[j][kp_id[i][j][k]];
+                        if (hkps[j].find(hkp) == hkps[j].end()){
+                            std::cerr << "NOT FOUND!! - " << hkp << std::endl;
+                            continue;
+                        }
+                        std::vector<unsigned> kp_idx = hkps[j].at(hkp);
+                        for (unsigned id : kp_idx) {
+                            if(!d[j][i][id].empty())
+                                cv::vconcat(d[j][i][id], desc[i][j].row(k), d[j][i][id]);
+                            else
+                                d[j][i][id] = desc[i][j].row(k);
+                            
+                        }
+                    }
+                }
+            }
             full_desc = d;
         }
+
         void setKpMethodType(Type t)
         {
             kpMethodType = t;
@@ -480,20 +558,26 @@ std::vector<cv::Mat> generateHomographies(int count)
     return H;
 }
 
-std::vector<cv::Mat> generateTransformedImgs(std::vector<cv::Mat> H,
-                                             std::vector<cv::Mat> imgs)
+// Generates image array, first image is original, rest transformed
+std::vector<std::vector<cv::Mat>> generateTransformedImgs(std::vector<cv::Mat> H, std::vector<cv::Mat> imgs)
 {
-    std::vector<cv::Mat> I(H.size());
-    int img_idx = 0;
-    for (unsigned i = 0; i < H.size(); i++) {
-        cv::warpPerspective(imgs[img_idx], I[i], H[i], imgs[img_idx].size());
-        img_idx = (img_idx + 1) % imgs.size();
+    if (H.size() % imgs.size() != 0)
+        err(1, "Number of homographies isn't divisible by number of images!");
+    unsigned H_per_img = H.size() / imgs.size();
+    std::vector<std::vector<cv::Mat>> I(imgs.size(), std::vector<cv::Mat>(H_per_img+1));
+    for (unsigned i = 0; i < imgs.size(); i++) {
+        I[i][0] = imgs[i];
+        for (unsigned j = 1; j < H_per_img + 1; j++) {
+            cv::warpPerspective(imgs[i], I[i][j], H[i * H_per_img + j - 1], imgs[i].size());
+        }
     }
     return I;
 }
 
 double evaluateMatching(cv::FlannBasedMatcher *m, cv::Mat d0, cv::Mat d1)
 {
+    std::cout << d0.rows << std::endl;
+    std::cout << d1.rows << std::endl;
     std::vector<std::vector<cv::DMatch>> matches;
     m->knnMatch(d0, d1, matches, 2);
     double thresh = 0.8;
@@ -510,35 +594,87 @@ double evaluateMatching(cv::FlannBasedMatcher *m, cv::Mat d0, cv::Mat d1)
     return dist/good_matches;
 }
 
-void testDescriptorMap()
+void testDescriptorMap(std::vector<std::vector<std::vector<cv::Mat>>> &uniq, std::vector<std::vector<std::vector<cv::Mat>>> &brute)
 {
-    DescriptorMethod desc_brisk_uniq(Method::Type::DESC_BRISK, 1, { 0.8 },
-                                     { 1.2 }, { 0.1 });
-    DescriptorMethod desc_brisk_brute(Method::Type::DESC_BRISK, 1, { 0.8 },
-                                      { 1.2 }, { 0.1 });
+    std::cout << "Unique: " << uniq.size() << ", brute: " << brute.size() << std::endl; 
+    if (uniq.size() != brute.size())
+        err(1, "Unique and brute size mismatch, unique: %u");
+    for (unsigned i = 0; i < uniq.size(); i++) { // imgs
+        std::cout << "Unique[" << i << "] : " << uniq[i].size() << ", brute[" << i << "]: " << brute[i].size() << std::endl; 
+        if (uniq[i].size() != brute[i].size())
+            err(1, "Unique and brute size mismatch, unique: %u", uniq[i].size());
+        for (unsigned j = 0; j < uniq[i].size(); j++) { // descs
+            std::cout << "Unique[" << i << "][" << j << "] : " << uniq[i][j].size() << ", brute[" << i << "][" << j << "] : " << brute[i][j].size() << std::endl; 
+            if (uniq[i][j].size() != brute[i][j].size())
+                err(1, "Unique and brute size mismatch");
+            for (unsigned k = 0; k < uniq[i][j].size(); k++) { // kps
+                std::cout << "Unique[" << i << "][" << j << "][" << k << "] : " << uniq[i][j][k].rows << ", brute[" << i << "][" << j << "][" << k << "] : " << brute[i][j][k].rows << std::endl; 
 
-    std::ifstream ifsu("kp_fast_desc_brisk_uniq.dat", std::ifstream::in);
-    std::ifstream ifsb("kp_fast_desc_brisk_brute.dat", std::ifstream::in);
-    desc_brisk_uniq.deserialize(ifsu);
-    desc_brisk_brute.deserialize(ifsb);
-    ifsu.close();
-    ifsb.close();
-
-    for (int i = 0; i < desc_brisk_uniq.full_desc.size(); i++) {
-        if (desc_brisk_uniq.full_desc[i].size()
-            != desc_brisk_brute.full_desc[i].size())
-            err(1, "Unique and brute size mismatch");
-        for (int j = 0; j < desc_brisk_uniq.full_desc[i].size(); j++) {
-            cv::Mat res;
-            cv::compare(desc_brisk_uniq.full_desc[i][j],
-                        desc_brisk_brute.full_desc[i][j], res, cv::CMP_NE);
-            if (cv::sum(res)[0])
-                std::cout << "Diff is: " << cv::sum(res)[0] << std::endl;
+                if (uniq[i][j][k].rows != brute[i][j][k].rows)
+                    err(1, "Unique and brute size mismatch");
+                cv::Mat res;
+                cv::sort(uniq[i][j][k],uniq[i][j][k], cv::SORT_EVERY_COLUMN + cv::SORT_ASCENDING);
+                cv::sort(brute[i][j][k],brute[i][j][k], cv::SORT_EVERY_COLUMN + cv::SORT_ASCENDING);
+                cv::compare(uniq[i][j][k],brute[i][j][k], res, cv::CMP_NE);
+                if (cv::sum(res)[0])
+                    std::cout << "Diff is: " << cv::sum(res)[0] << std::endl;
+            }
         }
     }
 }
 
-// TODO: Implement processing for multiple images at the time
+void test(std::vector<std::vector<cv::Mat>> I, KeyPointMethod *kpm,
+          DescriptorMethod *dm)
+{
+    std::vector<std::vector<std::vector<cv::Mat>>> uniq, brute;
+    for (unsigned i = 0; i < I.size(); i++) {
+        kpm->generate(I[i], {});
+        kpm->getUnique();
+        dm->setKpMethodType(kpm->type);
+        std::vector<std::vector<cv::KeyPoint>> tmp = kpm->kp_unique;
+        std::cout << "Generating from unique kp" << std::endl;
+        dm->generate(I[i], tmp);
+        dm->reconstruct(tmp, kpm->hkps, kpm->kp.size());
+        uniq = dm->full_desc;
+        std::cout << "Generating from brute kp" << std::endl;
+        dm->generate(I[i], kpm->kp[0]);
+        brute.resize(
+            I[i].size(),
+            std::vector<std::vector<cv::Mat>>(
+                dm->desc.size(), std::vector<cv::Mat>(kpm->kp.size())));
+        for (unsigned j = 0; j < kpm->kp.size(); j++) {
+            dm->generate(I[i], kpm->kp[j]);
+            for (unsigned k = 0; k < dm->desc.size(); k++) {
+                for (unsigned l = 0; l < dm->desc[k].size(); l++) {
+                    brute[l][k][j] = dm->desc[k][l];
+                }
+            }
+        }
+        testDescriptorMap(uniq, brute);
+    }
+}
+
+std::vector<std::vector<std::vector<std::vector<double>>>> evaluateKpDesc(std::vector<std::vector<cv::Mat>> I, KeyPointMethod *kpm, DescriptorMethod *dm)
+{
+    cv::FlannBasedMatcher m;
+    std::vector<std::vector<std::vector<std::vector<double>>>> score(I.size());
+    for (unsigned i=0; i<I.size(); i++) {
+        kpm->generate(I[i], {});
+        kpm->getUnique();
+        dm->setKpMethodType(kpm->type);
+        std::vector<std::vector<cv::KeyPoint>> tmp = kpm->kp_unique;
+        dm->generate(I[i], tmp);
+        dm->reconstruct(tmp, kpm->hkps, kpm->kp.size());
+        score[i].resize(dm->full_desc.size()-1, std::vector<std::vector<double>>(dm->full_desc[0].size(),std::vector<double>(dm->full_desc[0][0].size())));
+        for (unsigned j=1; j<dm->full_desc.size(); j++) // Generated images
+            for (unsigned k=0; k<dm->full_desc[j].size(); k++) // desc params
+                for (unsigned l=0; l<dm->full_desc[j][k].size(); l++) // kp params
+                    score[i][j-1][k][l] = evaluateMatching(&m, dm->full_desc[0][k][l], dm->full_desc[j][k][l]);
+    }
+    return score; 
+}
+
+// TODO: Speed up reconstruct
 // TODO: Add source image path to saved kp/desc to save time
 // TODO: Measure and save option calc time
 
@@ -546,17 +682,23 @@ void testDescriptorMap()
 
 int main()
 {
-    srand (time(NULL));
+    //srand (time(NULL));
+    srand (0);
     std::vector<cv::Mat> imgs(2);
     imgs[0] = cv::imread("../images/imx8_0.png", cv::IMREAD_GRAYSCALE);
     imgs[1] = cv::imread("../images/imx8_1.png", cv::IMREAD_GRAYSCALE);
     init(imgs[0].cols, imgs[0].rows);
-    std::vector<cv::Mat> H = generateHomographies(10);
-    std::vector<cv::Mat> I = generateTransformedImgs(H, imgs);
-   
-    KeyPointMethod kp_fast(Method::Type::KP_FAST, 3,{1,0,0},{200,1,2},{1,1,1});
-    DescriptorMethod desc_brisk(Method::Type::DESC_BRISK,1,{0.5},{2},{0.1});
+    std::vector<cv::Mat> H = generateHomographies(4);
+    std::vector<std::vector<cv::Mat>> I = generateTransformedImgs(H, imgs);
 
+    KeyPointMethod kp_fast(Method::Type::KP_FAST, 3,{1,0,0},{3,1,0},{1,1,1});
+    DescriptorMethod desc_brisk(Method::Type::DESC_BRISK,1,{0.8},{0.9},{0.1});
+
+    //test(I, &kp_fast, &desc_brisk);
+    evaluateKpDesc(I, &kp_fast, &desc_brisk);
+
+
+/*
     kp_fast.generate(imgs[0],{});
     std::vector<cv::KeyPoint> kpfu;
     std::vector<std::vector<unsigned>> kpfu_id;
@@ -567,7 +709,7 @@ int main()
     desc_brisk.generate(imgs[0],kpfu);
     desc_brisk.reconstruct(kpfu_id,kp_fast.kp.size());
     desc_brisk.store();
-
+*/
 /*
     for (int i=0; i<kp_fast.kp.size(); i++) {
         cv::Mat draw;
