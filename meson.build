@@ -1,5 +1,5 @@
 project('thermocam-pcb', ['cpp'],
-	default_options : [ 'cpp_std=c++11' ]
+	default_options : [ 'cpp_std=c++03' ]
        )
 
 cxx = meson.get_compiler('cpp')
