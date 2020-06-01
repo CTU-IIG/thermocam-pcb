@@ -4,12 +4,14 @@
 
 const std::string html_code =
 R"(
+<!DOCTYPE html>
 <html>
     <head>
+        <meta charset="utf-8" />
         <title>Thermocam-PCB</title>
-        <h2>Thermocam-PCB</h2>
     </head>
     <body onload="setInterval(reloadImg, 100);">
+      <h2>Thermocam-PCB</h2>
       <img src="thermocam-current.jpg" id=camera />
       <script>
     var counter = 0;
