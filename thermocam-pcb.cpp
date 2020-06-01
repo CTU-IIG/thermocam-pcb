@@ -49,13 +49,13 @@ struct cmd_arguments{
     string save_img_dir;
     double save_img_period = 0;
     bool webserver_active = false;
+    bool tracking_on = false;
 };
 cmd_arguments args;
 
 /* Global switches */
 bool gui_available;
 bool sigint_received = false;;
-bool tracking_on = false;
 
 enum draw_mode { FULL, TEMP, NUM };
 constexpr draw_mode next(draw_mode m)
@@ -329,29 +329,40 @@ void clearStatusImgs(im_status *s)
     s->gray.release();
 }
 
-void updateImStatus(im_status *s, img_stream *is, im_status *ref = nullptr)
+void updatePOICoords(im_status *s, im_status *ref)
+{
+    std::vector<cv::DMatch> matches = matchToReference(s->desc);
+    Mat H = findH(ref->kp, s->kp, matches);
+
+    if (H.empty()) // Couldn't find homography - points stay the same
+        return;
+
+    for (auto &el : s->POI) {
+        vector<Point2f> v = { el.p };
+        perspectiveTransform(v, v, H); // only takes vector of points as input
+        el.p = v[0];
+    }
+}
+
+void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_on)
 {
 
     updateStatusImgs(s, is);
 
-    Mat pre = preprocess(s->gray);
-    s->kp = getKeyPoints(pre);
-    s->desc = getDescriptors(pre, s->kp);
+    if(ref)
+        s->POI = ref->POI;
 
-    if (ref) {
-        Mat H = findHomography(ref->kp, s->kp, ref->desc, s->desc);
-        if (!H.empty() && ref->POI.size() > 0) {
-            // findHomography may return an empty matrix if there aren't
-            // enough points(4) to estimate a homography from them.
-            // In this case, the points stay the same as before.
-            s->POI = ref->POI;
-            for (unsigned i=0; i<ref->POI.size(); i++) {
-                vector<Point2f> t = { ref->POI[i].p };
-                perspectiveTransform(t, t, H);
-                s->POI[i].p = t[0];
-            }
-        }
+    if (tracking_on) {
+        Mat pre = preprocess(s->gray);
+        s->kp = getKeyPoints(pre);
+        s->desc = getDescriptors(pre, s->kp);
+        if (ref && ref->POI.size() > 0)
+            updatePOICoords(s, ref);
+        else
+            trainMatcher(s->desc); // Train descriptor matcher on reference image
     }
+
+    updatePOITemps(s,is);
 }
 
 void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
@@ -475,9 +486,9 @@ void showPOIImg(string path){
 
 int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
                      string window_name, bool enter_POI, VideoWriter *vw,
-                     string poi_csv_file)
+                     string poi_csv_file, bool tracking_on)
 {
-    updateImStatus(curr, is, ref);
+    updateImStatus(curr, is, ref, tracking_on);
     printPOITemp(curr->POI, poi_csv_file);
     Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
 
@@ -513,7 +524,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     string window_name = "Thermocam-PCB";
     chrono::time_point<chrono::system_clock> save_img_clk;
 
-    updateImStatus(ref,is);
+    updateImStatus(ref,is,nullptr,args->tracking_on);
 
     if (gui_available)
         namedWindow(window_name, WINDOW_NORMAL);
@@ -528,7 +539,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     while (!exit) {
         auto begin = chrono::system_clock::now();
         exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw,
-                                args->poi_csv_file);
+                                args->poi_csv_file, args->tracking_on);
         auto end = chrono::system_clock::now();
 
         if (args->save_img &&
@@ -579,8 +590,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         args.display_delay_us = atof(arg) * 1000000;
         break;
     case 't':
-        if (!args.enter_POI)
-            tracking_on = true;
+        args.tracking_on = true;
         break;
     case -1:
         args.save_img_dir = arg;
@@ -649,6 +659,9 @@ int main(int argc, char **argv)
 {
 
     argp_parse(&argp, argc, argv, 0, 0, NULL);
+
+    if (args.enter_POI && args.tracking_on)
+        err(1,"Can't enter points and have tracking enabled at the same time!");
 
     signal(SIGINT, signalHandler);
     detectDisplay();

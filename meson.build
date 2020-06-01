@@ -64,9 +64,10 @@ executable('thermocam-pcb', ['thermocam-pcb.cpp','point-tracking.cpp'],
 
 executable('track-test', ['track-test.cpp'],
 	   dependencies: [
-         dependency('opencv4', required : true)
+         dependency('opencv4', required : true),
 	   ],
-	   cpp_args : cpp_args,
+	   cpp_args : [cpp_args,'-fopenmp'], 
+       link_args : '-fopenmp'
 	  )
 
 conf_data = configuration_data()

@@ -10,9 +10,11 @@
 
 std::vector<cv::KeyPoint> getKeyPoints(cv::Mat A);
 cv::Mat getDescriptors(cv::Mat A, std::vector<cv::KeyPoint>& kp);
-cv::Mat findHomography(std::vector<cv::KeyPoint> kp_from,
-                       std::vector<cv::KeyPoint> kp_to, cv::Mat desc_from,
-                       cv::Mat desc_to);
+void trainMatcher(cv::Mat desc_train);
+std::vector<cv::DMatch> matchToReference(cv::Mat desc_query);
+cv::Mat findH(const std::vector<cv::KeyPoint> &kp_from,
+              const std::vector<cv::KeyPoint> &kp_to,
+              const std::vector<cv::DMatch> &matches);
 cv::Mat preprocess(cv::Mat input);
 
 #endif

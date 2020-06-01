@@ -170,6 +170,7 @@ temperature. Writes the temperatures of entered POIs to stdout.
       --save-img-period=NUM  Period for saving an image with POIs to
                              "save-img-dir".
                              1s by default.
+  -t, --track-points         Turn on tracking of points.
   -v, --load-video=FILE      Load and process video instead of camera feed
   -w, --webserver            Start webserver to display image and
                              temperatures.
