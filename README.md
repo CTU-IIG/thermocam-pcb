@@ -144,6 +144,7 @@ The parameter `-w` starts a webserver on port `8080`.
 
 * `ip_address:8080` shows the current thermocamera stream
 * `ip_address:8080/temperatures.txt` returns the current POI Celsius temperatures in `name=temp` format
+* `ip_address:8080/position-std.txt` returns the current rolling standard deviations of POI positions in `name=temp` format, which is 0 if tracking is not enabled.
 
 ## Command line reference
 

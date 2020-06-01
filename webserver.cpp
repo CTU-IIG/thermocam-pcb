@@ -21,11 +21,21 @@ R"(
 </html>
 )";
 
-void sendPOI(crow::response &res, std::vector<poi> POI)
+void sendPOITemp(crow::response &res, std::vector<poi> POI)
 {
     std::stringstream ss; 
     for (auto p : POI)
         ss << p.name << "=" << std::fixed << std::setprecision(2) << p.temp << "\n";
+
+    res.write(ss.str());
+    res.end();
+}
+
+void sendPOIPosStd(crow::response &res, std::vector<poi> POI)
+{
+    std::stringstream ss;
+    for (auto p : POI)
+        ss << p.name << "=" << std::fixed << std::setprecision(4) << p.rolling_std << "\n";
 
     res.write(ss.str());
     res.end();
@@ -63,7 +73,15 @@ void* Webserver::start(void*)
         this->lock.lock();
         std::vector<poi> curr_POI = this->POI;
         this->lock.unlock();
-        sendPOI(res, curr_POI);
+        sendPOITemp(res, curr_POI);
+    });
+
+    CROW_ROUTE(app, "/position-std.txt")
+    ([this](const crow::request& req, crow::response& res){
+        this->lock.lock();
+        std::vector<poi> curr_POI = this->POI;
+        this->lock.unlock();
+        sendPOIPosStd(res, curr_POI);
     });
 
     app.port(8080)

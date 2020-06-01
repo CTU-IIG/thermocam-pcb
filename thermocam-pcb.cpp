@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/accumulators/statistics/rolling_variance.hpp>
 #include "Base64.h"
 
 #include "point-tracking.hpp"
@@ -28,6 +29,7 @@
 
 using namespace cv;
 namespace pt = boost::property_tree;
+namespace acc = boost::accumulators;
 
 // The colors 0-255 in recordings correspond to temperatures 15-120C
 #define RECORD_MIN_C 15
@@ -57,6 +59,14 @@ cmd_arguments args;
 bool gui_available;
 bool sigint_received = false;;
 
+/* Webserver globals */
+Webserver *webserver = nullptr;
+pthread_t web_thread;
+typedef void * (*THREADFUNCPTR)(void *);
+
+/* Rolling variance of point positions for tracking */
+std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>> r_var;
+
 enum draw_mode { FULL, TEMP, NUM };
 constexpr draw_mode next(draw_mode m)
 {
@@ -81,11 +91,6 @@ struct img_stream {
     uint16_t min_rawtemp;
     uint16_t max_rawtemp;
 };
-
-/* Webserver globals */
-Webserver *webserver = nullptr;
-pthread_t web_thread;
-typedef void * (*THREADFUNCPTR)(void *);
 
 inline double duration_us(chrono::time_point<chrono::system_clock> begin,
                           chrono::time_point<chrono::system_clock> end)
@@ -337,10 +342,15 @@ void updatePOICoords(im_status *s, im_status *ref)
     if (H.empty()) // Couldn't find homography - points stay the same
         return;
 
-    for (auto &el : s->POI) {
-        vector<Point2f> v = { el.p };
+    for (unsigned i=0; i<s->POI.size(); i++) {
+        vector<Point2f> v = { s->POI[i].p };
         perspectiveTransform(v, v, H); // only takes vector of points as input
-        el.p = v[0];
+        s->POI[i].p = v[0];
+
+        // Variance of sum of 2 random variables the same as sum of variances
+        // So we only need to track 1 variance per point
+        r_var[i](s->POI[i].p.x + s->POI[i].p.y);
+        s->POI[i].rolling_std = sqrt(acc::rolling_variance(r_var[i]));
     }
 }
 
@@ -356,10 +366,14 @@ void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_
         Mat pre = preprocess(s->gray);
         s->kp = getKeyPoints(pre);
         s->desc = getDescriptors(pre, s->kp);
-        if (ref && ref->POI.size() > 0)
+        if (ref && ref->POI.size() > 0) {
             updatePOICoords(s, ref);
-        else
-            trainMatcher(s->desc); // Train descriptor matcher on reference image
+        } else {
+            // Train descriptor matcher on reference img
+            trainMatcher(s->desc);
+            // Calculate point position rolling variance from last 20 images
+            r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s->POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
+        }
     }
 
     updatePOITemps(s,is);
@@ -398,7 +412,7 @@ vector<poi> readPOI(string path)
     for (pt::ptree::value_type &p : root.get_child("POI"))
         POI.push_back({ p.second.get<string>("name"),
                         { p.second.get<float>("x"), p.second.get<float>("y") },
-                        p.second.get<double>("temp") });
+                        p.second.get<double>("temp"), 0});
     return POI;
 }
 
