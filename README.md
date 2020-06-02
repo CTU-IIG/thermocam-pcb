@@ -121,6 +121,10 @@ For example, to import previously saved points, enter points by hand, export bot
 
 `./build/thermocam-pcb -p import.json --enter-poi=export.json -r recording.avi`
 
+To show the saved points with the image at the time of saving (can be later used as a reference for tracking), run:
+
+`./build/thermocam-pcb -s points.json`
+
 ### Setting video as input instead of camera
 
 Add the path to your video to the arguments as `-v myvideo.avi`. 
@@ -138,13 +142,18 @@ There are 3 views available to display points and their temperature:
 
 You can change between these views by pressing Tab.
 
+### Enable point tracking
+
+Tracking is enabled by `-t` and forbids the entering of points via `-e`.
+The points to track and the reference image to compare to can be entered via `-p`.
+
 ### Access webserver
 
 The parameter `-w` starts a webserver on port `8080`.
 
 * `ip_address:8080` shows the current thermocamera stream
 * `ip_address:8080/temperatures.txt` returns the current POI Celsius temperatures in `name=temp` format
-* `ip_address:8080/position-std.txt` returns the current rolling standard deviations of POI positions in `name=temp` format, which is 0 if tracking is not enabled.
+* `ip_address:8080/position-std.txt` returns the current rolling standard deviations of POI positions in `name=position` format, which is 0 if tracking is not enabled.
 
 ## Command line reference
 
