@@ -278,6 +278,56 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
     return BGR;
 }
 
+void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
+{
+    pt::ptree root, POI_pt, POI_img;
+    for (unsigned i = 0; i < POI.size(); i++) {
+        pt::ptree elem;
+        elem.put("name", POI[i].name);
+        elem.put("x", POI[i].p.x);
+        elem.put("y", POI[i].p.y);
+        elem.put("temp", POI[i].temp);
+        POI_pt.push_back(std::make_pair("", elem));
+    }
+    root.add_child("POI", POI_pt);
+
+    vector<uchar> img_v;
+    imencode(".jpg",last_img,img_v);
+    string img_s(img_v.begin(),img_v.end());
+    POI_img.put("", macaron::Base64::Encode(img_s));
+    root.add_child("POI img", POI_img);
+
+    pt::write_json(path, root);
+
+    if (verbose)
+        cout << "Points saved to " << path << endl;
+}
+
+vector<poi> readPOI(string path)
+{
+    vector<poi> POI;
+    pt::ptree root;
+    pt::read_json(path, root);
+    for (pt::ptree::value_type &p : root.get_child("POI"))
+        POI.push_back({ p.second.get<string>("name"),
+                        { p.second.get<float>("x"), p.second.get<float>("y") },
+                        p.second.get<double>("temp"), 0});
+    return POI;
+}
+
+Mat readJsonImg(string path)
+{
+    pt::ptree root;
+    pt::read_json(path, root);
+    pt::ptree img_ptree = root.get_child("POI img");
+    string img_encoded =  img_ptree.get_value<string>();
+    string decoded;
+    if(macaron::Base64::Decode(img_encoded,decoded) != "")
+        err(1,"Base64 decoding: input data size is not a multiple of 4.");
+    vector<uchar> decoded_v(decoded.begin(), decoded.end());
+    return imdecode(decoded_v,0);
+}
+
 void setStatusHeightWidth(im_status *s, img_stream *is)
 {
     if (is->is_video) {
@@ -361,79 +411,43 @@ void updatePOICoords(im_status *s, im_status *ref)
     }
 }
 
+void updateKpDesc(im_status *s)
+{
+    Mat pre = preprocess(s->gray);
+    s->kp = getKeyPoints(pre);
+    s->desc = getDescriptors(pre, s->kp);
+}
+
 void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_on)
 {
 
     updateStatusImgs(s, is);
 
-    if(ref)
-        s->POI = ref->POI;
+    s->POI = ref->POI;
 
     if (tracking_on) {
-        Mat pre = preprocess(s->gray);
-        s->kp = getKeyPoints(pre);
-        s->desc = getDescriptors(pre, s->kp);
-        if (ref && ref->POI.size() > 0) {
-            updatePOICoords(s, ref);
-        } else {
-            // Train descriptor matcher on reference img
-            trainMatcher(s->desc);
-            // Calculate point position rolling variance from last 20 images
-            r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s->POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
-        }
+        updateKpDesc(s);
+        updatePOICoords(s, ref);
     }
 
     updatePOITemps(s,is);
 }
 
-void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
+void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on)
 {
-    pt::ptree root, POI_pt, POI_img;
-    for (unsigned i = 0; i < POI.size(); i++) {
-        pt::ptree elem;
-        elem.put("name", POI[i].name);
-        elem.put("x", POI[i].p.x);
-        elem.put("y", POI[i].p.y);
-        elem.put("temp", POI[i].temp);
-        POI_pt.push_back(std::make_pair("", elem));
+    if (poi_filename.empty()) {
+        updateStatusImgs(s, is);
+    } else {
+        s->gray = readJsonImg(poi_filename);
+        s->POI = readPOI(poi_filename);
+
+        if (tracking_on) {
+            updateKpDesc(s);
+            trainMatcher(s->desc); // train once on reference image
+            // Calculate point position rolling variance from last 20 images
+            r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s->POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
+        }
     }
-    root.add_child("POI", POI_pt);
-
-    vector<uchar> img_v;
-    imencode(".jpg",last_img,img_v);
-    string img_s(img_v.begin(),img_v.end());
-    POI_img.put("", macaron::Base64::Encode(img_s));
-    root.add_child("POI img", POI_img);
-
-    pt::write_json(path, root);
-
-    if (verbose)
-        cout << "Points saved to " << path << endl;
-}
-
-vector<poi> readPOI(string path)
-{
-    vector<poi> POI;
-    pt::ptree root;
-    pt::read_json(path, root);
-    for (pt::ptree::value_type &p : root.get_child("POI"))
-        POI.push_back({ p.second.get<string>("name"),
-                        { p.second.get<float>("x"), p.second.get<float>("y") },
-                        p.second.get<double>("temp"), 0});
-    return POI;
-}
-
-Mat readJsonImg(string path)
-{
-    pt::ptree root;
-    pt::read_json(path, root);
-    pt::ptree img_ptree = root.get_child("POI img");
-    string img_encoded =  img_ptree.get_value<string>();
-    string decoded;
-    if(macaron::Base64::Decode(img_encoded,decoded) != "")
-        err(1,"Base64 decoding: input data size is not a multiple of 4.");
-    vector<uchar> decoded_v(decoded.begin(), decoded.end());
-    return imdecode(decoded_v,0);
 }
 
 void onMouse(int event, int x, int y, int flags, void *param)
@@ -545,7 +559,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     string window_name = "Thermocam-PCB";
     chrono::time_point<chrono::system_clock> save_img_clk;
 
-    updateImStatus(ref,is,nullptr,args->tracking_on);
+    setRefStatus(ref, is, args->POI_import_path, args->tracking_on);
 
     if (gui_available)
         namedWindow(window_name, WINDOW_NORMAL);
@@ -701,8 +715,6 @@ int main(int argc, char **argv)
     img_stream is;
     im_status ref, curr;
     initImgStream(&is, args.vid_in_path, args.license_dir);
-    if (!args.POI_import_path.empty())
-        ref.POI = readPOI(args.POI_import_path);
 
     processStream(&is, &ref, &curr, &args);
 
