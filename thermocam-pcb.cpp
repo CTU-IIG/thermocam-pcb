@@ -400,7 +400,7 @@ void updatePOICoords(im_status *s, im_status *ref)
         return;
 
     for (unsigned i=0; i<s->POI.size(); i++) {
-        vector<Point2f> v = { s->POI[i].p };
+        vector<Point2f> v = { ref->POI[i].p };
         perspectiveTransform(v, v, H); // only takes vector of points as input
         s->POI[i].p = v[0];
 
@@ -423,7 +423,8 @@ void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_
 
     updateStatusImgs(s, is);
 
-    s->POI = ref->POI;
+    if(s->POI.size() == 0)
+        s->POI = ref->POI;
 
     if (tracking_on) {
         updateKpDesc(s);
@@ -440,6 +441,7 @@ void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracki
     } else {
         s->gray = readJsonImg(poi_filename);
         s->POI = readPOI(poi_filename);
+        setStatusHeightWidth(s, is);
 
         if (tracking_on) {
             updateKpDesc(s);
