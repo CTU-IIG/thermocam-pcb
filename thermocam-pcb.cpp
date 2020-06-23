@@ -339,6 +339,20 @@ void setStatusHeightWidth(im_status *s, img_stream *is)
     }
 }
 
+// Temperature of various camera components
+std::vector<std::pair<std::string,double>> getCameraComponentTemps(img_stream *is)
+{
+    std::vector<std::pair<std::string, double>> v = { { "camera_shutter", 0 },
+                                                      { "camera_sensor",  0 },
+                                                      { "camera_housing", 0 } };
+    if (!is->is_video) {
+        v[0].second = is->camera->GetSettings()->GetShutterTemperature();
+        v[1].second = is->camera->GetSettings()->GetSensorTemperature();
+        v[2].second = is->camera->GetSettings()->GetHousingTemperature();
+    }
+    return v;
+}
+
 void updatePOITemps(im_status *s, img_stream *is)
 {
     for (unsigned i = 0; i < s->POI.size(); i++) {
@@ -535,6 +549,7 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     if (webserver) {
         webserver->setImg(img);
         webserver->setPOI(curr->POI);
+        webserver->setCameraComponentTemps(getCameraComponentTemps(is));
     }
 
     if (gui_available) {

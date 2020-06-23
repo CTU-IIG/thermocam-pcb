@@ -30,7 +30,16 @@ void sendPOITemp(crow::response &res, std::vector<poi> POI)
         ss << p.name << "=" << std::fixed << std::setprecision(2) << p.temp << "\n";
 
     res.write(ss.str());
-    res.end();
+}
+
+void sendCameraComponentTemps(crow::response &res, std::vector<std::pair<std::string, double>> cameraComponentTemps)
+{
+    std::stringstream ss;
+    for (auto el : cameraComponentTemps)
+        ss << el.first  << "=" << std::fixed << std::setprecision(2) << el.second << "\n";
+
+    std::cout << ss.str() << std::endl;
+    res.write(ss.str());
 }
 
 void sendPOIPosStd(crow::response &res, std::vector<poi> POI)
@@ -40,7 +49,6 @@ void sendPOIPosStd(crow::response &res, std::vector<poi> POI)
         ss << p.name << "=" << std::fixed << std::setprecision(4) << p.rolling_std << "\n";
 
     res.write(ss.str());
-    res.end();
 }
 
 void sendImg(crow::response &res, cv::Mat img)
@@ -49,7 +57,6 @@ void sendImg(crow::response &res, cv::Mat img)
     cv::imencode(".jpg", img, img_v);
     std::string img_s(img_v.begin(), img_v.end());
     res.write(img_s);
-    res.end();
 }
 
 void* Webserver::start(void*)
@@ -68,14 +75,18 @@ void* Webserver::start(void*)
         cv::Mat curr_img = this->img;
         this->lock.unlock();
         sendImg(res,curr_img);
+        res.end();
     });
 
     CROW_ROUTE(app, "/temperatures.txt")
     ([this](const crow::request& req, crow::response& res){
         this->lock.lock();
         std::vector<poi> curr_POI = this->POI;
+        std::vector<std::pair<std::string,double>> curr_cct = this->cameraComponentTemps;
         this->lock.unlock();
         sendPOITemp(res, curr_POI);
+        sendCameraComponentTemps(res, curr_cct);
+        res.end();
     });
 
     CROW_ROUTE(app, "/position-std.txt")
@@ -84,6 +95,7 @@ void* Webserver::start(void*)
         std::vector<poi> curr_POI = this->POI;
         this->lock.unlock();
         sendPOIPosStd(res, curr_POI);
+        res.end();
     });
 
     app.port(8080)
