@@ -437,7 +437,7 @@ void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_
 
     updateStatusImgs(s, is);
 
-    if(s->POI.size() == 0)
+    if(s->POI.size() == 0  || !tracking_on)
         s->POI = ref->POI;
 
     if (tracking_on) {
