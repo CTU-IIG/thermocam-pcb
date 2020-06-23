@@ -10,7 +10,7 @@ R"(
         <meta charset="utf-8" />
         <title>Thermocam-PCB</title>
     </head>
-    <body onload="setInterval(reloadImg, 100);">
+    <body onload="setInterval(reloadImg, 330);">
       <h2>Thermocam-PCB</h2>
       <img src="thermocam-current.jpg" id=camera />
       <script>
