@@ -155,6 +155,22 @@ The parameter `-w` starts a webserver on port `8080`.
 * `ip_address:8080/temperatures.txt` returns the current POI Celsius temperatures in `name=temp` format
 * `ip_address:8080/position-std.txt` returns the current rolling standard deviations of POI positions in `name=position` format, which is 0 if tracking is not enabled.
 
+## Precise temperature measurement
+
+The WIC specifications (see `https://workswell-thermal-camera.com/workswell-infrared-camera-wic`) state a measurement accuracy of ±2°C. If the measurement accuracy is lower than this, check that that the thermal emissivity of the measured object is equal to the value set in the WIC SDK - 0.95 by default. Masking the surface with black electrical insulating tape achieves an emissivity of 0.95-0.97.
+
+If you are getting wrong values even with the right emissivity settings, it may be due to a bug in the WIC SDK.
+
+### WIC SDK bug
+
+For version 1.1 of the WIC SDK, if you use the license file for the WIC thermal camera, you are going to get wrong temperatures when calculating Celsius values from the 14-bit raw values coming from the Tau2 core inside the camera.
+
+The reason for this is that there are various versions of the Workswell licence file (probably due to backwards-compatibility), this version number is stored in the license file. The version number read from the license file is 3, where it should be 2. This version number is set on line 3041 in function CameraSerialSettings::setCalibrationData in the CameraSerialSettings.cpp file.
+
+Thus the solution is to either hard set the variable versionNumber on line 3041 to 2 in the CameraSerialSettings.cpp file, or set the version number to 2 in the license file.
+
+The best solution would be to ask Workswell to fix this bug in the SDK and upload a new version to their website. Given how rarely they answer regarding this issue, this is unlikely to happen in the near future.
+
 ## Command line reference
 
 <!-- help start -->
