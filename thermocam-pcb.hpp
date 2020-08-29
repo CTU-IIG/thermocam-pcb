@@ -7,6 +7,7 @@ struct poi {
     std::string name;
     cv::Point2f p;
     double temp;
+    double rolling_std;
 };
 
 #endif

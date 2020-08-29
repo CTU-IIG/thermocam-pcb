@@ -121,6 +121,10 @@ For example, to import previously saved points, enter points by hand, export bot
 
 `./build/thermocam-pcb -p import.json --enter-poi=export.json -r recording.avi`
 
+To show the saved points with the image at the time of saving (can be later used as a reference for tracking), run:
+
+`./build/thermocam-pcb -s points.json`
+
 ### Setting video as input instead of camera
 
 Add the path to your video to the arguments as `-v myvideo.avi`. 
@@ -138,12 +142,34 @@ There are 3 views available to display points and their temperature:
 
 You can change between these views by pressing Tab.
 
+### Enable point tracking
+
+Tracking is enabled by `-t` and forbids the entering of points via `-e`.
+The points to track and the reference image to compare to can be entered via `-p`.
+
 ### Access webserver
 
 The parameter `-w` starts a webserver on port `8080`.
 
 * `ip_address:8080` shows the current thermocamera stream
 * `ip_address:8080/temperatures.txt` returns the current POI Celsius temperatures in `name=temp` format
+* `ip_address:8080/position-std.txt` returns the current rolling standard deviations of POI positions in `name=position` format, which is 0 if tracking is not enabled.
+
+## Precise temperature measurement
+
+The WIC specifications (see `https://workswell-thermal-camera.com/workswell-infrared-camera-wic`) state a measurement accuracy of ±2°C. If the measurement accuracy is lower than this, check that that the thermal emissivity of the measured object is equal to the value set in the WIC SDK - 0.95 by default. Masking the surface with black electrical insulating tape achieves an emissivity of 0.95-0.97.
+
+If you are getting wrong values even with the right emissivity settings, it may be due to a bug in the WIC SDK.
+
+### WIC SDK bug
+
+For version 1.1 of the WIC SDK, if you use the license file for the WIC thermal camera, you are going to get wrong temperatures when calculating Celsius values from the 14-bit raw values coming from the Tau2 core inside the camera.
+
+The reason for this is that there are various versions of the Workswell licence file (probably due to backwards-compatibility), this version number is stored in the license file. The version number read from the license file is 3, where it should be 2. This version number is set on line 3041 in function CameraSerialSettings::setCalibrationData in the CameraSerialSettings.cpp file.
+
+Thus the solution is to either hard set the variable versionNumber on line 3041 to 2 in the CameraSerialSettings.cpp file, or set the version number to 2 in the license file.
+
+The best solution would be to ask Workswell to fix this bug in the SDK and upload a new version to their website. Given how rarely they answer regarding this issue, this is unlikely to happen in the near future.
 
 ## Command line reference
 
@@ -170,6 +196,7 @@ temperature. Writes the temperatures of entered POIs to stdout.
       --save-img-period=NUM  Period for saving an image with POIs to
                              "save-img-dir".
                              1s by default.
+  -t, --track-points         Turn on tracking of points.
   -v, --load-video=FILE      Load and process video instead of camera feed
   -w, --webserver            Start webserver to display image and
                              temperatures.

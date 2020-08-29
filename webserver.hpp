@@ -12,6 +12,7 @@ private:
     std::mutex lock;
     cv::Mat img;
     std::vector<poi> POI;
+    std::vector<std::pair<std::string,double>> cameraComponentTemps;
 
 public:
     std::atomic<bool> finished{ false };
@@ -28,6 +29,12 @@ public:
         this->POI = POI;
     }   
     
+    void setCameraComponentTemps(std::vector<std::pair<std::string,double>> cct)
+    {
+        std::lock_guard<std::mutex> lk(lock);
+        this->cameraComponentTemps = cct;
+    }
+
     void *start(void*);
 };
 

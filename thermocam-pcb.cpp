@@ -9,7 +9,10 @@
 #include <pthread.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/accumulators/statistics/rolling_variance.hpp>
 #include "Base64.h"
+
+#include "point-tracking.hpp"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/mat.hpp>
@@ -26,6 +29,7 @@
 
 using namespace cv;
 namespace pt = boost::property_tree;
+namespace acc = boost::accumulators;
 
 // The colors 0-255 in recordings correspond to temperatures 15-120C
 #define RECORD_MIN_C 15
@@ -47,12 +51,21 @@ struct cmd_arguments{
     string save_img_dir;
     double save_img_period = 0;
     bool webserver_active = false;
+    bool tracking_on = false;
 };
 cmd_arguments args;
 
 /* Global switches */
 bool gui_available;
 bool sigint_received = false;;
+
+/* Webserver globals */
+Webserver *webserver = nullptr;
+pthread_t web_thread;
+typedef void * (*THREADFUNCPTR)(void *);
+
+/* Rolling variance of point positions for tracking */
+std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>> r_var;
 
 enum draw_mode { FULL, TEMP, NUM };
 constexpr draw_mode next(draw_mode m)
@@ -78,11 +91,6 @@ struct img_stream {
     uint16_t min_rawtemp;
     uint16_t max_rawtemp;
 };
-
-/* Webserver globals */
-Webserver *webserver = nullptr;
-pthread_t web_thread;
-typedef void * (*THREADFUNCPTR)(void *);
 
 inline double duration_us(chrono::time_point<chrono::system_clock> begin,
                           chrono::time_point<chrono::system_clock> end)
@@ -270,6 +278,56 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
     return BGR;
 }
 
+void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
+{
+    pt::ptree root, POI_pt, POI_img;
+    for (unsigned i = 0; i < POI.size(); i++) {
+        pt::ptree elem;
+        elem.put("name", POI[i].name);
+        elem.put("x", POI[i].p.x);
+        elem.put("y", POI[i].p.y);
+        elem.put("temp", POI[i].temp);
+        POI_pt.push_back(std::make_pair("", elem));
+    }
+    root.add_child("POI", POI_pt);
+
+    vector<uchar> img_v;
+    imencode(".jpg",last_img,img_v);
+    string img_s(img_v.begin(),img_v.end());
+    POI_img.put("", macaron::Base64::Encode(img_s));
+    root.add_child("POI img", POI_img);
+
+    pt::write_json(path, root);
+
+    if (verbose)
+        cout << "Points saved to " << path << endl;
+}
+
+vector<poi> readPOI(string path)
+{
+    vector<poi> POI;
+    pt::ptree root;
+    pt::read_json(path, root);
+    for (pt::ptree::value_type &p : root.get_child("POI"))
+        POI.push_back({ p.second.get<string>("name"),
+                        { p.second.get<float>("x"), p.second.get<float>("y") },
+                        p.second.get<double>("temp"), 0});
+    return POI;
+}
+
+Mat readJsonImg(string path)
+{
+    pt::ptree root;
+    pt::read_json(path, root);
+    pt::ptree img_ptree = root.get_child("POI img");
+    string img_encoded =  img_ptree.get_value<string>();
+    string decoded;
+    if(macaron::Base64::Decode(img_encoded,decoded) != "")
+        err(1,"Base64 decoding: input data size is not a multiple of 4.");
+    vector<uchar> decoded_v(decoded.begin(), decoded.end());
+    return imdecode(decoded_v,0);
+}
+
 void setStatusHeightWidth(im_status *s, img_stream *is)
 {
     if (is->is_video) {
@@ -279,6 +337,20 @@ void setStatusHeightWidth(im_status *s, img_stream *is)
         s->height = is->camera->GetSettings()->GetResolutionY();
         s->width = is->camera->GetSettings()->GetResolutionX();
     }
+}
+
+// Temperature of various camera components
+std::vector<std::pair<std::string,double>> getCameraComponentTemps(img_stream *is)
+{
+    std::vector<std::pair<std::string, double>> v = { { "camera_shutter", 0 },
+                                                      { "camera_sensor",  0 },
+                                                      { "camera_housing", 0 } };
+    if (!is->is_video) {
+        v[0].second = is->camera->GetSettings()->GetShutterTemperature();
+        v[1].second = is->camera->GetSettings()->GetSensorTemperature();
+        v[2].second = is->camera->GetSettings()->GetHousingTemperature();
+    }
+    return v;
 }
 
 void updatePOITemps(im_status *s, img_stream *is)
@@ -333,78 +405,65 @@ void clearStatusImgs(im_status *s)
     s->gray.release();
 }
 
-void updateImStatus(im_status *s, img_stream *is, im_status *ref = nullptr)
+void updatePOICoords(im_status *s, im_status *ref)
+{
+    std::vector<cv::DMatch> matches = matchToReference(s->desc);
+    Mat H = findH(ref->kp, s->kp, matches);
+
+    if (H.empty()) // Couldn't find homography - points stay the same
+        return;
+
+    for (unsigned i=0; i<s->POI.size(); i++) {
+        vector<Point2f> v = { ref->POI[i].p };
+        perspectiveTransform(v, v, H); // only takes vector of points as input
+        s->POI[i].p = v[0];
+
+        // Variance of sum of 2 random variables the same as sum of variances
+        // So we only need to track 1 variance per point
+        r_var[i](s->POI[i].p.x + s->POI[i].p.y);
+        s->POI[i].rolling_std = sqrt(acc::rolling_variance(r_var[i]));
+    }
+}
+
+void updateKpDesc(im_status *s)
+{
+    Mat pre = preprocess(s->gray);
+    s->kp = getKeyPoints(pre);
+    s->desc = getDescriptors(pre, s->kp);
+}
+
+void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_on)
 {
 
     updateStatusImgs(s, is);
 
-    if(ref)
-        s->POI = ref->POI; // Placeholder until tracking is implemented
+    if(s->POI.size() == 0  || !tracking_on)
+        s->POI = ref->POI;
+
+    if (tracking_on) {
+        updateKpDesc(s);
+        updatePOICoords(s, ref);
+    }
+
     updatePOITemps(s,is);
+}
 
-    /*
-    // Calculate new coordinates of points by homography
+void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on)
+{
+    if (poi_filename.empty()) {
+        updateStatusImgs(s, is);
+    } else {
+        s->gray = readJsonImg(poi_filename);
+        s->POI = readPOI(poi_filename);
+        setStatusHeightWidth(s, is);
 
-    fillKeyDesc(curr,curr->gray, curr->mask);
-
-    Mat H = findHomography(ref->kp, curr->kp, ref->desc, curr->desc);
-    if (!H.empty()){
-        // findHomography may return an empty matrix if there aren't enough points(4)
-        // to estimate a homography from them.
-        // In this case, the points stay the same as before.
-        perspectiveTransform(ref->POI, curr->POI, H);
+        if (tracking_on) {
+            updateKpDesc(s);
+            trainMatcher(s->desc); // train once on reference image
+            // Calculate point position rolling variance from last 20 images
+            r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s->POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
+        }
     }
-    */
-}
-
-void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
-{
-    pt::ptree root, POI_pt, POI_img;
-    for (unsigned i = 0; i < POI.size(); i++) {
-        pt::ptree elem;
-        elem.put("name", POI[i].name);
-        elem.put("x", POI[i].p.x);
-        elem.put("y", POI[i].p.y);
-        elem.put("temp", POI[i].temp);
-        POI_pt.push_back(std::make_pair("", elem));
-    }
-    root.add_child("POI", POI_pt);
-
-    vector<uchar> img_v;
-    imencode(".jpg",last_img,img_v);
-    string img_s(img_v.begin(),img_v.end());
-    POI_img.put("", macaron::Base64::Encode(img_s));
-    root.add_child("POI img", POI_img);
-
-    pt::write_json(path, root);
-
-    if (verbose)
-        cout << "Points saved to " << path << endl;
-}
-
-vector<poi> readPOI(string path)
-{
-    vector<poi> POI;
-    pt::ptree root;
-    pt::read_json(path, root);
-    for (pt::ptree::value_type &p : root.get_child("POI"))
-        POI.push_back({ p.second.get<string>("name"),
-                        { p.second.get<float>("x"), p.second.get<float>("y") },
-                        p.second.get<double>("temp") });
-    return POI;
-}
-
-Mat readJsonImg(string path)
-{
-    pt::ptree root;
-    pt::read_json(path, root);
-    pt::ptree img_ptree = root.get_child("POI img");
-    string img_encoded =  img_ptree.get_value<string>();
-    string decoded;
-    if(macaron::Base64::Decode(img_encoded,decoded) != "")
-        err(1,"Base64 decoding: input data size is not a multiple of 4.");
-    vector<uchar> decoded_v(decoded.begin(), decoded.end());
-    return imdecode(decoded_v,0);
 }
 
 void onMouse(int event, int x, int y, int flags, void *param)
@@ -478,9 +537,9 @@ void showPOIImg(string path){
 
 int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
                      string window_name, bool enter_POI, VideoWriter *vw,
-                     string poi_csv_file)
+                     string poi_csv_file, bool tracking_on)
 {
-    updateImStatus(curr, is, ref);
+    updateImStatus(curr, is, ref, tracking_on);
     printPOITemp(curr->POI, poi_csv_file);
     Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
 
@@ -490,6 +549,7 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     if (webserver) {
         webserver->setImg(img);
         webserver->setPOI(curr->POI);
+        webserver->setCameraComponentTemps(getCameraComponentTemps(is));
     }
 
     if (gui_available) {
@@ -516,7 +576,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     string window_name = "Thermocam-PCB";
     chrono::time_point<chrono::system_clock> save_img_clk;
 
-    updateImStatus(ref,is);
+    setRefStatus(ref, is, args->POI_import_path, args->tracking_on);
 
     if (gui_available)
         namedWindow(window_name, WINDOW_NORMAL);
@@ -531,7 +591,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     while (!exit) {
         auto begin = chrono::system_clock::now();
         exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw,
-                                args->poi_csv_file);
+                                args->poi_csv_file, args->tracking_on);
         auto end = chrono::system_clock::now();
 
         if (args->save_img &&
@@ -581,6 +641,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
     case 'd':
         args.display_delay_us = atof(arg) * 1000000;
         break;
+    case 't':
+        args.tracking_on = true;
+        break;
     case -1:
         args.save_img_dir = arg;
         args.save_img = true;
@@ -617,6 +680,7 @@ static struct argp_option options[] = {
     { "csv-log",         'c', "FILE",        0, "Log temperature of POIs to a csv file instead of printing them to stdout."},
     { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
     { "save-img-period", -2,  "NUM",         0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
+    { "track-points",    't', 0,             0, "Turn on tracking of points."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { "webserver",       'w', 0,             0, "Start webserver to display image and temperatures."},
     { 0 } 
@@ -647,6 +711,9 @@ int main(int argc, char **argv)
 {
     argp_parse(&argp, argc, argv, 0, 0, NULL);
 
+    if (args.enter_POI && args.tracking_on)
+        err(1,"Can't enter points and have tracking enabled at the same time!");
+
     signal(SIGINT, signalHandler);
     detectDisplay();
 
@@ -665,8 +732,6 @@ int main(int argc, char **argv)
     img_stream is;
     im_status ref, curr;
     initImgStream(&is, args.vid_in_path, args.license_dir);
-    if (!args.POI_import_path.empty())
-        ref.POI = readPOI(args.POI_import_path);
 
     processStream(&is, &ref, &curr, &args);
 
