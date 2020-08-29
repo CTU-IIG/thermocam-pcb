@@ -387,8 +387,10 @@ void updateStatusImgs(im_status *s, img_stream *is)
         }
         cvtColor(s->gray, s->gray, COLOR_RGB2GRAY);
     } else {
-        if (is->camera->GetSettings()->DoNothing() < 0)
+        if (is->camera->GetSettings()->DoNothing() < 0) {
+            is->camera->Disconnect();
             err(1,"Lost connection to camera, exiting.");
+        }
         uint16_t *tmp = (uint16_t *)is->camera->RetreiveBuffer();
         memcpy(s->rawtemp, tmp, s->height * s->width * sizeof(uint16_t));
         is->camera->ReleaseBuffer();
