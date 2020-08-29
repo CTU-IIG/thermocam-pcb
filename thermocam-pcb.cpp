@@ -57,7 +57,7 @@ cmd_arguments args;
 
 /* Global switches */
 bool gui_available;
-bool sigint_received = false;;
+bool signal_received = false;
 
 /* Webserver globals */
 Webserver *webserver = nullptr;
@@ -107,8 +107,8 @@ void detectDisplay()
 
 void signalHandler(int signal_num)
 {
-    if (signal_num == SIGINT)
-        sigint_received = true;
+    if (signal_num == SIGINT || signal_num == SIGTERM)
+        signal_received = true;
 }
 
 string POI2Str(poi p, bool print_name = true)
@@ -565,7 +565,7 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
             return 1;
     }
 
-    if (sigint_received || (webserver && webserver->finished))
+    if (signal_received || (webserver && webserver->finished))
         return 1;
 
     return 0;
@@ -717,6 +717,7 @@ int main(int argc, char **argv)
         err(1,"Can't enter points and have tracking enabled at the same time!");
 
     signal(SIGINT, signalHandler);
+    signal(SIGTERM, signalHandler);
     detectDisplay();
 
     if (args.webserver_active) {
