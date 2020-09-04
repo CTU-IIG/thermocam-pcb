@@ -62,13 +62,15 @@ executable('thermocam-pcb', ['thermocam-pcb.cpp','point-tracking.cpp'],
 	   cpp_args : cpp_args,
 	  )
 
-executable('track-test', ['track-test.cpp'],
-	   dependencies: [
-         dependency('opencv4', required : true),
-	   ],
-	   cpp_args : [cpp_args,'-fopenmp'], 
-       link_args : '-fopenmp'
-	  )
+if opencv_dep.version().version_compare('>=4.0')
+  executable('track-test', ['track-test.cpp'],
+	     dependencies: [
+               dependency('opencv4', required : true),
+	     ],
+	     cpp_args : [cpp_args, '-fopenmp'],
+	     link_args : '-fopenmp'
+	    )
+endif
 
 conf_data = configuration_data()
 conf_data.set('EBUS_HOME', get_option('ebus_home'))
