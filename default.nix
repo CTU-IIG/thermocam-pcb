@@ -1,4 +1,5 @@
-{ pkgs ? import <nixpkgs> { }
+{ sources ? import ./nix/sources.nix
+, pkgs ? import sources.nixpkgs { }
 , wic_sdk ? /opt/workswell/wic_sdk
 , ebus_sdk ? /opt/pleora/ebus_sdk/Ubuntu-x86_64
 }:
