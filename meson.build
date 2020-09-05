@@ -58,8 +58,9 @@ executable('thermocam-pcb', ['thermocam-pcb.cpp','point-tracking.cpp'],
 	     wic_dep,
 	     ebus_dep,
 	   ],
-       link_with : webserver,
+	   link_with : webserver,
 	   cpp_args : cpp_args,
+	   install : true,
 	  )
 
 if opencv_dep.version().version_compare('>=4.0')
@@ -79,4 +80,6 @@ conf_data.set('OPENCV_HOME', opencv_dep.get_pkgconfig_variable('prefix'))
 
 configure_file(input : 'run.in',
                output : 'run',
-               configuration : conf_data)
+               configuration : conf_data,
+	       install_dir : 'bin'
+	      )
