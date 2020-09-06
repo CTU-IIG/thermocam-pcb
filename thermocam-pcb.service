@@ -10,6 +10,7 @@ ExecStart=/home/ubuntu/thermocam-pcb/thermocam-pcb -l /home/ubuntu/thermocam-pcb
 ExecStopPost=/usr/bin/usbreset 28b7:0001
 StandardOutput=null
 WatchdogSec=60
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target
