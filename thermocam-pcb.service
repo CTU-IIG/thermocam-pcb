@@ -1,5 +1,5 @@
 [Unit]
-Description=Thermocam-pcb startup launch
+Description=Thermocam PCB
 
 [Service]
 User=ubuntu
