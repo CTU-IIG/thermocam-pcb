@@ -7,7 +7,9 @@ Restart=always
 RestartSec=5
 Environment="LD_LIBRARY_PATH=/opt/workswell/wic_sdk/lib" "GENICAM_ROOT_V3_0=/opt/pleora/ebus_sdk/Ubuntu-x86_64/lib/genicam"
 ExecStart=/home/ubuntu/thermocam-pcb/thermocam-pcb -l /home/ubuntu/thermocam-pcb -p /home/ubuntu/thermocam-pcb/points.json --save-img-dir=/home/ubuntu/thermocam-pcb/img-log --save-img-period=60 -w
+ExecStopPost=/usr/bin/usbreset 28b7:0001
 StandardOutput=null
+WatchdogSec=60
 
 [Install]
 WantedBy=multi-user.target

@@ -11,6 +11,7 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/accumulators/statistics/rolling_variance.hpp>
 #include "Base64.h"
+#include <systemd/sd-daemon.h>
 
 #include "point-tracking.hpp"
 
@@ -587,10 +588,16 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     if (!args->vid_out_path.empty())
         vw = new VideoWriter(args->vid_out_path, CV_FOURCC('H', 'F', 'Y', 'U'),
                              CAM_FPS, Size(ref->width, ref->height), 0);
+
+    bool watchdog_enabled = sd_watchdog_enabled(true, NULL) > 0;
+
     if (args->save_img)
         save_img_clk = chrono::system_clock::now();
 
     while (!exit) {
+	if (watchdog_enabled)
+	    sd_notify(false, "WATCHDOG=1");
+
         auto begin = chrono::system_clock::now();
         exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw,
                                 args->poi_csv_file, args->tracking_on);
