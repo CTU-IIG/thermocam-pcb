@@ -1,5 +1,5 @@
 { stdenv, lib, makeWrapper, opencv, meson, ninja, pkg-config, boost, wic_sdk
-, ebus_sdk, udev, writeText }:
+, ebus_sdk, udev, writeText, usbutils }:
 let
   # libPvGenICam.so from ebus_sdk links to libcurl-gnutls.so.4 and
   # expect it to be compiled with versioned symbols. Nix does not use
@@ -42,6 +42,8 @@ in stdenv.mkDerivation {
     # Needed by ebus_sdk
     libcurl-gnutls-stub
     udev
+    # for usbreset in systemd .service file
+    usbutils
   ];
   mesonFlags = [ "-Dwic_home=${wic_sdk}" "-Debus_home=${ebus_sdk}" ];
 
