@@ -78,9 +78,16 @@ conf_data = configuration_data()
 conf_data.set('EBUS_HOME', get_option('ebus_home'))
 conf_data.set('WIC_HOME', get_option('wic_home'))
 conf_data.set('OPENCV_HOME', opencv_dep.get_pkgconfig_variable('prefix'))
+conf_data.set('PREFIX', get_option('prefix'))
 
 configure_file(input : 'run.in',
                output : 'run',
                configuration : conf_data,
 	       install_dir : 'bin'
+	      )
+
+configure_file(input : 'thermocam-pcb.service.in',
+               output : 'thermocam-pcb.service',
+               configuration : conf_data,
+	       install_dir : 'lib/systemd'
 	      )
