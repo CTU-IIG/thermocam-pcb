@@ -2,7 +2,6 @@
 Description=Thermocam PCB
 
 [Service]
-User=ubuntu
 Restart=always
 RestartSec=5
 Environment="LD_LIBRARY_PATH=@WIC_HOME@/lib:@EBUS_HOME@/lib:@EBUS_HOME@/lib/genicam/bin/Linux64_x64:@OPENCV_HOME@/lib" "GENICAM_ROOT_V3_0=@EBUS_HOME@/lib/genicam"
