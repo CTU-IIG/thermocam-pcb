@@ -396,6 +396,16 @@ void updateStatusImgs(im_status *s, img_stream *is)
         memcpy(s->rawtemp, tmp, s->height * s->width * sizeof(uint16_t));
         is->camera->ReleaseBuffer();
         s->gray = temp2gray(s->rawtemp, s->height, s->width, is->min_rawtemp, is->max_rawtemp);
+
+	static uint16_t *last_buffer = NULL;
+	static unsigned same_buffer_cnt = 0;
+	if (tmp == last_buffer) {
+	    if (same_buffer_cnt++ > 10)
+		errx(1, "Frozen frame detected!!!!!!!!!!!!!!!!!!!!!!!!!!");
+	} else {
+		last_buffer = tmp;
+		same_buffer_cnt = 0;
+	}
     }
 }
 
@@ -513,9 +523,9 @@ void printPOITemp(vector<poi> POI, string file)
         return;
 
     if (file.empty()) {
-        cout << "Temperature of points of interest:\n";
+        cout << "Temperature of points of interest:";
         for (unsigned i = 0; i < POI.size(); i++)
-            cout << POI2Str(POI[i]) << endl;
+	    cout << " " << POI2Str(POI[i]);
         cout << endl;
     } else {
         string str;
