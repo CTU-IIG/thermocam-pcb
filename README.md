@@ -7,6 +7,11 @@ Tool for measuring temperature of PCB board with WorksWell thermo camera
 
 32/64b x86  Linux, preferably Ubuntu 16.04, for maximum compatibility with the eBUS SDK. 
 
+Alternatively, [Nix][] package manager can be used on any Linux
+distribution. If you use Nix, skip to [Building and deploying with Nix](#building-and-deploying-with-nix).
+
+[Nix]: https://github.com/nix-community/home-manager
+
 ### WIC SDK
 
 You can find the official documentation of the WIC SDK at `https://software.workswell.eu/wic_sdk/Linux`.
@@ -92,6 +97,37 @@ Useful `options` are:
   systems fails with: /usr/lib/x86_64-linux-gnu/libstdc++.so.6:
   version `GLIBCXX_3.4.26' not found
 - other options reported by `meson configure` or `meson setup -h`.
+
+## Building and deploying with Nix
+
+Compiling thermocam-pcb with Nix package manager is simpler than the
+above procedure, as Nix automatically handles all the dependencies.
+
+1. Install Nix, e.g. `sh <(curl -L https://nixos.org/nix/install) --daemon`
+2. Place `WIC_SDK-Linux_Ubuntu_16.04_64b-1.1.0.run` to the top-level
+   directory.
+3. Run `nix-build`
+4. Run the program with `./result/bin/run` or `./result/bin/thermocam-pcb`.
+
+To deploy the compiled program to the turbot board (where the camera
+is connected) run:
+
+1. Copy the program and all dependencies to turbot:
+   ```sh
+   nix-copy-closure --to root@turbot $(readlink result)
+   ```
+2. Test whether the program runs there:
+   ```shell
+   ssh ubuntu@turbot $(readlink result)/bin/run
+   ```
+3. If everything works well, install it permanently:
+   ```sh
+   ssh ubuntu@turbot "
+       nix-env -i $(readlink result) &&
+       systemd --user daemon-reload &&
+       systemd --user restart thermocam-pcb
+   "
+   ```
 
 ## Usage
 
