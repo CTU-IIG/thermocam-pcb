@@ -106,7 +106,7 @@ above procedure, as Nix automatically handles all the dependencies.
 1. Install Nix, e.g. `sh <(curl -L https://nixos.org/nix/install) --daemon`
 2. Place `WIC_SDK-Linux_Ubuntu_16.04_64b-1.1.0.run` to the top-level
    directory.
-3. Run `nix-build`
+3. Run `nix build`
 4. Run the program with `./result/bin/run` or `./result/bin/thermocam-pcb`.
 
 To deploy the compiled program to the turbot board (where the camera
@@ -114,7 +114,7 @@ is connected) run:
 
 1. Copy the program and all dependencies to turbot:
    ```sh
-   nix-copy-closure --to root@turbot $(readlink result)
+   nix copy --to ssh://root@turbot $(readlink result)
    ```
 2. Test whether the program runs there:
    ```shell
