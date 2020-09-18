@@ -400,8 +400,12 @@ void updateStatusImgs(im_status *s, img_stream *is)
 	static uint16_t *last_buffer = NULL;
 	static unsigned same_buffer_cnt = 0;
 	if (tmp == last_buffer) {
-	    if (same_buffer_cnt++ > 10)
-		errx(1, "Frozen frame detected!!!!!!!!!!!!!!!!!!!!!!!!!!");
+	    if (same_buffer_cnt++ > 10) {
+		warnx("Frozen frame detected!!!!!!!!!!!!!!!!!!!!!!!!!!");
+		is->camera->StopAcquisition();
+		is->camera->StartAcquisition();
+		same_buffer_cnt = 0;
+	    }
 	} else {
 		last_buffer = tmp;
 		same_buffer_cnt = 0;
