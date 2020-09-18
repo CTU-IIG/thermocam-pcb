@@ -12,4 +12,4 @@ WatchdogSec=60
 TimeoutStopSec=10
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
