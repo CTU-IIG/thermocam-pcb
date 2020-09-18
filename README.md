@@ -124,8 +124,8 @@ is connected) run:
    ```sh
    ssh ubuntu@turbot "
        nix-env -i $(readlink result) &&
-       systemd --user daemon-reload &&
-       systemd --user restart thermocam-pcb
+       systemctl --user daemon-reload &&
+       systemctl --user restart thermocam-pcb
    "
    ```
 
