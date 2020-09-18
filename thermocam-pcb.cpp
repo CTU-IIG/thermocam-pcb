@@ -132,7 +132,7 @@ void initCamera(string license_dir, CameraCenter*& cc, Camera*& c)
     c = cc->getCameras().at(0);
 
     if (c->Connect() != 0)
-        err(1,"Error connecting camera");
+        errx(1,"Error connecting camera");
 }
 
 // Find the closest raw value corresponding to a Celsius temperature
