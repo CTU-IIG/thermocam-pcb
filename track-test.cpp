@@ -19,10 +19,6 @@
 #include <opencv2/xfeatures2d.hpp>
 #include <opencv2/calib3d.hpp>
 
-#include <opencv2/core/cuda.hpp>
-#include <opencv2/cudaimgproc.hpp>
-#include <opencv2/cudafeatures2d.hpp>
-#include <opencv2/cudaarithm.hpp>
 #include <omp.h>
 
 #include <boost/functional/hash.hpp>
@@ -877,46 +873,27 @@ vector<vector<vector<cv::DMatch>>> matchDescs(unsigned n_ref, unsigned n_gen, ve
         gen_id[i] = i / n_gen * (n_gen + 1) + i % n_gen + 1;
     }
 
-    bool gpu = false;
     vector<vector<vector<cv::DMatch>>> matches(n_ref*n_gen);
+    #pragma omp parallel for
+    for (unsigned i = 0; i < d.size(); i++)
+        d[i].convertTo(d[i],CV_32F);
+    vector<MyFlann> matchers(n_ref*n_gen);
 
-    if (gpu && d[0].depth() != CV_32F) {
-        cv::cuda::Stream stream;
-        cv::Ptr<cv::cuda::DescriptorMatcher> m_gpu = cv::cuda::DescriptorMatcher::createBFMatcher(cv::NORM_HAMMING);
-        vector<cv::cuda::GpuMat> d_gpu(d.size());
-        vector<cv::cuda::GpuMat> gpu_matches(n_ref*n_gen);
-        for (unsigned i=0; i<d.size(); i++)
-            d_gpu[i].upload(d[i]);
-        for (unsigned i = 0; i < n_ref*n_gen; i++) {
-            if (d_gpu[ref_id[i]].rows > 3 && d_gpu[gen_id[i]].rows > 3)
-                m_gpu->knnMatchAsync(d_gpu[ref_id[i]], d_gpu[gen_id[i]],
-                                     gpu_matches[i], 2, cv::noArray(), stream);
-        }
-        stream.waitForCompletion();
-        for (unsigned i = 0; i < n_ref*n_gen; i++)
-            m_gpu->knnMatchConvert(gpu_matches[i], matches[i]);
-    } else {
-        #pragma omp parallel for
-        for (unsigned i = 0; i < d.size(); i++)
-            d[i].convertTo(d[i],CV_32F);
-        vector<MyFlann> matchers(n_ref*n_gen);
-
-        #pragma omp parallel for
-        for (unsigned i = 0; i < n_ref*n_gen; i++) {
-            if(d[ref_id[i]].rows > 2)
-                matchers[i].add(d[ref_id[i]]);
-        }
-        // For some reason training once for each ref produces different
-        // results than training for each pair
-        // Maybe it's harmless, but I don't want to risk flawed results
-        for (unsigned i = 0; i < n_ref*n_gen; i++)
-            if(d[ref_id[i]].rows > 2 && d[gen_id[i]].rows > 2)
-                matchers[i].train();
-        #pragma omp parallel for
-        for (unsigned i = 0; i < n_ref*n_gen; i++)
-            if(d[ref_id[i]].rows > 2 && d[gen_id[i]].rows > 2)
-                matchers[i].knnMatchImpl(d[gen_id[i]],matches[i],2);
+    #pragma omp parallel for
+    for (unsigned i = 0; i < n_ref*n_gen; i++) {
+        if(d[ref_id[i]].rows > 2)
+            matchers[i].add(d[ref_id[i]]);
     }
+    // For some reason training once for each ref produces different
+    // results than training for each pair
+    // Maybe it's harmless, but I don't want to risk flawed results
+    for (unsigned i = 0; i < n_ref*n_gen; i++)
+        if(d[ref_id[i]].rows > 2 && d[gen_id[i]].rows > 2)
+            matchers[i].train();
+    #pragma omp parallel for
+    for (unsigned i = 0; i < n_ref*n_gen; i++)
+        if(d[ref_id[i]].rows > 2 && d[gen_id[i]].rows > 2)
+            matchers[i].knnMatchImpl(d[gen_id[i]],matches[i],2);
     return matches;
 }
 
