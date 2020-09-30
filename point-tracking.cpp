@@ -14,12 +14,13 @@ public:
 };
 
 MyFlann matcher;
-cv::FastFeatureDetector fast(18, false);
-cv::BRISK brisk(0,0,1.8);
+cv::Ptr<cv::FastFeatureDetector> fast = nullptr;
+cv::Ptr<cv::BRISK> brisk = nullptr;
 
 std::vector<cv::KeyPoint> getKeyPoints(cv::Mat A) {
+    if (!fast) fast = cv::FastFeatureDetector::create(18, false);
     std::vector<cv::KeyPoint> kp;
-    fast.detect(A, kp);
+    fast->detect(A, kp);
     return kp;
 }
 
@@ -29,14 +30,14 @@ std::vector<cv::KeyPoint> getKeyPoints(cv::Mat A) {
 cv::Mat getDescriptors(cv::Mat A, std::vector<cv::KeyPoint>& kp)
 {
     cv::Mat desc;
-    brisk.compute(A, kp, desc);
+    if (!brisk) brisk = cv::BRISK::create(0,0,1.8);
+    brisk->compute(A, kp, desc);
     return desc;
 }
 
 void trainMatcher(cv::Mat desc_train)
 {
     desc_train.convertTo(desc_train, CV_32F);
-    matcher.create("FlannBased");
     matcher.add({desc_train});
     matcher.train();
 }
@@ -74,7 +75,7 @@ cv::Mat findH(const std::vector<cv::KeyPoint> &kp_from,
         fromP[i] = kp_from[matches[i].trainIdx].pt;
     }
 
-    return findHomography(fromP, toP, CV_RANSAC, 6, cv::noArray());//, 6000, 0.99);
+    return findHomography(fromP, toP, cv::RANSAC, 6, cv::noArray(), 6000, 0.99);
 }
 
 cv::Mat preprocess(cv::Mat input)

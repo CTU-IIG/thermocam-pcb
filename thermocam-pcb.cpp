@@ -22,9 +22,6 @@
 #include <opencv2/imgproc/imgproc_c.h>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/calib3d.hpp>
-#ifdef HAVE_LEGACY_VIDEOIO
-#include <opencv2/videoio/legacy/constants_c.h>
-#endif
 
 #include "version.h"
 
@@ -332,8 +329,8 @@ Mat readJsonImg(string path)
 void setStatusHeightWidth(im_status *s, img_stream *is)
 {
     if (is->is_video) {
-        s->height = is->video->get(CV_CAP_PROP_FRAME_HEIGHT);
-        s->width = is->video->get(CV_CAP_PROP_FRAME_WIDTH);
+        s->height = is->video->get(cv::CAP_PROP_FRAME_HEIGHT);
+        s->width = is->video->get(cv::CAP_PROP_FRAME_WIDTH);
     } else {
         s->height = is->camera->GetSettings()->GetResolutionY();
         s->width = is->camera->GetSettings()->GetResolutionX();
@@ -373,7 +370,6 @@ void updatePOITemps(im_status *s, img_stream *is)
 
 void updateStatusImgs(im_status *s, img_stream *is)
 {
-
     if (!s->height || !s->width)
         setStatusHeightWidth(&(*s), is);
 
@@ -383,7 +379,7 @@ void updateStatusImgs(im_status *s, img_stream *is)
     if (is->is_video) {
         *is->video >> s->gray;
         if (s->gray.empty()) {
-            is->video->set(CV_CAP_PROP_POS_AVI_RATIO, 0);
+            is->video->set(cv::CAP_PROP_POS_FRAMES, 0);
             *is->video >> s->gray;
         }
         cvtColor(s->gray, s->gray, COLOR_RGB2GRAY);
@@ -451,7 +447,6 @@ void updateKpDesc(im_status *s)
 
 void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_on)
 {
-
     updateStatusImgs(s, is);
 
     if(s->POI.size() == 0  || !tracking_on)
@@ -600,7 +595,8 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     if (gui_available && args->enter_POI)
         setMouseCallback(window_name, onMouse, &ref->POI);
     if (!args->vid_out_path.empty())
-        vw = new VideoWriter(args->vid_out_path, CV_FOURCC('H', 'F', 'Y', 'U'),
+        vw = new VideoWriter(args->vid_out_path,
+                             cv::VideoWriter::fourcc('H', 'F', 'Y', 'U'),
                              CAM_FPS, Size(ref->width, ref->height), 0);
 
     bool watchdog_enabled = sd_watchdog_enabled(true, NULL) > 0;

@@ -30,18 +30,10 @@ else
   error('eBUS SDK not found in @0@. Run meson -Debus_home='.format(get_option('ebus_home')))
 endif
 
-opencv_dep = dependency('opencv', required : false)
-if not opencv_dep.found()
-  opencv_dep = dependency('opencv4', required : true)
-endif
+opencv_dep = dependency('opencv4', required : true)
 
 version_h = vcs_tag(input : 'version.h.in', output : 'version.h',
 		    command : ['git', 'describe', '--always'])
-
-cpp_args = []
-if cxx.has_header('opencv2/videoio/legacy/constants_c.h', dependencies : opencv_dep)
-  cpp_args += '-DHAVE_LEGACY_VIDEOIO=1'
-endif
 
 webserver = static_library('webserver', ['webserver.cpp'],
         dependencies: [
@@ -49,7 +41,6 @@ webserver = static_library('webserver', ['webserver.cpp'],
           dependency('boost', modules : ['system']),
           dependency('threads')
         ],
-        cpp_args : cpp_args,
        )
 
 executable('thermocam-pcb', ['thermocam-pcb.cpp','point-tracking.cpp'],
@@ -60,19 +51,15 @@ executable('thermocam-pcb', ['thermocam-pcb.cpp','point-tracking.cpp'],
 	     dependency('libsystemd'),
 	   ],
 	   link_with : webserver,
-	   cpp_args : cpp_args,
 	   install : true,
 	  )
 
-if opencv_dep.version().version_compare('>=4.0')
-  executable('track-test', ['track-test.cpp'],
-	     dependencies: [
-               dependency('opencv4', required : true),
-	     ],
-	     cpp_args : [cpp_args, '-fopenmp'],
-	     link_args : '-fopenmp'
-	    )
-endif
+executable('track-test', ['track-test.cpp'],
+     dependencies: [
+       opencv_dep,
+       dependency('openmp')
+     ],
+    )
 
 conf_data = configuration_data()
 conf_data.set('EBUS_HOME', get_option('ebus_home'))
