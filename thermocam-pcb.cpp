@@ -50,6 +50,7 @@ struct cmd_arguments{
     double save_img_period = 0;
     bool webserver_active = false;
     bool tracking_on = false;
+    string heat_sources_border_file;
 };
 cmd_arguments args;
 
@@ -77,6 +78,7 @@ struct im_status {
     uint16_t *rawtemp = nullptr;
     Mat gray;
     vector<poi> POI; // Points of interest
+    vector<poi> heat_source_border;
     vector<KeyPoint> kp;
     Mat desc;
 };
@@ -306,10 +308,13 @@ vector<poi> readPOI(string path)
     vector<poi> POI;
     pt::ptree root;
     pt::read_json(path, root);
-    for (pt::ptree::value_type &p : root.get_child("POI"))
-        POI.push_back({ p.second.get<string>("name"),
-                        { p.second.get<float>("x"), p.second.get<float>("y") },
-                        p.second.get<double>("temp"), 0});
+    for (pt::ptree::value_type &p : root.get_child("POI")) {
+        poi point;
+        point.name = p.second.get<string>("name");
+        point.p = {p.second.get<float>("x"), p.second.get<float>("y")};
+        point.temp = p.second.get<double>("temp");
+        POI.push_back(point);
+    }
     return POI;
 }
 
@@ -351,21 +356,17 @@ std::vector<std::pair<std::string,double>> getCameraComponentTemps(img_stream *i
     return v;
 }
 
-void updatePOITemps(im_status *s, img_stream *is)
+double getTemp(Point p, img_stream *is, im_status *s)
 {
-    for (unsigned i = 0; i < s->POI.size(); i++) {
-        if (round(s->POI[i].p.y) < 0 || round(s->POI[i].p.y) > s->height ||
-            round(s->POI[i].p.x) < 0 || round(s->POI[i].p.x) > s->width) {
-            cerr << s->POI[i].name << " out of image!" << endl;
-            s->POI[i].temp = nan("");
-            continue;
-        }
-        int idx = s->width * round(s->POI[i].p.y) + round(s->POI[i].p.x);
-        if (is->is_video)
-            s->POI[i].temp = pixel2Temp(s->gray.data[idx]);
-        else
-            s->POI[i].temp = is->camera->CalculateTemperatureC(s->rawtemp[idx]);
+    if (p.y < 0 || p.y > s->height || p.x < 0 || p.x > s->width) {
+        cerr << "Point at (" << p.x << "," << p.y << ") out of image!" << endl;
+        return nan("");
     }
+    int idx = s->width * p.y + p.x;
+    if (is->is_video)
+        return pixel2Temp(s->gray.data[idx]);
+    else
+        return is->camera->CalculateTemperatureC(s->rawtemp[idx]);
 }
 
 void updateStatusImgs(im_status *s, img_stream *is)
@@ -418,6 +419,19 @@ void clearStatusImgs(im_status *s)
     s->gray.release();
 }
 
+// Apply perspective transform such as homography on POI coords
+void transformPOI(vector<poi> in, vector<poi> &out, Mat M)
+{
+    if (out.size() == 0)
+        out = vector<poi>(in.size());
+
+    for (unsigned i=0; i<in.size(); i++) {
+        vector<Point2f> v = { in[i].p };
+        perspectiveTransform(v, v, M); // only takes vector of points as input
+        out[i].p = v[0];
+    }
+}
+
 void updatePOICoords(im_status *s, im_status *ref)
 {
     std::vector<cv::DMatch> matches = matchToReference(s->desc);
@@ -426,11 +440,9 @@ void updatePOICoords(im_status *s, im_status *ref)
     if (H.empty()) // Couldn't find homography - points stay the same
         return;
 
+    transformPOI(ref->POI, s->POI, H);
+    transformPOI(ref->heat_source_border, s->heat_source_border, H);
     for (unsigned i=0; i<s->POI.size(); i++) {
-        vector<Point2f> v = { ref->POI[i].p };
-        perspectiveTransform(v, v, H); // only takes vector of points as input
-        s->POI[i].p = v[0];
-
         // Variance of sum of 2 random variables the same as sum of variances
         // So we only need to track 1 variance per point
         r_var[i](s->POI[i].p.x + s->POI[i].p.y);
@@ -449,18 +461,23 @@ void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_
 {
     updateStatusImgs(s, is);
 
-    if(s->POI.size() == 0  || !tracking_on)
+    if(s->POI.size() == 0  || !tracking_on) {
         s->POI = ref->POI;
+        s->heat_source_border = ref->heat_source_border;
+    }
 
     if (tracking_on) {
         updateKpDesc(s);
         updatePOICoords(s, ref);
     }
 
-    updatePOITemps(s,is);
+
+    for (poi& point : s->POI)
+        point.temp = getTemp((Point)point.p, is, s);
+
 }
 
-void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on)
+void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on, string heat_source_border_file)
 {
     if (poi_filename.empty()) {
         updateStatusImgs(s, is);
@@ -468,24 +485,47 @@ void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracki
         s->gray = readJsonImg(poi_filename);
         s->POI = readPOI(poi_filename);
         setStatusHeightWidth(s, is);
-
-        if (tracking_on) {
-            updateKpDesc(s);
-            trainMatcher(s->desc); // train once on reference image
-            // Calculate point position rolling variance from last 20 images
-            r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s->POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
-        }
     }
+
+    if (!heat_source_border_file.empty()) {
+        im_status hs;
+        std::vector<cv::DMatch> ma;
+        cv::FlannBasedMatcher m;
+        std::vector<std::vector<DMatch>> matches;
+
+        hs.gray = readJsonImg(heat_source_border_file);
+        updateKpDesc(s);
+        updateKpDesc(&hs);
+        Mat hdesc,refdesc;
+        hs.desc.convertTo(hdesc, CV_32F);
+        s->desc.convertTo(refdesc, CV_32F);
+
+        hs.POI = readPOI(heat_source_border_file);
+        m.knnMatch(refdesc, hdesc, matches, 2);
+        Mat H = findH(hs.kp, s->kp, filterFirstSecondRatio(matches));
+
+        transformPOI(hs.POI, s->heat_source_border, H);
+    }
+
+    if (tracking_on) {
+        updateKpDesc(s);
+        trainMatcher(s->desc); // train once on reference image
+        // Calculate point position rolling variance from last 20 images
+        r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s->POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
+    }
+
 }
 
 void onMouse(int event, int x, int y, int flags, void *param)
 {
     if (event == EVENT_LBUTTONDOWN) {
         vector<poi> &POI = *((vector<poi> *)(param));
-        string name = "Point " + to_string(POI.size());
+        poi point;
+        point.name = "Point " + to_string(POI.size());
         // The image is upscaled 2x when displaying POI
         // Thus we need to divide coords by 2 when getting mouse input
-        POI.push_back({ name, { (float)x/2, (float)y/2 } });
+        point.p = {(float)x / 2, (float)y / 2};
+        POI.push_back(point);
     }
 }
 
@@ -547,13 +587,62 @@ void showPOIImg(string path){
     destroyAllWindows();
 }
 
+vector<Point> localMaxima(Mat I)
+{
+    Mat1b kernelLM(Size(3, 3), 1u);
+    kernelLM.at<uchar>(2, 2) = 0u;
+    Mat imageLM;
+    dilate(I, imageLM, kernelLM);
+    Mat1b localMaxima = (I >= imageLM);
+    vector<Point> locations;
+    findNonZero(localMaxima, locations);
+    return locations;
+}
+
+vector<poi> heatSources(im_status *s, img_stream *is)
+{
+    Mat I = s->gray.clone();
+    I.convertTo(I, CV_64F);
+
+    double blur_sigma = 5;
+    GaussianBlur(I,I,Size(0,0),blur_sigma,blur_sigma);
+    Laplacian(I,I,I.depth());
+    I = -I;
+
+    // Crop minimum rectangle containing border polygon
+    unsigned x_max = 0, y_max = 0, x_min = UINT_MAX, y_min = UINT_MAX;
+    for (auto el : s->heat_source_border) {
+        x_max = (x_max < el.p.x) ? el.p.x : x_max;
+        y_max = (y_max < el.p.y) ? el.p.y : y_max;
+        x_min = (x_min > el.p.x) ? el.p.x : x_min;
+        y_min = (y_min > el.p.y) ? el.p.y : y_min;
+    }
+    I = I(Rect(x_min,y_min,x_max-x_min,y_max-y_min));
+
+    vector<Point> lm = localMaxima(I);
+    vector<poi> hs(lm.size());
+    for (unsigned i=0; i<lm.size(); i++) {
+        hs[i].p = lm[i] + Point(x_min,y_min);
+        hs[i].temp = getTemp(hs[i].p,is,s);
+        hs[i].neg_laplacian = I.at<double>(lm[i]);
+        hs[i].is_heat_source = true;
+    }
+
+    return hs;
+}
+
 int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
                      string window_name, bool enter_POI, VideoWriter *vw,
                      string poi_csv_file, bool tracking_on)
 {
     updateImStatus(curr, is, ref, tracking_on);
     printPOITemp(curr->POI, poi_csv_file);
+
     Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
+
+    vector<poi> hs;
+    if (curr->heat_source_border.size() > 0)
+        hs = heatSources(curr,is);
 
     if (vw)
         vw->write(curr->gray);
@@ -561,6 +650,7 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     if (webserver) {
         webserver->setImg(img);
         webserver->setPOI(curr->POI);
+        webserver->setHeatSources(hs);
         webserver->setCameraComponentTemps(getCameraComponentTemps(is));
     }
 
@@ -588,7 +678,7 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     string window_name = "Thermocam-PCB";
     chrono::time_point<chrono::system_clock> save_img_clk;
 
-    setRefStatus(ref, is, args->POI_import_path, args->tracking_on);
+    setRefStatus(ref, is, args->POI_import_path, args->tracking_on, args->heat_sources_border_file);
 
     if (gui_available)
         namedWindow(window_name, WINDOW_NORMAL);
@@ -663,6 +753,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
     case 't':
         args.tracking_on = true;
         break;
+    case 'h':
+        args.heat_sources_border_file = arg;
+        break;
     case -1:
         args.save_img_dir = arg;
         args.save_img = true;
@@ -700,6 +793,7 @@ static struct argp_option options[] = {
     { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
     { "save-img-period", -2,  "NUM",         0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
     { "track-points",    't', 0,             0, "Turn on tracking of points."},
+    { "heat-sources",    'h', "FILE",        0, "Detect sources of heat on-chip."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { "webserver",       'w', 0,             0, "Start webserver to display image and temperatures."},
     { 0 } 

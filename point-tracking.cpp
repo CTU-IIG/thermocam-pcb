@@ -42,15 +42,8 @@ void trainMatcher(cv::Mat desc_train)
     matcher.train();
 }
 
-std::vector<cv::DMatch> matchToReference(cv::Mat desc_query)
+std::vector<cv::DMatch> filterFirstSecondRatio(std::vector<std::vector<cv::DMatch>> matches)
 {
-    std::vector<std::vector<cv::DMatch>> matches;
-    cv::Mat _desc_query;
-    desc_query.convertTo(_desc_query, CV_32F);
-    if(matcher.empty())
-        err(1,"Cannot match, matcher not trained with reference image!");
-    matcher.knnMatchImpl(_desc_query,matches,2);
-
     // Select good matches
     double thresh = 0.88;
     std::vector<cv::DMatch> good_matches;
@@ -59,6 +52,17 @@ std::vector<cv::DMatch> matchToReference(cv::Mat desc_query)
             good_matches.push_back(matches[i][0]);
     }
     return good_matches;
+}
+
+std::vector<cv::DMatch> matchToReference(cv::Mat desc_query)
+{
+    std::vector<std::vector<cv::DMatch>> matches;
+    cv::Mat _desc_query;
+    desc_query.convertTo(_desc_query, CV_32F);
+    if(matcher.empty())
+        err(1,"Cannot match, matcher not trained with reference image!");
+    matcher.knnMatchImpl(_desc_query,matches,2);
+    return filterFirstSecondRatio(matches);
 }
 
 cv::Mat findH(const std::vector<cv::KeyPoint> &kp_from,
