@@ -308,13 +308,10 @@ vector<poi> readPOI(string path)
     vector<poi> POI;
     pt::ptree root;
     pt::read_json(path, root);
-    for (pt::ptree::value_type &p : root.get_child("POI")) {
-        poi point;
-        point.name = p.second.get<string>("name");
-        point.p = {p.second.get<float>("x"), p.second.get<float>("y")};
-        point.temp = p.second.get<double>("temp");
-        POI.push_back(point);
-    }
+    for (pt::ptree::value_type &p : root.get_child("POI"))
+        POI.push_back({ p.second.get<string>("name"),
+                        { p.second.get<float>("x"), p.second.get<float>("y") },
+                        p.second.get<double>("temp"), 0, 0});
     return POI;
 }
 
@@ -508,12 +505,10 @@ void onMouse(int event, int x, int y, int flags, void *param)
 {
     if (event == EVENT_LBUTTONDOWN) {
         vector<poi> &POI = *((vector<poi> *)(param));
-        poi point;
-        point.name = "Point " + to_string(POI.size());
+        string name = "Point " + to_string(POI.size());
         // The image is upscaled 2x when displaying POI
         // Thus we need to divide coords by 2 when getting mouse input
-        point.p = {(float)x / 2, (float)y / 2};
-        POI.push_back(point);
+        POI.push_back({ name, { (float)x/2, (float)y/2 } });
     }
 }
 
