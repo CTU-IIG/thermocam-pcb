@@ -11,7 +11,6 @@
 std::vector<cv::KeyPoint> getKeyPoints(cv::Mat A);
 cv::Mat getDescriptors(cv::Mat A, std::vector<cv::KeyPoint>& kp);
 void trainMatcher(cv::Mat desc_train);
-std::vector<cv::DMatch> filterFirstSecondRatio(std::vector<std::vector<cv::DMatch>> matches);
 std::vector<cv::DMatch> matchToReference(cv::Mat desc_query);
 cv::Mat findH(const std::vector<cv::KeyPoint> &kp_from,
               const std::vector<cv::KeyPoint> &kp_to,

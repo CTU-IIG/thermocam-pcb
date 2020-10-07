@@ -50,7 +50,6 @@ void sendCameraComponentTemps(crow::response &res, std::vector<std::pair<std::st
     for (auto el : cameraComponentTemps)
         ss << el.first  << "=" << std::fixed << std::setprecision(2) << el.second << "\n";
 
-    std::cout << ss.str() << std::endl;
     res.write(ss.str());
 }
 
@@ -99,7 +98,6 @@ void* Webserver::start(void*)
         this->lock.unlock();
         sendPOITemp(res, curr_POI);
         sendCameraComponentTemps(res, curr_cct);
-        std::cout << "curr heat sources size: " << curr_heat_sources.size() << std::endl;
         sendHeatSources(res, curr_heat_sources);
         res.end();
     });

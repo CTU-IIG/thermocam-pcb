@@ -9,7 +9,6 @@ struct poi {
     double temp = 0;
     double rolling_std = 0;
     double neg_laplacian = 0;
-    bool is_heat_source = false;
 };
 
 #endif

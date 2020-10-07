@@ -78,7 +78,7 @@ struct im_status {
     uint16_t *rawtemp = nullptr;
     Mat gray;
     vector<poi> POI; // Points of interest
-    vector<poi> heat_source_border;
+    vector<Point2f> heat_sources_border;
     vector<KeyPoint> kp;
     Mat desc;
 };
@@ -419,19 +419,6 @@ void clearStatusImgs(im_status *s)
     s->gray.release();
 }
 
-// Apply perspective transform such as homography on POI coords
-void transformPOI(vector<poi> in, vector<poi> &out, Mat M)
-{
-    if (out.size() == 0)
-        out = vector<poi>(in.size());
-
-    for (unsigned i=0; i<in.size(); i++) {
-        vector<Point2f> v = { in[i].p };
-        perspectiveTransform(v, v, M); // only takes vector of points as input
-        out[i].p = v[0];
-    }
-}
-
 void updatePOICoords(im_status *s, im_status *ref)
 {
     std::vector<cv::DMatch> matches = matchToReference(s->desc);
@@ -440,14 +427,18 @@ void updatePOICoords(im_status *s, im_status *ref)
     if (H.empty()) // Couldn't find homography - points stay the same
         return;
 
-    transformPOI(ref->POI, s->POI, H);
-    transformPOI(ref->heat_source_border, s->heat_source_border, H);
     for (unsigned i=0; i<s->POI.size(); i++) {
+        vector<Point2f> v = { ref->POI[i].p };
+        perspectiveTransform(v, v, H); // only takes vector of points as input
+        s->POI[i].p = v[0];
+
         // Variance of sum of 2 random variables the same as sum of variances
         // So we only need to track 1 variance per point
         r_var[i](s->POI[i].p.x + s->POI[i].p.y);
         s->POI[i].rolling_std = sqrt(acc::rolling_variance(r_var[i]));
     }
+
+    perspectiveTransform(ref->heat_sources_border, s->heat_sources_border, H);
 }
 
 void updateKpDesc(im_status *s)
@@ -463,7 +454,7 @@ void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_
 
     if(s->POI.size() == 0  || !tracking_on) {
         s->POI = ref->POI;
-        s->heat_source_border = ref->heat_source_border;
+        s->heat_sources_border = ref->heat_sources_border;
     }
 
     if (tracking_on) {
@@ -477,7 +468,7 @@ void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_
 
 }
 
-void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on, string heat_source_border_file)
+void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on, string heat_sources_border_file)
 {
     if (poi_filename.empty()) {
         updateStatusImgs(s, is);
@@ -487,31 +478,28 @@ void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracki
         setStatusHeightWidth(s, is);
     }
 
-    if (!heat_source_border_file.empty()) {
-        im_status hs;
-        std::vector<cv::DMatch> ma;
-        cv::FlannBasedMatcher m;
-        std::vector<std::vector<DMatch>> matches;
-
-        hs.gray = readJsonImg(heat_source_border_file);
-        updateKpDesc(s);
-        updateKpDesc(&hs);
-        Mat hdesc,refdesc;
-        hs.desc.convertTo(hdesc, CV_32F);
-        s->desc.convertTo(refdesc, CV_32F);
-
-        hs.POI = readPOI(heat_source_border_file);
-        m.knnMatch(refdesc, hdesc, matches, 2);
-        Mat H = findH(hs.kp, s->kp, filterFirstSecondRatio(matches));
-
-        transformPOI(hs.POI, s->heat_source_border, H);
-    }
-
-    if (tracking_on) {
+    if (tracking_on || !heat_sources_border_file.empty()) {
         updateKpDesc(s);
         trainMatcher(s->desc); // train once on reference image
         // Calculate point position rolling variance from last 20 images
         r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s->POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
+    }
+
+    if (!heat_sources_border_file.empty()) {
+        // Find perspective transform from heat source border to reference frame
+        im_status hs;
+        hs.gray = readJsonImg(heat_sources_border_file);
+        updateKpDesc(&hs);
+        std::vector<cv::DMatch> matches = matchToReference(hs.desc);
+        Mat H = findH(s->kp, hs.kp, matches);
+        H = H.inv();
+
+        // Read and transform heat source border points
+        vector<poi> tmp = readPOI(heat_sources_border_file);
+        vector<Point2f> hs_border(tmp.size());
+        for (unsigned i=0; i<tmp.size(); i++)
+            hs_border[i] = tmp[i].p;
+        perspectiveTransform(hs_border,s->heat_sources_border,H);
     }
 
 }
@@ -587,13 +575,13 @@ void showPOIImg(string path){
     destroyAllWindows();
 }
 
+// Get local maxima by dilation and comparing with original image
 vector<Point> localMaxima(Mat I)
 {
-    Mat1b kernelLM(Size(3, 3), 1u);
-    kernelLM.at<uchar>(2, 2) = 0u;
-    Mat imageLM;
-    dilate(I, imageLM, kernelLM);
-    Mat1b localMaxima = (I >= imageLM);
+    Mat imageLM, localMaxima;
+    dilate(I, imageLM, getStructuringElement(MORPH_RECT, cv::Size (3, 3)));
+    localMaxima = I >= imageLM;
+
     vector<Point> locations;
     findNonZero(localMaxima, locations);
     return locations;
@@ -609,23 +597,30 @@ vector<poi> heatSources(im_status *s, img_stream *is)
     Laplacian(I,I,I.depth());
     I = -I;
 
-    // Crop minimum rectangle containing border polygon
+    // Mask points outside of heat source border polygon
+    Mat mask(I.rows, I.cols, CV_64F, std::numeric_limits<double>::min());
+    Mat border_int32; // fillConvexPoly needs int32 points
+    Mat(s->heat_sources_border).convertTo(border_int32, CV_32S);
+    fillConvexPoly(mask, border_int32, Scalar(1), CV_AA);
+    I = I.mul(mask); // Mask all values outside of border
+
+    // Crop minimum rectangle containing border polygon for speed
     unsigned x_max = 0, y_max = 0, x_min = UINT_MAX, y_min = UINT_MAX;
-    for (auto el : s->heat_source_border) {
-        x_max = (x_max < el.p.x) ? el.p.x : x_max;
-        y_max = (y_max < el.p.y) ? el.p.y : y_max;
-        x_min = (x_min > el.p.x) ? el.p.x : x_min;
-        y_min = (y_min > el.p.y) ? el.p.y : y_min;
+    for (auto el : s->heat_sources_border) {
+        x_max = (x_max < el.x) ? el.x : x_max;
+        y_max = (y_max < el.y) ? el.y : y_max;
+        x_min = (x_min > el.x) ? el.x : x_min;
+        y_min = (y_min > el.y) ? el.y : y_min;
     }
     I = I(Rect(x_min,y_min,x_max-x_min,y_max-y_min));
 
     vector<Point> lm = localMaxima(I);
+
     vector<poi> hs(lm.size());
     for (unsigned i=0; i<lm.size(); i++) {
         hs[i].p = lm[i] + Point(x_min,y_min);
         hs[i].temp = getTemp(hs[i].p,is,s);
         hs[i].neg_laplacian = I.at<double>(lm[i]);
-        hs[i].is_heat_source = true;
     }
 
     return hs;
@@ -638,11 +633,11 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     updateImStatus(curr, is, ref, tracking_on);
     printPOITemp(curr->POI, poi_csv_file);
 
-    Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
-
     vector<poi> hs;
-    if (curr->heat_source_border.size() > 0)
+    if (curr->heat_sources_border.size() > 0)
         hs = heatSources(curr,is);
+
+    Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
 
     if (vw)
         vw->write(curr->gray);
@@ -793,7 +788,7 @@ static struct argp_option options[] = {
     { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
     { "save-img-period", -2,  "NUM",         0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
     { "track-points",    't', 0,             0, "Turn on tracking of points."},
-    { "heat-sources",    'h', "FILE",        0, "Detect sources of heat on-chip."},
+    { "heat-sources",    'h', "FILE",        0, "Detect sources of heat on-chip, inside border specified in file."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { "webserver",       'w', 0,             0, "Start webserver to display image and temperatures."},
     { 0 } 
