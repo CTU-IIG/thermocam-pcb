@@ -75,7 +75,11 @@ cv::Mat findH(const std::vector<cv::KeyPoint> &kp_from,
         fromP[i] = kp_from[matches[i].trainIdx].pt;
     }
 
-    return findHomography(fromP, toP, cv::RANSAC, 6, cv::noArray(), 6000, 0.99);
+    cv::UsacParams params;
+    params.loMethod = cv::LocalOptimMethod::LOCAL_OPTIM_GC;
+    params.threshold = 6;
+    params.maxIterations = 6000;
+    return findHomography(fromP, toP, cv::noArray(), params);
 }
 
 cv::Mat preprocess(cv::Mat input)
