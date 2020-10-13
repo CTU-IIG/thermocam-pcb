@@ -77,8 +77,10 @@ cv::Mat findH(const std::vector<cv::KeyPoint> &kp_from,
 
     cv::UsacParams params;
     params.loMethod = cv::LocalOptimMethod::LOCAL_OPTIM_GC;
-    params.threshold = 6;
+    params.loIterations = 8;
+    params.threshold = 5;
     params.maxIterations = 6000;
+    params.score = cv::ScoreMethod::SCORE_METHOD_MAGSAC;
     return findHomography(fromP, toP, cv::noArray(), params);
 }
 
