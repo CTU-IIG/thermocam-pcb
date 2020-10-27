@@ -561,7 +561,7 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
 
     if (vw)
-        vw->write(curr->gray);
+        vw->write(tracking_on ? img : curr->gray);
 
     if (webserver) {
         webserver->setImg(img);
@@ -600,9 +600,13 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     if (gui_available && args->enter_POI)
         setMouseCallback(window_name, onMouse, &ref->POI);
     if (!args->vid_out_path.empty()) {
+        int scale = args->tracking_on ? 2 : 1;
+        bool isColor = args->tracking_on;
+        string cc = args->fourcc;
         vw = new VideoWriter(args->vid_out_path,
-                             CAM_FPS, Size(ref->width, ref->height), 0);
                              cv::VideoWriter::fourcc(cc[0], cc[1], cc[2], cc[3]),
+                             CAM_FPS, Size(ref->width*scale, ref->height*scale),
+                             isColor);
 	if (!vw->isOpened()) {
 		warnx("VideoWriter for %s not available", args->vid_out_path.c_str());
 		return;
