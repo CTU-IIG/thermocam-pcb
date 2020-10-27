@@ -7,5 +7,5 @@ with pkgs;
 callPackage ./thermocam.nix {
   wic_sdk = wic_sdk;
   ebus_sdk = ebus_sdk;
-  opencv = opencv4.override { enableGtk3 = true; };
+  opencv = opencv4.override { enableGtk3 = true; enableFfmpeg = true; };
 }
