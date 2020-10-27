@@ -594,10 +594,15 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
         namedWindow(window_name, WINDOW_NORMAL);
     if (gui_available && args->enter_POI)
         setMouseCallback(window_name, onMouse, &ref->POI);
-    if (!args->vid_out_path.empty())
+    if (!args->vid_out_path.empty()) {
         vw = new VideoWriter(args->vid_out_path,
                              cv::VideoWriter::fourcc('H', 'F', 'Y', 'U'),
                              CAM_FPS, Size(ref->width, ref->height), 0);
+	if (!vw->isOpened()) {
+		warnx("VideoWriter for %s not available", args->vid_out_path.c_str());
+		return;
+	}
+    }
 
     bool watchdog_enabled = sd_watchdog_enabled(true, NULL) > 0;
 
