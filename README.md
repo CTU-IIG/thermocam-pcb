@@ -104,10 +104,13 @@ Compiling thermocam-pcb with Nix package manager is simpler than the
 above procedure, as Nix automatically handles all the dependencies.
 
 1. Install Nix, e.g. `sh <(curl -L https://nixos.org/nix/install) --daemon`
-2. Place `WIC_SDK-Linux_Ubuntu_16.04_64b-1.1.0.run` to the top-level
+2. (optional) Enable THERMAC binary cache to get prebuilt OpenCV
+   - `nix-env -iA cachix -f https://cachix.org/api/v1/install`
+   - `cachix use thermac`
+3. Place `WIC_SDK-Linux_Ubuntu_16.04_64b-1.1.0.run` to the top-level
    directory.
-3. Run `nix build`
-4. Run the program with `./result/bin/run` or `./result/bin/thermocam-pcb`.
+4. Run `nix build`
+5. Run the program with `./result/bin/run` or `./result/bin/thermocam-pcb`.
 
 To deploy the compiled program to the turbot board (where the camera
 is connected) run:

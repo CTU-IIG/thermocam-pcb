@@ -34,6 +34,10 @@ namespace acc = boost::accumulators;
 #define RECORD_MAX_C 120
 #define CAM_FPS 9 // The camera is 9Hz
 
+enum opt {
+    OPT_FOURCC = 1000,
+};
+
 /* Command line options */
 struct cmd_arguments{
     bool enter_POI = false;
@@ -43,6 +47,7 @@ struct cmd_arguments{
     string license_dir;
     string vid_in_path;
     string vid_out_path;
+    string fourcc = "HFYU";
     int display_delay_us = 0;
     string poi_csv_file;
     bool save_img = false;
@@ -556,7 +561,7 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
 
     if (vw)
-        vw->write(curr->gray);
+        vw->write(tracking_on ? img : curr->gray);
 
     if (webserver) {
         webserver->setImg(img);
@@ -594,10 +599,19 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
         namedWindow(window_name, WINDOW_NORMAL);
     if (gui_available && args->enter_POI)
         setMouseCallback(window_name, onMouse, &ref->POI);
-    if (!args->vid_out_path.empty())
+    if (!args->vid_out_path.empty()) {
+        int scale = args->tracking_on ? 2 : 1;
+        bool isColor = args->tracking_on;
+        string cc = args->fourcc;
         vw = new VideoWriter(args->vid_out_path,
-                             cv::VideoWriter::fourcc('H', 'F', 'Y', 'U'),
-                             CAM_FPS, Size(ref->width, ref->height), 0);
+                             cv::VideoWriter::fourcc(cc[0], cc[1], cc[2], cc[3]),
+                             CAM_FPS, Size(ref->width*scale, ref->height*scale),
+                             isColor);
+	if (!vw->isOpened()) {
+		warnx("VideoWriter for %s not available", args->vid_out_path.c_str());
+		return;
+	}
+    }
 
     bool watchdog_enabled = sd_watchdog_enabled(true, NULL) > 0;
 
@@ -651,6 +665,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
     case 'r':
         args.vid_out_path = arg;
         break;
+    case OPT_FOURCC:
+        if (strlen(arg) != 4) {
+            argp_error(argp_state, "fourcc code must have 4 characters");
+            return EINVAL;
+        }
+        args.fourcc = arg;
+        break;
     case 'v':
         args.vid_in_path = arg;
         break;
@@ -695,6 +716,7 @@ static struct argp_option options[] = {
     { "show-poi",        's', "FILE",        0, "Show camera image taken at saving POIs." },
     { "license-dir",     'l', "FILE",        0, "Path to directory containing WIC license file.\n\".\" by default." },
     { "record-video",    'r', "FILE",        0, "Record video and store it with entered filename"},
+    { "fourcc",          OPT_FOURCC, "CODE", 0, "4-letter code for video coded used by -r (e.g. MJPG, h264), default: HFYU"},
     { "load-video",      'v', "FILE",        0, "Load and process video instead of camera feed"},
     { "csv-log",         'c', "FILE",        0, "Log temperature of POIs to a csv file instead of printing them to stdout."},
     { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
