@@ -573,6 +573,8 @@ void showPOIImg(string path){
 // Get local maxima by dilation and comparing with original image
 vector<Point> localMaxima(Mat I)
 {
+    if (I.empty())
+        return {};
     Mat imageLM, localMaxima;
     dilate(I, imageLM, getStructuringElement(MORPH_RECT, cv::Size (3, 3)));
     localMaxima = I >= imageLM;
@@ -584,6 +586,14 @@ vector<Point> localMaxima(Mat I)
 
 vector<poi> heatSources(im_status *s, img_stream *is)
 {
+
+    for (auto &p : s->heat_sources_border) {
+        if (p.x < 0 || p.x > s->width || p.y < 0 || p.y > s->height) {
+            cerr << "Heat source border out of the image!" << endl;
+            return {};
+        }
+    }
+
     Mat I = s->gray.clone();
     I.convertTo(I, CV_64F);
 
@@ -600,7 +610,7 @@ vector<poi> heatSources(im_status *s, img_stream *is)
     I = I.mul(mask); // Mask all values outside of border
 
     // Crop minimum rectangle containing border polygon for speed
-    unsigned x_max = 0, y_max = 0, x_min = UINT_MAX, y_min = UINT_MAX;
+    int x_max = INT_MIN, y_max = INT_MIN, x_min = INT_MAX, y_min = INT_MAX;
     for (auto el : s->heat_sources_border) {
         x_max = (x_max < el.x) ? el.x : x_max;
         y_max = (y_max < el.y) ? el.y : y_max;
