@@ -435,7 +435,8 @@ void updatePOICoords(im_status *s, im_status *ref)
         s->POI[i].rolling_std = sqrt(acc::rolling_variance(r_var[i]));
     }
 
-    perspectiveTransform(ref->heat_sources_border, s->heat_sources_border, H);
+    if (ref->heat_sources_border.size() > 0)
+        perspectiveTransform(ref->heat_sources_border, s->heat_sources_border, H);
 }
 
 void updateKpDesc(im_status *s)
