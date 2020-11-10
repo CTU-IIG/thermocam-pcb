@@ -794,7 +794,7 @@ static struct argp_option options[] = {
     { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
     { "save-img-period", -2,  "NUM",         0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
     { "track-points",    't', 0,             0, "Turn on tracking of points."},
-    { "heat-sources",    'h', "FILE",        0, "Detect sources of heat on-chip, inside border specified in file."},
+    { "heat-sources",    'h', "FILE",        0, "Detect sources of heat on-chip, inside border specified in json file."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { "webserver",       'w', 0,             0, "Start webserver to display image and temperatures."},
     { 0 } 
