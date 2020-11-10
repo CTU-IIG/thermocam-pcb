@@ -599,8 +599,8 @@ vector<poi> heatSources(im_status *s, img_stream *is)
     I.convertTo(I, CV_64F);
 
     double blur_sigma = 5;
-    GaussianBlur(I,I,Size(0,0),blur_sigma,blur_sigma);
-    Laplacian(I,I,I.depth());
+    GaussianBlur(I, I, Size(0, 0), blur_sigma, blur_sigma);
+    Laplacian(I, I, I.depth());
     I = -I;
 
     // Mask points outside of heat source border polygon
