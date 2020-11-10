@@ -679,8 +679,6 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
     string window_name = "Thermocam-PCB";
     chrono::time_point<chrono::system_clock> save_img_clk;
 
-    setRefStatus(ref, is, args->POI_import_path, args->tracking_on, args->heat_sources_border_file);
-
     if (gui_available)
         namedWindow(window_name, WINDOW_NORMAL);
     if (gui_available && args->enter_POI)
@@ -832,13 +830,6 @@ int main(int argc, char **argv)
     signal(SIGTERM, signalHandler);
     detectDisplay();
 
-    if (args.webserver_active) {
-        webserver = new Webserver();
-        int ret = pthread_create(&web_thread, nullptr, (THREADFUNCPTR)&Webserver::start, webserver);
-        if (ret)
-            err(1, "pthread_create");
-    }
-
     if (!args.show_POI_path.empty() && gui_available) {
         showPOIImg(args.show_POI_path);
         exit(0);
@@ -847,6 +838,14 @@ int main(int argc, char **argv)
     img_stream is;
     im_status ref, curr;
     initImgStream(&is, args.vid_in_path, args.license_dir);
+    setRefStatus(&ref, &is, args.POI_import_path, args.tracking_on, args.heat_sources_border_file);
+
+    if (args.webserver_active) {
+        webserver = new Webserver();
+        int ret = pthread_create(&web_thread, nullptr, (THREADFUNCPTR)&Webserver::start, webserver);
+        if (ret)
+            err(1, "pthread_create");
+    }
 
     processStream(&is, &ref, &curr, &args);
 
