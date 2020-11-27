@@ -76,11 +76,15 @@ cv::Mat findH(const std::vector<cv::KeyPoint> &kp_from,
     }
 
     cv::UsacParams params;
-    params.loMethod = cv::LocalOptimMethod::LOCAL_OPTIM_GC;
-    params.loIterations = 8;
-    params.threshold = 5;
-    params.maxIterations = 6000;
-    params.score = cv::ScoreMethod::SCORE_METHOD_MAGSAC;
+    params.threshold = 6;
+    params.sampler = cv::SamplingMethod::SAMPLING_UNIFORM;
+    params.loSampleSize = 12;
+    params.loMethod = cv::LocalOptimMethod::LOCAL_OPTIM_INNER_AND_ITER_LO;
+    params.score = cv::ScoreMethod::SCORE_METHOD_MSAC;
+    // Ridiculously high required confidence, so maxIterations is always reached
+    // for more deterministic runtime
+    params.confidence = 0.9999999999999999999;
+    params.maxIterations = 90000;
     return findHomography(fromP, toP, cv::noArray(), params);
 }
 
