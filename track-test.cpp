@@ -38,7 +38,8 @@ struct h_params {
 
 Mat C, iC; // Centering transformation and inverse
 vector<cv::Point2d> test_points; // Points for testing homography accuracy
-h_params h_min, h_max; // Minimum/maximum parameters of homography
+h_params h_min_easy, h_max_easy, h_min_hard, h_max_hard;
+bool initialized = false;
 
 void init(int img_width, int img_height)
 {
@@ -50,7 +51,7 @@ void init(int img_width, int img_height)
     iC = (cv::Mat_<double>(3, 3) << 1, 0, -w / 2, 0, 1, -h / 2, 0, 0, 1);
 
     // Init point grid for testing homography accuracy
-    int grid_p = 5;
+    int grid_p = 20;
     double step_x = w/grid_p;
     double step_y = h/grid_p;
     for (int i = 0; i < grid_p; i++)
@@ -58,23 +59,37 @@ void init(int img_width, int img_height)
             test_points.push_back({ i * step_x, j * step_y });
 
     // Init minimum and maximum homography parameters
-    bool H_wild = false; // Fairly wide homography parameter range
-    if (H_wild) {
-        h_min = { -M_PI, -0.25 * w, -0.25 * h, 
-                   0.75,  0.75, -0.25, -0.25, -0.001, -0.001 };
-        h_max = {  M_PI,  0.25 * w,  0.25 * h, 
-                   1.25,  1.25,  0.25,  0.25,  0.001,  0.001 };
-    } else {
-        //h_min = { -M_PI/8, -0.125 * w, -0.125 * h,
-        //           0.9,  0.9, -0.05, -0.05, -0.0001, -0.0001 };
-        //h_max = {  M_PI/8,  0.125 * w,  0.125 * h,
-        //           1.1,  1.1,  0.05,  0.05,  0.0001,  0.0001 };
-        h_min = { -M_PI/2, -0.25 * w, -0.25 * h,
-                   0.8,  0.8, -0.1, -0.1, -0.0003, -0.0003 };
-        h_max = {  M_PI/2,  0.25 * w,  0.25 * h,
-                   1.2,  1.2,  0.1,  0.1,  0.0003,  0.0003 };
+    h_min_easy = { -M_PI/16, -0.125 * w, -0.125 * h,
+                    0.9,  0.9, -0.05, -0.05, -0.0001, -0.0001 };
+    h_max_easy = {  M_PI/16,  0.125 * w,  0.125 * h,
+                    1.1,  1.1,  0.05,  0.05,  0.0001,  0.0001 };
+    h_min_hard = { -M_PI/6, -0.20 * w, -0.20 * h,
+                    0.9,  0.9, -0.05, -0.05, -0.0001, -0.0001 };
+    h_max_hard = {  M_PI/6,  0.20 * w,  0.20 * h,
+                    1.1,  1.1,  0.05,  0.05,  0.0001,  0.0001 };
+}
+
+void show(Mat img, cv::String window_name = "Image")
+{
+    cv::imshow(window_name,img);
+    cv::waitKey(0);
+}
+
+void show(vector<Mat> imgs, cv::String name = "")
+{
+
+    for (unsigned i=0; i<imgs.size(); i++) {
+        show(imgs[i], name);
     }
 }
+
+void show(vector<vector<Mat>> imgs, cv::String name = "")
+{
+    for (unsigned i=0; i<imgs.size(); i++) {
+        show(imgs[i], name);
+    }
+}
+
 // Hashable KeyPoint to save in hashmap
 class HKeyPoint : public KeyPoint {
     public:
@@ -166,6 +181,17 @@ vector<T> &operator+=(vector<T> &lhs, const vector<T> &rhs)
 template <typename T> vector<T> operator+(vector<T> lhs, const vector<T> &rhs)
 {
     return lhs += rhs;
+}
+
+template <typename T> T vsum(vector<T> v)
+{
+    if (v.size() < 1)
+        throw std::length_error("cannot sum vector of size smaller than 1");
+        
+    T sum = v[0];
+    for (unsigned i=1; i<v.size(); i++)
+        sum += v[i];
+    return sum;
 }
 
 std::ostream& operator<<(std::ostream &os, KeyPoint const &v) {
@@ -797,8 +823,10 @@ Mat getHomography(h_params *h, Mat C = C, Mat iC = iC)
     return E * S * P;
 }
 
-Mat randomHomography(h_params *min = &h_min, h_params *max = &h_max)
+Mat randomHomography(bool hard = true)
 {
+    h_params *min = (hard) ? &h_min_hard : &h_min_easy;  
+    h_params *max = (hard) ? &h_max_hard : &h_max_easy;  
     h_params h = randomHomographyParams(min, max);
     return getHomography(&h);
 }
@@ -806,9 +834,11 @@ Mat randomHomography(h_params *min = &h_min, h_params *max = &h_max)
 void showTransformError(Mat img, Mat H_ref, Mat H,
                         vector<cv::Point2d> p)
 {
-    Mat img_ref, img_transform;
+    Mat img_ref;
     vector<cv::Point2d> pref, pH;
     cv::warpPerspective(img, img_ref, H_ref, img.size());
+    if (img_ref.channels() == 1)
+        cv::cvtColor(img_ref,img_ref, cv::COLOR_GRAY2BGR);
     perspectiveTransform(p, pref, H_ref);
     perspectiveTransform(p, pH, H);
     for (unsigned i = 0; i < p.size(); i++)
@@ -836,28 +866,41 @@ double meanTransformError(Mat H, Mat Href, vector<cv::Point2d> p)
     return err;
 }
 
-vector<Mat> generateHomographies(int count)
+vector<double> meanTransformError(vector<Mat> H, vector<Mat> Href, vector<cv::Point2d> p)
 {
+    vector<double> ret(H.size());
+    for (unsigned i=0; i < H.size(); i++)
+        ret[i] = meanTransformError(H[i], Href[i], p);
+    return ret;
+}
+
+vector<Mat> generateHomographies(int count, int w, int h, bool hard = true)
+{
+    init(w,h);
     vector<Mat> H(count);
     for (int i = 0; i < count; i++)
-        H[i] = randomHomography();
+        H[i] = randomHomography(hard);
     return H;
 }
 
-// Generates image array, first image is original, rest transformed
-vector<vector<Mat>> generateTransformedImgs(vector<Mat> H, vector<Mat> imgs)
+Mat warpWithNoise(Mat img, Mat H)
 {
-    if (H.size() % imgs.size() != 0)
-        err(1, "Number of homographies isn't divisible by number of images!");
-    unsigned H_per_img = H.size() / imgs.size();
-    vector<vector<Mat>> I(imgs.size(), vector<Mat>(H_per_img+1));
-    for (unsigned i = 0; i < imgs.size(); i++) {
-        I[i][0] = imgs[i];
-        for (unsigned j = 1; j < H_per_img + 1; j++) {
-            cv::warpPerspective(imgs[i], I[i][j], H[i * H_per_img + j - 1], imgs[i].size());
-        }
-    }
+    cv::Scalar mean,stddev;
+    meanStdDev(img, mean, stddev);
+    Mat I = img.clone();
+    randu(I, 0, 255);
+    cv::warpPerspective(img, I, H, I.size(), cv::INTER_LINEAR, cv::BORDER_TRANSPARENT);
     return I;
+}
+
+vector<Mat> warpWithNoise(vector<Mat> I, vector<Mat> H)
+{
+    vector<Mat> I_w(I.size());
+
+    #pragma omp parallel for    
+    for (unsigned i = 0; i < I.size(); i++)
+        I_w[i] = warpWithNoise(I[i],H[i]);
+    return I_w;
 }
 
 class MyFlann : public cv::FlannBasedMatcher {
@@ -897,7 +940,7 @@ vector<vector<vector<cv::DMatch>>> matchDescs(unsigned n_ref, unsigned n_gen, ve
     return matches;
 }
 
-std::pair<vector<cv::Point2f>,vector<cv::Point2f>> selectGoodMatches(unsigned n_ref, unsigned n_gen, vector<KeyPoint> fromkp, vector<KeyPoint> tokp, vector<vector<cv::DMatch>> matches, double thresh)
+std::pair<vector<cv::Point2f>,vector<cv::Point2f>> selectGoodMatches(vector<KeyPoint> fromkp, vector<KeyPoint> tokp, vector<vector<cv::DMatch>> matches, double thresh)
 {
     vector<cv::DMatch> good_matches;
     for (auto match : matches)
@@ -912,20 +955,26 @@ std::pair<vector<cv::Point2f>,vector<cv::Point2f>> selectGoodMatches(unsigned n_
     return {fromP, toP};
 }
 
-vector<Mat> findHomographies(unsigned n_ref, unsigned n_gen, vector<Mat> d, vector<vector<KeyPoint>> kp)
+vector<Mat> findHomographies(unsigned n_ref, unsigned n_gen, vector<Mat> d, vector<vector<KeyPoint>> kp, cv::UsacParams usacparams = cv::UsacParams())
 {
     vector<Mat> H(n_ref*n_gen);
+    vector<double> times(n_ref*n_gen);
     vector<vector<vector<cv::DMatch>>> matches = matchDescs(n_ref,n_gen,d);
 
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for (unsigned i=0; i<H.size(); i++) {
-        auto gm = selectGoodMatches(n_ref, n_gen, kp[i / n_gen * (n_gen + 1)],
+        auto gm = selectGoodMatches(kp[i / n_gen * (n_gen + 1)],
                   kp[i / n_gen * (n_gen + 1) + i % n_gen + 1],matches[i], 0.88);
         if (gm.first.size() < 4)
             continue;
 
-        H[i] = cv::findHomography(gm.first, gm.second, cv::RANSAC, 6, cv::noArray(), 6000, 0.99);
+        auto t0 = std::chrono::high_resolution_clock::now();
+        H[i] = cv::findHomography(gm.first, gm.second, cv::noArray(), usacparams);
+        //H[i] = cv::findHomography(gm.first, gm.second, cv::RANSAC, 6, cv::noArray(), 6000, 0.99);
+        auto t1 = std::chrono::high_resolution_clock::now();
+        times[i] = std::chrono::duration_cast<std::chrono::microseconds>( t1 - t0 ).count();
     }
+    cout << vsum(times) / times.size();
     return H;
 }
 
@@ -1121,6 +1170,22 @@ void scoreMethodVariants(vector<vector<Mat>> I, vector<Mat> H, vector<KeyPointMe
     }    
 }
 
+void writeCSV(std::string filename, vector<vector<double>> vals){
+
+    std::ofstream f(filename);
+    if (!f.is_open())
+        throw std::runtime_error("Could not open file");
+
+    for(auto const &v : vals) {
+        f << v[0];
+        for(unsigned i=1; i<v.size(); i++) {
+            f << ", " << v[i];
+        }
+        f << "\n";
+    }
+    f.close();
+}
+
 // Load csv without header, consisting of only numbers 
 std::vector<std::vector<double>> loadCSV(std::string filename){
 
@@ -1153,6 +1218,8 @@ std::vector<std::vector<double>> loadCSV(std::string filename){
 cv::Mat preprocess(cv::Mat input)
 {
     cv::Mat im = input.clone();
+    if (im.channels() == 3)
+        cv::cvtColor(im,im,cv::COLOR_RGB2GRAY);
     // Median filter + contrast limited histogram equalization
     cv::medianBlur(im, im, 3); 
     cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(18, cv::Size(8,8));
@@ -1162,6 +1229,14 @@ cv::Mat preprocess(cv::Mat input)
     cv::GaussianBlur(im, sh, cv::Size(0, 0), 7, 7); 
     cv::addWeighted(im, 1.5, sh, -0.5, 0, sh);
     return im; 
+}
+
+vector<Mat> preprocess(vector<Mat> imgs)
+{
+    vector<Mat> ret(imgs.size());
+    for (unsigned i = 0; i < imgs.size(); i++)
+        ret[i] = preprocess(imgs[i]);
+    return ret;
 }
 
 vector<KeyPointMethod> getKpMethods(bool quick = false) {
@@ -1216,70 +1291,428 @@ vector<DescriptorMethod> getDescMethods(bool quick = false) {
     return {brisk, freak, orb, latch};
 }
 
-int main()
+vector<Mat> read_imgs(cv::String path, bool shuffle = true)
 {
-    //srand (time(NULL));
-    srand (0);
-
     vector<cv::String> fn;
-    cv::glob("../images/temperature_invariant/*.png", fn, false);
     vector<Mat> imgs;
+
+    cv::glob(path, fn, false);
     size_t count = fn.size(); //number of png files in images folder
     for (size_t i=0; i<count; i++)
         imgs.push_back(cv::imread(fn[i],cv::IMREAD_GRAYSCALE));
 
-    auto rng = std::default_random_engine {};
-    std::shuffle(std::begin(imgs), std::end(imgs), rng);
-
-    for (size_t i=0; i<328; i++)
-        imgs.pop_back();
-    unsigned n_refs = 1;
-    unsigned n_gen = (imgs.size() - n_refs) / n_refs;
-    init(imgs[0].cols, imgs[0].rows);
-    vector<Mat> H = generateHomographies(imgs.size()-n_refs);
-    //vector<vector<Mat>> I = generateTransformedImgs(H, imgs);
-    vector<vector<Mat>> I(n_refs,vector<Mat>(n_gen + 1));
-    for (unsigned i = 0; i < n_refs; i++) {
-        I[i][0] = imgs[i * (n_gen + 1)];
-        for (unsigned j = 1; j < n_gen + 1; j++)
-            cv::warpPerspective(imgs[i * (n_gen + 1) + j - 1], I[i][j], H[i * n_gen + j - 1], imgs[i * (n_gen + 1) + j - 1].size());
+    if (shuffle) {
+        auto rng = std::default_random_engine {};
+        std::shuffle(std::begin(imgs), std::end(imgs), rng);
     }
 
-    for (auto& img_row : I)
-        for (auto& img : img_row)
-            img = preprocess(img);
+    return imgs;
+}
+
+Mat add_noise(Mat I, double sigma, double noise_blur)
+{
+    Mat img = I.clone();
+    int orig_depth = I.depth();
+    Mat noise = Mat(I.size(),CV_16S);
+    cv::randn(noise, 0, sigma);
+    cv::blur(noise,noise,cv::Size(noise_blur,noise_blur));
+    //cv::GaussianBlur(noise,noise,cv::Size(noise_blur,noise_blur),0);
+    img.convertTo(img,CV_16S);
+    img += noise;
+    img.convertTo(img,orig_depth);
+    return img;    
+}
+
+vector<Mat> add_noise(vector<Mat> I, double sigma, double noise_blur)
+{
+    #pragma omp parallel for
+    for (Mat &img : I)
+        img = add_noise(img, sigma, noise_blur);
+    return I;
+}
+
+vector<Mat> read_vid(cv::String vid_path)
+{
+    if (access(vid_path.c_str(), F_OK) == -1) // File does not exist
+        err(1,"Video open");
+    auto video = new cv::VideoCapture(vid_path);
+
+    vector<Mat> I;
+    while(1) {
+        Mat img;
+        *video >> img;
+        if (img.empty())
+            break;
+        I.push_back(img); 
+    }
+
+    return I;
+}
+
+void onMouse(int event, int x, int y, int flags, void *param)
+{
+    if (event == cv::EVENT_LBUTTONDOWN) {
+        vector<cv::Point2f> &p = *((vector<cv::Point2f> *)(param));
+        p.push_back({ (float)x, (float)y });
+    }       
+}
+
+Mat manualSelectHomography(Mat I_ref, Mat I)
+{
+    cv::String window_name = "Enter correspondences: ref | vid | back | new";
+    cv::namedWindow(window_name , cv::WINDOW_NORMAL);
+    vector<cv::Point2f> p_ref, p_vid, p_temp;
+    setMouseCallback(window_name, onMouse, &p_temp);
+    Mat H_manual = Mat::eye(3,3,CV_64F);
+
+    cv::RNG rng(12345);
+    vector<cv::Scalar> rc; // random colors
+    for (int i=0; i<100; i++)
+        rc.push_back(cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255)));
+
+    bool last_ref;
+    while(1) {
+        if (p_temp.size() > 0) {
+            if (p_temp[0].x < I.cols) { // Click in reference
+                p_ref.push_back(p_temp[0]);
+                last_ref = true;
+            }
+            else if (p_temp[0].x < 2 * I.cols) {
+                p_temp[0].x -= I.cols;
+                p_vid.push_back(p_temp[0]);
+                last_ref = false;
+            }
+            p_temp.pop_back();
+        }
+
+        Mat ref_draw = I_ref.clone();
+        Mat I_draw = I.clone();
+
+        if (ref_draw.channels() == 1)
+            cvtColor(ref_draw,ref_draw,cv::COLOR_GRAY2RGB);
+        if (I_draw.channels() == 1)
+            cvtColor(I_draw,I_draw,cv::COLOR_GRAY2RGB);
+
+        for (unsigned j=0; j<p_ref.size(); j++)
+            circle(ref_draw, p_ref[j] , 2, rc[j], -1); 
+        for (unsigned j=0; j<p_vid.size(); j++)
+            circle(I_draw, p_vid[j] , 2, rc[j], -1); 
+
+        if (p_ref.size() >= 4 && p_vid.size() >= 4 && p_ref.size() == p_vid.size())
+            H_manual = cv::findHomography(p_ref, p_vid, cv::RANSAC, 6, cv::noArray(), 6000, 0.99);
+        Mat I_tr;
+        cv::warpPerspective(I, I_tr, H_manual, I_ref.size(),cv::WARP_INVERSE_MAP);
+
+        if (I_tr.channels() == 1)
+            cvtColor(I_tr,I_tr,cv::COLOR_GRAY2RGB);
+        Mat concat;
+        vector<Mat> v = {ref_draw,I_draw,I_tr};
+        cv::hconcat(v,concat);
+        cv::imshow(window_name,concat);
+        char key = cv::waitKey(1) & 0xEFFFFF;
+        if (key == 8) { // Backspace - erase points
+            if (last_ref && p_ref.size() > 0)
+                p_ref.pop_back();
+            else if (p_vid.size() > 0)
+                p_vid.pop_back(); 
+        }
+        if (key == 27) {// Esc - cancel, exit without save
+            H_manual = Mat();
+            break;
+        }
+        if (key == 32) // Space - selection ok, exit and save
+            break;
+    }
+    cv::destroyWindow(window_name);
+    return H_manual;
+}
+
+// Find transformations in video, reference is 1st image
+vector<Mat> createTestTransformations(vector<Mat> I, vector<Mat> H_load = {})
+{
+    cv::Ptr<cv::FastFeatureDetector> fast = cv::FastFeatureDetector::create(18,false,cv::FastFeatureDetector::TYPE_9_16);
+    cv::Ptr<cv::BRISK> brisk = cv::BRISK::create(0,0,1.8);
+
+    vector<vector<KeyPoint>> kp(2);
+    vector<Mat> desc(2);
+    fast->detect(I[0],kp[0]);
+    brisk->compute(I[0],kp[0],desc[0]);
+
+    vector<Mat> H_ret(I.size() - 1);
+
+    for (unsigned i = 1; i < I.size(); i++) {
+        Mat H = H_ret[i-1];
+        if (H_load.size() > 0) {
+            H = H_load[i-1];
+        } else if (H_ret[i-1].empty()) {
+            fast->detect(I[i],kp[1]);
+            brisk->compute(I[i],kp[1],desc[1]);
+            vector<Mat> H_ = findHomographies(1, 1, desc, kp);
+            H = H_[0];
+        }
+        // "Perspective transform errors"
+        Mat I_back, concat;
+        if (H.empty()){
+            std::cerr << "Transform not found!" << endl;
+            I_back = Mat(I[0].size(), I[0].depth(), cv::Scalar(0));
+            H = Mat::eye(3,3, CV_64F);
+        }
+            
+        cv::warpPerspective(I[i], I_back, H.inv(), I[i].size());
+
+        vector<Mat> v = {I[0],I[i],I_back};
+        for (auto& im : v)
+            if (im.channels() == 1)
+                cv::cvtColor(im,im, cv::COLOR_GRAY2BGR);
+        
+        Mat I_diff(I[0].size(),CV_64F);
+        I_diff = I[0] - I_back;
+        I_diff.setTo(0,I_diff ==  I[0]);
+        cv::normalize(I_diff,I_diff,0,255,cv::NORM_MINMAX);
+        I_diff.convertTo(I_diff,I[0].depth());
+        
+        cv::applyColorMap(I_diff,I_diff,cv::COLORMAP_JET);
+        v.push_back(I_diff);        
+        cv::hconcat(v,concat);
+
+        cout << "Img " << i << " / " << I.size() - 1 << ", mean difference: " << cv::mean(I_diff)[0] << endl; 
+
+        cv::imshow("Reference | Original | Inverse transform | Difference",concat);
+        
+        char key = cv::waitKey(0) & 0xEFFFFF;
+        if (key == 8 & i > 2) { // Backspace - prev img
+            i-=2;
+            continue;
+        }
+        if (key == 9 & i > 0) { // Tab - redo calc
+            H_ret[i-1] = Mat();
+            i--;
+            continue;
+        }
+        if (key == 27) // Esc
+            break;
+        if (key == 32)
+            H = manualSelectHomography(I[0], I[i]);
+        if (key == 80 || key == 112) // p or P - set previous homography
+            H = H_ret[i-2];
+        // Any other key - proceed with next img
+        if (H_load.size() > 0) 
+            H_load[i-1] = H;
+        H_ret[i-1] = H;
+    }
+
+    return H_ret;
+}
+
+vector<vector<double>> flattenMats(vector<Mat> M)
+{
+    vector<vector<double>> v(M.size());
+    for (unsigned i = 0; i < M.size(); i++) {
+        cout << M[i] << endl;
+        Mat m = M[i].reshape(1,1);
+        cout << m << endl;
+        v[i] = m;
+        cout << v[i] << endl;
+    }
+    return v;
+}
+
+char showWarped(Mat I, Mat M)
+{
+    Mat I_tr;
+    cv::warpPerspective(I, I_tr, M, I.size());
+    cv::imshow("Transformed image",I_tr);
+    return cv::waitKey(0) & 0xEFFFFF;
+}
+
+void showWarped(vector<Mat> I, vector<Mat> M)
+{
+    for (unsigned i=0; i<I.size(); i++)
+        showWarped(I[i],M[i]);
+}
+
+vector<Mat> readTestDataset(cv::String path)
+{
+    vector<vector<double>> flat_H = loadCSV(path);
+    vector<Mat> H(flat_H.size());
+    for (unsigned i=0; i < flat_H.size(); i++) {
+        H[i] = Mat(flat_H[i]).reshape(1,3);
+        H[i].convertTo(H[i], CV_32F);
+    }
+    return H;
+}
+
+// Generate mask to pass to keypoint detector signalling the edges of 
+// the transformed frame. This prevents the detector to search for
+// keypoints outside or on the edge
+Mat genMask(Mat H, int rows, int cols, int type)
+{
+    Mat mask = Mat(rows, cols, type, cv::Scalar(0));
+    int margin = 10;
+    mask({margin,rows-margin},{margin,cols-margin}) = cv::Scalar(255,255,255);
+    cv::warpPerspective(mask, mask, H, mask.size());
+    return mask;
+}
+
+vector<Mat> genMask(vector<Mat> H, int rows, int cols, int type)
+{
+    vector<Mat> masks(H.size());
+    #pragma omp parallel for
+    for (unsigned i = 0; i < masks.size(); i++)
+        masks[i] =  genMask(H[i], rows, cols, type);
+    return masks;
+}
+
+// Remove homographies for reference images and multiply others by their inverse
+vector<Mat> removeRefHomographies(vector<Mat> H_in, unsigned n_refs)
+{
+    unsigned n_gen = (H_in.size() - n_refs) / n_refs;
+    vector<Mat> H(n_refs*n_gen);
+    for (unsigned i = 0; i < n_refs; i++)
+        for (unsigned j = 0; j < n_gen; j++)
+            H[i * n_gen + j] = H_in[i * (n_gen + 1) + j + 1] * H_in[i * (n_gen + 1)].inv();
+    return H;
+}
+
+std::pair<vector<vector<KeyPoint>>,vector<Mat>> calcKpDesc(vector<Mat> I, unsigned n_refs, vector<Mat> masks = {})
+{
+    unsigned n_gen = (I.size() - n_refs) / n_refs;
+    while (I.size() > n_refs * (n_gen + 1)) {
+        cout << "n_images not divisible by n_refs, popping img " << I.size() << " from dataset" << endl;
+        I.pop_back();
+    }
 
     cv::Ptr<cv::FastFeatureDetector> fast = cv::FastFeatureDetector::create(18,false,cv::FastFeatureDetector::TYPE_9_16);
     cv::Ptr<cv::BRISK> brisk = cv::BRISK::create(0,0,1.8);
-    
-    vector<Mat> I_1D(imgs.size());
-    for (unsigned i = 0; i < n_refs; i++)
-        std::copy(I[i].begin(), I[i].end(), I_1D.begin()+i*I[i].size());
-    vector<Mat> I_1D_orig = I_1D;
-
-    vector<std::pair<double,double>> score;
-    for (unsigned i=0; i<I_1D.size(); i++)
-        I_1D[i] = preprocess(I_1D_orig[i]);
-/*  for (unsigned i=0; i<I_1D.size(); i++) {
-    cv::imshow("LA",I_1D[i]);
-    cv::waitKey(0);
-    }
-    exit(0);
-*/
 
     vector<vector<KeyPoint>> kp;
     vector<Mat> desc;
-    fast->detect(I_1D,kp);
-    brisk->compute(I_1D,kp,desc);
-    auto t0 = std::chrono::high_resolution_clock::now();
-    vector<Mat> Hcalc = findHomographies(n_refs, n_gen, desc, kp);
-    auto t1 = std::chrono::high_resolution_clock::now();
-    double time = std::chrono::duration_cast<std::chrono::microseconds>( t1 - t0 ).count();
-    double tmpscore = 0;
-    for(unsigned i=0; i<H.size(); i++)
-        tmpscore += meanTransformError(Hcalc[i], H[i], test_points); 
-    tmpscore /= I_1D.size();
-    cout << "Score: " << tmpscore << ", time: " << time << " us\n"; exit(0);
+    if (masks.size() > 0)
+        fast->detect(I,kp,masks);
+    else
+        fast->detect(I,kp);
 
+    brisk->compute(I,kp,desc);
+    
+    return {kp,desc};
+}
+
+/*
+    params.loMethod = cv::LocalOptimMethod::LOCAL_OPTIM_GC;
+    params.loIterations = 8;
+    params.threshold = 6;
+    params.maxIterations = 6000;
+    params.score = cv::ScoreMethod::SCORE_METHOD_MAGSAC;
+*/
+
+vector<cv::LocalOptimMethod> lomethods = {
+    cv::LocalOptimMethod::LOCAL_OPTIM_INNER_LO,
+    cv::LocalOptimMethod::LOCAL_OPTIM_INNER_AND_ITER_LO,
+};
+
+vector<cv::SamplingMethod> samplingmethods{
+    cv::SamplingMethod::SAMPLING_UNIFORM,
+    cv::SamplingMethod::SAMPLING_PROGRESSIVE_NAPSAC,
+    cv::SamplingMethod::SAMPLING_NAPSAC,
+    cv::SamplingMethod::SAMPLING_PROSAC
+};
+
+vector<cv::ScoreMethod> scoremethods {
+    cv::ScoreMethod::SCORE_METHOD_MSAC,
+    cv::ScoreMethod::SCORE_METHOD_MAGSAC,
+};
+
+vector<vector<double>> runTest(vector<Mat> I, vector<Mat> H_ref, unsigned n_refs, vector<Mat> masks = {})
+{
+    init(I[0].cols,I[0].rows);
+    cv::UsacParams usacparams;
+    unsigned n_gen = (I.size() - n_refs) / n_refs;
+    auto kpdesc = calcKpDesc(I,n_refs,masks);
+    vector<vector<double>> score;
+
+    //for (double threshold = 3; threshold < 10; threshold+=0.2) {
+
+    //for (unsigned losamplesize = 1; losamplesize < 50; losamplesize++) {
+
+    for (unsigned maxiter = 5000; maxiter < 100000; maxiter+=5000) {
+    vector<double> score_row;
+        //for (auto scoremethod : scoremethods) {
+        //for (auto lomethod : lomethods) {
+            usacparams.threshold = 6;
+            usacparams.sampler = cv::SamplingMethod::SAMPLING_UNIFORM;
+            usacparams.loSampleSize = 12;
+            usacparams.loMethod = cv::LocalOptimMethod::LOCAL_OPTIM_INNER_AND_ITER_LO;
+            usacparams.score = cv::ScoreMethod::SCORE_METHOD_MSAC;
+            usacparams.maxIterations = 60000;
+            //cout << "Maxiters: " << << ", time by frame: "; 
+            vector<Mat> H = findHomographies(n_refs, n_gen, kpdesc.second, kpdesc.first, usacparams);
+            cout << " us" <<  endl;
+            score_row = meanTransformError(H, H_ref, test_points);
+            //double score_single = vsum(meanTransformError(H, H_ref, test_points)) / H.size();
+            //cout << "maxiter: " << maxiter << ", score: " << score_single << endl;
+            //out << "losamplesize: " << losamplesize << ", score: " << score_single << endl;
+            //cout << "threshold: " << threshold << ", score: " << score_single << endl;
+            //cout << "sampler: " << samplemethod << ", scoreMethod: " << scoremethod << ", score: " << score_single << endl;
+            //cout << "loMethod: " << lomethod << ", sampler: " << samplemethod << ", score: " << score_single << endl;
+            //cout << "loMethod: " << lomethod << ", losamplesize: " << losamplesize << ", score: " << score_single << endl;
+            //score_row.push_back(score_single);
+        //}
+        score.push_back(score_row);
+    }
+    return score;
+}
+
+
+int main()
+{
+    //srand (time(NULL));
+    srand (0);
+    bool train = true, test = false;
+    bool toy = false;
+
+    cv::String testname = "usac_bestparam";
+    //cv::String testname = "usac_loSampleSize";
+
+    if (train) {
+        cout << "Running train:" << endl;
+        unsigned n_refs;
+        vector<Mat> train_I;
+        if (toy) {
+            n_refs = 4;
+            train_I = read_imgs("./toy_img/*.png");
+        } else {
+            n_refs = 100;
+            train_I = read_imgs("/home/rozsatib/Dropbox/thermac/archive/imgs/outpy/*.png");
+        }
+        vector<Mat> train_H = generateHomographies(train_I.size(), train_I[0].cols, train_I[0].rows,false);
+        train_I = add_noise(train_I, 7, 5);
+        train_I = warpWithNoise(train_I, train_H);
+        vector<Mat> masks = genMask(train_H, train_I[0].rows, train_I[0].cols, train_I[0].depth());
+
+        train_H = removeRefHomographies(train_H,n_refs);
+
+        train_I = preprocess(train_I);
+        vector<vector<double>> score = runTest(train_I,train_H,n_refs,masks);
+        cv::String filename = "train_" + testname + ".csv";
+        //writeCSV(filename,score);
+    }
+
+    if (test) {
+        cout << "Running test:" << endl;
+
+        vector<Mat> test_I = read_vid("/home/rozsatib/Dropbox/thermac/archive/videos/usac-train-raw.avi");
+        vector<Mat> test_H = readTestDataset("usac_train_H.csv");
+        if (toy)
+            for(int i=0; i<500; i++) {
+                test_I.pop_back();
+                test_H.pop_back();
+            }
+    
+        test_I = preprocess(test_I);
+
+        vector<vector<double>> score = runTest(test_I,test_H,1);
+        cv::String filename = "test_" + testname + ".csv";
+        //writeCSV(filename,score);
+    }
     return 0;
 }
