@@ -54,7 +54,7 @@ executable('thermocam-pcb', ['thermocam-pcb.cpp','point-tracking.cpp'],
 	   install : true,
 	  )
 
-executable('track-test', ['track-test.cpp'],
+executable('track-test', ['support/track-test.cpp'],
      dependencies: [
        opencv_dep,
        dependency('openmp')
