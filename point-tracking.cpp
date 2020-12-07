@@ -75,7 +75,17 @@ cv::Mat findH(const std::vector<cv::KeyPoint> &kp_from,
         fromP[i] = kp_from[matches[i].trainIdx].pt;
     }
 
-    return findHomography(fromP, toP, cv::RANSAC, 6, cv::noArray(), 6000, 0.99);
+    cv::UsacParams params;
+    params.threshold = 6;
+    params.sampler = cv::SamplingMethod::SAMPLING_UNIFORM;
+    params.loSampleSize = 12;
+    params.loMethod = cv::LocalOptimMethod::LOCAL_OPTIM_INNER_AND_ITER_LO;
+    params.score = cv::ScoreMethod::SCORE_METHOD_MSAC;
+    // Ridiculously high required confidence, so maxIterations is always reached
+    // for more deterministic runtime
+    params.confidence = 0.9999999999999999999;
+    params.maxIterations = 90000;
+    return findHomography(fromP, toP, cv::noArray(), params);
 }
 
 cv::Mat preprocess(cv::Mat input)
