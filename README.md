@@ -186,12 +186,22 @@ You can change between these views by pressing Tab.
 Tracking is enabled by `-t` and forbids the entering of points via `-e`.
 The points to track and the reference image to compare to can be entered via `-p`.
 
+### Detect heat source locations in a defined area
+
+Define a border polygon (ideally an area with uniform emissivity) by entering points into a json file, in the format specified by the option `--enter-poi`. Heat source locations inside this polygon are sent to the webserver.
+
+The heat source locations are calculated by applying a negative Laplacian kernel on the smoothed polygon area. This is based on the heat diffusion equation, by ignoring the temporal term and finding the local maxima of the negative Laplacian:
+
+![heat_diffusion_equation](heat_diffusion_equation.png "Heat diffusion equation")
+
 ### Access webserver
 
 The parameter `-w` starts a webserver on port `8080`.
 
 * `ip_address:8080` shows the current thermocamera stream
 * `ip_address:8080/temperatures.txt` returns the current POI Celsius temperatures in `name=temp` format
+* `ip_address:8080/heat-sources.txt` returns the heat source locations in the format `heat_sources=x0,y0,neg_laplacian0;x1,y1,neg_laplacian1; ...`
+* `ip_address:8080/points.txt` returns both POI temperatures and heat source locations in a single response
 * `ip_address:8080/position-std.txt` returns the current rolling standard deviations of POI positions in `name=position` format, which is 0 if tracking is not enabled.
 
 ## Precise temperature measurement

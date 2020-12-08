@@ -8,6 +8,7 @@ struct poi {
     cv::Point2f p;
     double temp;
     double rolling_std;
+    double neg_laplacian;
 };
 
 #endif

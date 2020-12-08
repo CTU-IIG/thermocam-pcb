@@ -12,6 +12,7 @@ private:
     std::mutex lock;
     cv::Mat img;
     std::vector<poi> POI;
+    std::vector<poi> heat_sources;
     std::vector<std::pair<std::string,double>> cameraComponentTemps;
 
 public:
@@ -28,6 +29,12 @@ public:
         std::lock_guard<std::mutex> lk(lock);
         this->POI = POI;
     }   
+
+    void setHeatSources(std::vector<poi> hs)
+    {
+        std::lock_guard<std::mutex> lk(lock);
+        this->heat_sources = hs;
+    }
     
     void setCameraComponentTemps(std::vector<std::pair<std::string,double>> cct)
     {
