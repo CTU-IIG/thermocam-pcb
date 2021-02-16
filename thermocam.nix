@@ -1,5 +1,5 @@
 { stdenv, lib, makeWrapper, opencv, meson, ninja, pkg-config, boost, wic_sdk
-, ebus_sdk, udev, writeText, usbutils }:
+, ebus_sdk, udev, writeText, usbutils, nix-gitignore }:
 let
   # libPvGenICam.so from ebus_sdk links to libcurl-gnutls.so.4 and
   # expect it to be compiled with versioned symbols. Nix does not use
@@ -32,7 +32,10 @@ let
   ldLibraryPath = lib.strings.makeLibraryPath [ udev libcurl-gnutls-stub ];
 in stdenv.mkDerivation {
   name = "thermocam-pcb";
-  src = builtins.fetchGit { url = ./.; };
+  src =  if builtins.pathExists ./.git then
+    builtins.fetchGit { url = ./.; }
+  else
+    nix-gitignore.gitignoreSource [] ./.;
   nativeBuildInputs = [ meson ninja pkg-config makeWrapper ];
   buildInputs = [
     boost
