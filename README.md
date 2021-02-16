@@ -234,6 +234,10 @@ temperature. Writes the temperatures of entered POIs to stdout.
                              seconds.
   -e, --enter-poi[=FILE]     Enter Points of interest by hand, optionally save
                              them to json file at supplied path.
+      --fourcc=CODE          4-letter code for video coded used by -r (e.g.
+                             MJPG, h264), default: HFYU
+  -h, --heat-sources=FILE    Detect sources of heat on-chip, inside border
+                             specified in json file.
   -l, --license-dir=FILE     Path to directory containing WIC license file.
                              "." by default.
   -p, --poi-path=FILE        Path to config file containing saved POIs.
