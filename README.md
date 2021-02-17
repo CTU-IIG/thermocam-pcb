@@ -1,6 +1,34 @@
 # thermocam-pcb
 Tool for measuring temperature of PCB board with WorksWell thermo camera
 
+<!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
+**Table of Contents**
+
+    - [Requirements](#requirements)
+        - [Operating System](#operating-system)
+        - [WIC SDK](#wic-sdk)
+            - [Download & prerequisites](#download--prerequisites)
+            - [Installation](#installation)
+            - [Environment setup](#environment-setup)
+        - [OpenCV](#opencv)
+        - [Webserver](#webserver)
+    - [Compilation](#compilation)
+    - [Building and deploying with Nix](#building-and-deploying-with-nix)
+    - [Usage](#usage)
+        - [Basic functionality](#basic-functionality)
+        - [Additional functionality](#additional-functionality)
+        - [Setting video as input instead of camera](#setting-video-as-input-instead-of-camera)
+        - [Changing between views](#changing-between-views)
+        - [Enable point tracking](#enable-point-tracking)
+        - [Detect heat source locations in a defined area](#detect-heat-source-locations-in-a-defined-area)
+        - [Access webserver](#access-webserver)
+    - [Precise temperature measurement](#precise-temperature-measurement)
+        - [WIC SDK bug](#wic-sdk-bug)
+    - [Command line reference](#command-line-reference)
+
+<!-- markdown-toc end -->
+
+
 ## Requirements
 
 ### Operating System
@@ -271,3 +299,7 @@ Esc                - Exit program
 Report bugs to https://github.com/CTU-IIG/thermocam-pcb/issues.
 ```
 <!-- help end -->
+
+<!-- Local Variables: -->
+<!-- markdown-toc-user-toc-structure-manipulation-fn: cdr -->
+<!-- End: -->
