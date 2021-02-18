@@ -135,7 +135,7 @@ void initCamera(string license_dir, CameraCenter*& cc, Camera*& c)
 
     c = cc->getCameras().at(0);
 
-    if (c->Connect() != 0)
+    if (c->connect() != 0)
         errx(1,"Error connecting camera");
 }
 
@@ -146,7 +146,7 @@ uint16_t findRawtempC(double temp, Camera *c)
 {
     uint16_t raw;
     for (raw = 0; raw < 1 << 16; raw++)
-        if (c->CalculateTemperatureC(raw) >= temp)
+        if (c->calculateTemperatureC(raw) >= temp)
             return raw;
 }
 
@@ -165,7 +165,7 @@ void initImgStream(img_stream *is, string vid_in_path, string license_dir)
         is->video = new VideoCapture(vid_in_path);
     } else {
         initCamera(license_dir, is->cc, is->camera);
-        is->camera->StartAcquisition();
+        is->camera->startAcquisition();
         is->min_rawtemp = findRawtempC(RECORD_MIN_C, is->camera);
         is->max_rawtemp = findRawtempC(RECORD_MAX_C, is->camera);
     }
@@ -176,8 +176,8 @@ void clearImgStream(img_stream *is)
     if (is->is_video) {
         delete is->video;
     } else {
-        is->camera->StopAcquisition();
-        is->camera->Disconnect();
+        is->camera->stopAcquisition();
+        is->camera->disconnect();
         delete is->cc;
     }
 }
@@ -339,8 +339,8 @@ void setStatusHeightWidth(im_status *s, img_stream *is)
         s->height = is->video->get(cv::CAP_PROP_FRAME_HEIGHT);
         s->width = is->video->get(cv::CAP_PROP_FRAME_WIDTH);
     } else {
-        s->height = is->camera->GetSettings()->GetResolutionY();
-        s->width = is->camera->GetSettings()->GetResolutionX();
+        s->height = is->camera->getSettings()->getResolutionY();
+        s->width = is->camera->getSettings()->getResolutionX();
     }
 }
 
@@ -351,9 +351,9 @@ std::vector<std::pair<std::string,double>> getCameraComponentTemps(img_stream *i
                                                       { "camera_sensor",  0 },
                                                       { "camera_housing", 0 } };
     if (!is->is_video) {
-        v[0].second = is->camera->GetSettings()->GetShutterTemperature();
-        v[1].second = is->camera->GetSettings()->GetSensorTemperature();
-        v[2].second = is->camera->GetSettings()->GetHousingTemperature();
+        v[0].second = is->camera->getSettings()->getShutterTemperature();
+        v[1].second = is->camera->getSettings()->getSensorTemperature();
+        v[2].second = is->camera->getSettings()->getHousingTemperature();
     }
     return v;
 }
@@ -368,7 +368,7 @@ double getTemp(Point p, img_stream *is, im_status *s)
     if (is->is_video)
         return pixel2Temp(s->gray.data[idx]);
     else
-        return is->camera->CalculateTemperatureC(s->rawtemp[idx]);
+        return is->camera->calculateTemperatureC(s->rawtemp[idx]);
 }
 
 void updateStatusImgs(im_status *s, img_stream *is)
@@ -387,13 +387,13 @@ void updateStatusImgs(im_status *s, img_stream *is)
         }
         cvtColor(s->gray, s->gray, COLOR_RGB2GRAY);
     } else {
-        if (is->camera->GetSettings()->DoNothing() < 0) {
-            is->camera->Disconnect();
+        if (is->camera->getSettings()->doNothing() < 0) {
+            is->camera->disconnect();
             err(1,"Lost connection to camera, exiting.");
         }
-        uint16_t *tmp = (uint16_t *)is->camera->RetreiveBuffer();
+        uint16_t *tmp = (uint16_t *)is->camera->retrieveBuffer();
         memcpy(s->rawtemp, tmp, s->height * s->width * sizeof(uint16_t));
-        is->camera->ReleaseBuffer();
+        is->camera->releaseBuffer();
         s->gray = temp2gray(s->rawtemp, s->height, s->width, is->min_rawtemp, is->max_rawtemp);
 
 	static uint16_t *last_buffer = NULL;
@@ -401,8 +401,8 @@ void updateStatusImgs(im_status *s, img_stream *is)
 	if (tmp == last_buffer) {
 	    if (same_buffer_cnt++ > 10) {
 		warnx("Frozen frame detected!!!!!!!!!!!!!!!!!!!!!!!!!!");
-		is->camera->StopAcquisition();
-		is->camera->StartAcquisition();
+		is->camera->stopAcquisition();
+		is->camera->startAcquisition();
 		same_buffer_cnt = 0;
 	    }
 	} else {

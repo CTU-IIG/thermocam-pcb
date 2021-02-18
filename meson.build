@@ -7,7 +7,10 @@ cxx = meson.get_compiler('cpp')
 if cxx.has_header('CameraCenter.h', args : '-I@0@/include'.format(get_option('wic_home')))
   wic_dep = declare_dependency(
     include_directories : include_directories(get_option('wic_home') / 'include'),
-    dependencies : [ cxx.find_library('WIC_SDK', dirs : '@0@/lib'.format(get_option('wic_home'))) ]
+    dependencies : [
+      cxx.find_library('WIC_SDK', dirs : '@0@/lib'.format(get_option('wic_home'))),
+      cxx.find_library('WT-lib', dirs : '@0@/lib'.format(get_option('wic_home'))),
+    ]
   )
 else
   error('WIC SDK not found in @0@. Run meson -Dwic_home='.format(get_option('wic_home')))

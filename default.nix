@@ -1,12 +1,15 @@
 { sources ? import ./nix/sources.nix
 , pkgs ? import sources.nixpkgs { }
-, wic_sdk ? import ./wic_sdk.nix { pkgs = pkgs; }
-, ebus_sdk ? wic_sdk.ebus_sdk
 }:
 with pkgs;
+let
+  libjpeg = callPackage ./libjpeg.nix {};
+  libcurl = callPackage ./libcurl-gnutls-stub.nix {};
+  wic_sdk = callPackage ./wic_sdk.nix { inherit libjpeg libcurl; };
+  ebus_sdk = wic_sdk.ebus_sdk;
+in
 callPackage ./thermocam.nix {
-  wic_sdk = wic_sdk;
-  ebus_sdk = ebus_sdk;
+  inherit wic_sdk ebus_sdk;
   opencv = (opencv4.override { enableGtk3 = true; enableFfmpeg = true; }).overrideAttrs(oldAttrs: rec {
     version = "d986cc4861b978415fc20c3a0dc6f16ff9d0bcdf";
     src = fetchFromGitHub {
