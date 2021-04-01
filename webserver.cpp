@@ -10,15 +10,37 @@ R"(
         <meta charset="utf-8" />
         <title>Thermocam-PCB</title>
     </head>
-    <body onload="setInterval(reloadImg, 330);">
-      <h2>Thermocam-PCB</h2>
-      <img src="thermocam-current.jpg" id=camera />
-      <script>
-    var counter = 0;
-    function reloadImg() {
-        document.getElementById('camera').src='thermocam-current.jpg?c=' + counter++;
-    }
-      </script>
+    <body onload="setInterval(reloadImg, 330); setInterval(reloadImgHs, 330); setInterval(reloadLaplacian, 330);">
+      <div>
+        <h2>Thermocam-PCB</h2>
+        <img src="thermocam-current.jpg" id=camera />
+        <script>
+          var counter = 0;
+          function reloadImg() {
+              document.getElementById('camera').src='thermocam-current.jpg?c=' + counter++;
+          }
+        </script>
+      </div>
+      <div>
+        <h2>Heat-sources</h2>
+        <img src="heat_sources-current.jpg" id=hs />
+        <script>
+          var counter = 0;
+          function reloadImgHs() {
+              document.getElementById('hs').src='heat_sources-current.jpg?c=' + counter++;
+          }
+        </script>
+      </div>
+      <div>
+        <h2>Laplacian</h2>
+        <img src="laplacian-current.jpg" id=laplacian />
+        <script>
+          var counter = 0;
+          function reloadLaplacian() {
+              document.getElementById('laplacian').src='laplacian-current.jpg?c=' + counter++;
+          }
+        </script>
+      </div>
     </body>
 </html>
 )";
@@ -89,6 +111,24 @@ void* Webserver::start(void*)
         sendImg(res,curr_img);
         res.end();
     });
+
+    CROW_ROUTE(app, "/heat_sources-current.jpg")
+    ([this](const crow::request& req, crow::response& res){
+        this->lock.lock();
+        cv::Mat curr_img = this->hs_img;
+        this->lock.unlock();
+        sendImg(res,curr_img);
+        res.end();
+    });
+
+    CROW_ROUTE(app, "/laplacian-current.jpg")
+            ([this](const crow::request& req, crow::response& res){
+                this->lock.lock();
+                cv::Mat curr_img = this->laplacian_img;
+                this->lock.unlock();
+                sendImg(res,curr_img);
+                res.end();
+            });
 
     CROW_ROUTE(app, "/temperatures.txt")
     ([this](const crow::request& req, crow::response& res){

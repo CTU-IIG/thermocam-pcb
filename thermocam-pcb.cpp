@@ -1,4 +1,5 @@
 #include "thermocam-pcb.hpp"
+#include "heat-sources.hpp"
 #include "webserver.hpp"
 #include "CameraCenter.h"
 
@@ -29,9 +30,6 @@ using namespace cv;
 namespace pt = boost::property_tree;
 namespace acc = boost::accumulators;
 
-// The colors 0-255 in recordings correspond to temperatures 15-120C
-#define RECORD_MIN_C 15
-#define RECORD_MAX_C 120
 #define CAM_FPS 9 // The camera is 9Hz
 
 enum opt {
@@ -77,25 +75,6 @@ constexpr draw_mode next(draw_mode m)
     return (draw_mode)((underlying_type<draw_mode>::type(m) + 1) % 3);
 }
 draw_mode curr_draw_mode = FULL;
-
-struct im_status {
-    int height=0,width=0;
-    uint16_t *rawtemp = nullptr;
-    Mat gray;
-    vector<poi> POI; // Points of interest
-    vector<Point2f> heat_sources_border;
-    vector<KeyPoint> kp;
-    Mat desc;
-};
-
-struct img_stream {
-    bool is_video;
-    Camera *camera = nullptr;
-    CameraCenter *cc = nullptr;
-    VideoCapture *video = nullptr;
-    uint16_t min_rawtemp;
-    uint16_t max_rawtemp;
-};
 
 inline double duration_us(chrono::time_point<chrono::system_clock> begin,
                           chrono::time_point<chrono::system_clock> end)
@@ -148,12 +127,6 @@ uint16_t findRawtempC(double temp, Camera *c)
     for (raw = 0; raw < 1 << 16; raw++)
         if (c->CalculateTemperatureC(raw) >= temp)
             return raw;
-}
-
-inline double pixel2Temp(uint8_t px, double min = RECORD_MIN_C,
-                         double max = RECORD_MAX_C)
-{
-    return ((double)px) / 255 * (max - min) + min;
 }
 
 void initImgStream(img_stream *is, string vid_in_path, string license_dir)
@@ -358,19 +331,6 @@ std::vector<std::pair<std::string,double>> getCameraComponentTemps(img_stream *i
     return v;
 }
 
-double getTemp(Point p, img_stream *is, im_status *s)
-{
-    if (p.y < 0 || p.y > s->height || p.x < 0 || p.x > s->width) {
-        cerr << "Point at (" << p.x << "," << p.y << ") out of image!" << endl;
-        return nan("");
-    }
-    int idx = s->width * p.y + p.x;
-    if (is->is_video)
-        return pixel2Temp(s->gray.data[idx]);
-    else
-        return is->camera->CalculateTemperatureC(s->rawtemp[idx]);
-}
-
 void updateStatusImgs(im_status *s, img_stream *is)
 {
     if (!s->height || !s->width)
@@ -396,19 +356,19 @@ void updateStatusImgs(im_status *s, img_stream *is)
         is->camera->ReleaseBuffer();
         s->gray = temp2gray(s->rawtemp, s->height, s->width, is->min_rawtemp, is->max_rawtemp);
 
-	static uint16_t *last_buffer = NULL;
-	static unsigned same_buffer_cnt = 0;
-	if (tmp == last_buffer) {
-	    if (same_buffer_cnt++ > 10) {
-		warnx("Frozen frame detected!!!!!!!!!!!!!!!!!!!!!!!!!!");
-		is->camera->StopAcquisition();
-		is->camera->StartAcquisition();
-		same_buffer_cnt = 0;
-	    }
-	} else {
-		last_buffer = tmp;
-		same_buffer_cnt = 0;
-	}
+        static uint16_t *last_buffer = NULL;
+        static unsigned same_buffer_cnt = 0;
+        if (tmp == last_buffer) {
+            if (same_buffer_cnt++ > 10) {
+            warnx("Frozen frame detected!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            is->camera->StopAcquisition();
+            is->camera->StartAcquisition();
+            same_buffer_cnt = 0;
+            }
+        } else {
+            last_buffer = tmp;
+            same_buffer_cnt = 0;
+        }
     }
 }
 
@@ -491,18 +451,25 @@ void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracki
     if (!heat_sources_border_file.empty()) {
         // Find perspective transform from heat source border to reference frame
         im_status hs;
-        hs.gray = readJsonImg(heat_sources_border_file);
+        vector<Point2f> hs_border;
+        if(!set_border_by_POI_names(heat_sources_border_file, s->POI, hs_border)) {
+            // Read and transform heat source border points
+            vector <poi> tmp = readPOI(heat_sources_border_file);
+            hs_border = vector <Point2f>(tmp.size());
+            for (unsigned i = 0; i < tmp.size(); i++)
+                hs_border[i] = tmp[i].p;
+            hs.gray = readJsonImg(heat_sources_border_file);
+        } else {
+            hs.gray = s->gray;
+        }
+
+        // Find perspective transform from heat source border to reference frame
         updateKpDesc(&hs);
         std::vector<cv::DMatch> matches = matchToReference(hs.desc);
         Mat H = findH(s->kp, hs.kp, matches);
         H = H.inv();
 
-        // Read and transform heat source border points
-        vector<poi> tmp = readPOI(heat_sources_border_file);
-        vector<Point2f> hs_border(tmp.size());
-        for (unsigned i=0; i<tmp.size(); i++)
-            hs_border[i] = tmp[i].p;
-        perspectiveTransform(hs_border,s->heat_sources_border,H);
+        perspectiveTransform(hs_border, s->heat_sources_border, H);
     }
 
 }
@@ -576,67 +543,6 @@ void showPOIImg(string path){
     destroyAllWindows();
 }
 
-// Get local maxima by dilation and comparing with original image
-vector<Point> localMaxima(Mat I)
-{
-    if (I.empty())
-        return {};
-    Mat imageLM, localMaxima;
-    dilate(I, imageLM, getStructuringElement(MORPH_RECT, cv::Size (3, 3)));
-    localMaxima = I >= imageLM;
-
-    vector<Point> locations;
-    findNonZero(localMaxima, locations);
-    return locations;
-}
-
-vector<poi> heatSources(im_status *s, img_stream *is)
-{
-
-    for (auto &p : s->heat_sources_border) {
-        if (p.x < 0 || p.x > s->width || p.y < 0 || p.y > s->height) {
-            cerr << "Heat source border out of the image!" << endl;
-            return {};
-        }
-    }
-
-    Mat I = s->gray.clone();
-    I.convertTo(I, CV_64F);
-
-    double blur_sigma = 5;
-    GaussianBlur(I, I, Size(0, 0), blur_sigma, blur_sigma);
-    Laplacian(I, I, I.depth());
-    I = -I;
-
-    // Mask points outside of heat source border polygon
-    Mat mask(I.rows, I.cols, CV_64F, std::numeric_limits<double>::min());
-    Mat border_int32; // fillConvexPoly needs int32 points
-    Mat(s->heat_sources_border).convertTo(border_int32, CV_32S);
-    fillConvexPoly(mask, border_int32, Scalar(1), CV_AA);
-    I = I.mul(mask); // Mask all values outside of border
-
-    // Crop minimum rectangle containing border polygon for speed
-    int x_max = INT_MIN, y_max = INT_MIN, x_min = INT_MAX, y_min = INT_MAX;
-    for (auto el : s->heat_sources_border) {
-        x_max = (x_max < el.x) ? el.x : x_max;
-        y_max = (y_max < el.y) ? el.y : y_max;
-        x_min = (x_min > el.x) ? el.x : x_min;
-        y_min = (y_min > el.y) ? el.y : y_min;
-    }
-    I = I(Rect(x_min,y_min,x_max-x_min,y_max-y_min));
-
-    vector<Point> lm = localMaxima(I);
-
-    vector<poi> hs(lm.size());
-    for (unsigned i=0; i<lm.size(); i++) {
-        hs[i].p = lm[i] + Point(x_min,y_min);
-        hs[i].temp = getTemp(hs[i].p,is,s);
-        hs[i].neg_laplacian = I.at<double>(lm[i]);
-    }
-
-    return hs;
-}
-
 int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
                      string window_name, bool enter_POI, VideoWriter *vw,
                      string poi_csv_file, bool tracking_on)
@@ -645,8 +551,9 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     printPOITemp(curr->POI, poi_csv_file);
 
     vector<poi> hs;
+    vector<Mat> hs_img;
     if (curr->heat_sources_border.size() > 0)
-        hs = heatSources(curr,is);
+        hs = heatSources(curr, is, hs_img);
 
     Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
 
@@ -655,6 +562,8 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
 
     if (webserver) {
         webserver->setImg(img);
+        webserver->setLaplacian(hs_img[0]);
+        webserver->setHSImg(hs_img[1]);
         webserver->setPOI(curr->POI);
         webserver->setHeatSources(hs);
         webserver->setCameraComponentTemps(getCameraComponentTemps(is));
@@ -696,10 +605,10 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
                              cv::VideoWriter::fourcc(cc[0], cc[1], cc[2], cc[3]),
                              CAM_FPS, Size(ref->width*scale, ref->height*scale),
                              isColor);
-	if (!vw->isOpened()) {
-		warnx("VideoWriter for %s not available", args->vid_out_path.c_str());
-		return;
-	}
+        if (!vw->isOpened()) {
+            warnx("VideoWriter for %s not available", args->vid_out_path.c_str());
+            return;
+        }
     }
 
     bool watchdog_enabled = sd_watchdog_enabled(true, NULL) > 0;
