@@ -451,18 +451,25 @@ void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracki
     if (!heat_sources_border_file.empty()) {
         // Find perspective transform from heat source border to reference frame
         im_status hs;
-        hs.gray = readJsonImg(heat_sources_border_file);
+        vector<Point2f> hs_border;
+        if(!set_border_by_POI_names(heat_sources_border_file, s->POI, hs_border)) {
+            // Read and transform heat source border points
+            vector <poi> tmp = readPOI(heat_sources_border_file);
+            hs_border = vector <Point2f>(tmp.size());
+            for (unsigned i = 0; i < tmp.size(); i++)
+                hs_border[i] = tmp[i].p;
+            hs.gray = readJsonImg(heat_sources_border_file);
+        } else {
+            hs.gray = s->gray;
+        }
+
+        // Find perspective transform from heat source border to reference frame
         updateKpDesc(&hs);
         std::vector<cv::DMatch> matches = matchToReference(hs.desc);
         Mat H = findH(s->kp, hs.kp, matches);
         H = H.inv();
 
-        // Read and transform heat source border points
-        vector<poi> tmp = readPOI(heat_sources_border_file);
-        vector<Point2f> hs_border(tmp.size());
-        for (unsigned i=0; i<tmp.size(); i++)
-            hs_border[i] = tmp[i].p;
-        perspectiveTransform(hs_border,s->heat_sources_border,H);
+        perspectiveTransform(hs_border, s->heat_sources_border, H);
     }
 
 }
@@ -544,8 +551,9 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     printPOITemp(curr->POI, poi_csv_file);
 
     vector<poi> hs;
+    vector<Mat> hs_img;
     if (curr->heat_sources_border.size() > 0)
-        hs = heatSources(curr,is);
+        hs = heatSources(curr, is, hs_img);
 
     Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
 
@@ -554,6 +562,8 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
 
     if (webserver) {
         webserver->setImg(img);
+        webserver->setLaplacian(hs_img[0]);
+        webserver->setHSImg(hs_img[1]);
         webserver->setPOI(curr->POI);
         webserver->setHeatSources(hs);
         webserver->setCameraComponentTemps(getCameraComponentTemps(is));

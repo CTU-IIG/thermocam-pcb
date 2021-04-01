@@ -23,9 +23,9 @@ struct im_status {
     int height=0,width=0;
     uint16_t *rawtemp = nullptr;
     Mat gray;
-    vector<poi> POI; // Points of interest
-    vector<Point2f> heat_sources_border;
-    vector<KeyPoint> kp;
+    std::vector<poi> POI; // Points of interest
+    std::vector<Point2f> heat_sources_border;
+    std::vector<KeyPoint> kp;
     Mat desc;
 };
 
