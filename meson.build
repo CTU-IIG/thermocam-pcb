@@ -36,7 +36,9 @@ endif
 opencv_dep = dependency('opencv4', required : true)
 
 version_h = vcs_tag(input : 'version.h.in', output : 'version.h',
-		    command : ['git', 'describe', '--always'])
+		    command : get_option('version') != ''
+		              ? ['echo', get_option('version')]
+                              : ['git', 'describe', '--always'])
 
 webserver = static_library('webserver', ['webserver.cpp'],
         dependencies: [
