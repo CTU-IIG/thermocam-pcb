@@ -65,7 +65,7 @@ double getTemp(Point p, img_stream *is, im_status *s)
         return is->camera->calculateTemperatureC(s->rawtemp[idx]);
 }
 
-vector<poi> heatSources(im_status *s, img_stream *is, vector<Mat> &hs_images)
+vector<poi> heatSources(im_status *s, img_stream *is, Mat &laplacian, Mat &hsImg)
 {
     for (auto &p : s->heat_sources_border) {
         if (p.x < 0 || p.x > s->width || p.y < 0 || p.y > s->height) {
@@ -81,7 +81,7 @@ vector<poi> heatSources(im_status *s, img_stream *is, vector<Mat> &hs_images)
     GaussianBlur(I, I, Size(0, 0), blur_sigma, blur_sigma);
     Laplacian(I, I, I.depth());
     I = -I;
-    hs_images.push_back(Mat(I));
+    laplacian = I;
 
     // Mask points outside of heat source border polygon
     Mat mask(I.rows, I.cols, CV_64F, std::numeric_limits<double>::min());
@@ -98,13 +98,14 @@ vector<poi> heatSources(im_status *s, img_stream *is, vector<Mat> &hs_images)
         x_min = (x_min > el.x) ? el.x : x_min;
         y_min = (y_min > el.y) ? el.y : y_min;
     }
-    I = I(Rect(x_min,y_min,x_max-x_min,y_max-y_min));
-    hs_images[0] = hs_images[0](Rect(x_min,y_min,x_max-x_min,y_max-y_min));
+    Rect rect(x_min,y_min,x_max-x_min,y_max-y_min);
+    I = I(rect);
+    laplacian = laplacian(rect);
 
-    hs_images.push_back(Mat());
-    vector<Point> lm = localMaxima(I, hs_images[1]);
-    resize(hs_images[0], hs_images[0], Size(), 4, 4);
-    resize(hs_images[1], hs_images[1], Size(), 4, 4);
+    vector<Point> lm = localMaxima(I, hsImg);
+    // Enlarge the image 4 times
+    resize(laplacian, laplacian, Size(), 4, 4);
+    resize(hsImg, hsImg, Size(), 4, 4);
 
     vector<poi> hs(lm.size());
     for (unsigned i=0; i<lm.size(); i++) {

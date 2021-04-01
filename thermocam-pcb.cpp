@@ -551,9 +551,9 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     printPOITemp(curr->POI, poi_csv_file);
 
     vector<poi> hs;
-    vector<Mat> hs_img;
+    Mat laplacian, hsImg;
     if (curr->heat_sources_border.size() > 0)
-        hs = heatSources(curr, is, hs_img);
+        hs = heatSources(curr, is, laplacian, hsImg);
 
     Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
 
@@ -562,8 +562,10 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
 
     if (webserver) {
         webserver->setImg(img);
-        webserver->setLaplacian(hs_img[0]);
-        webserver->setHSImg(hs_img[1]);
+        if (!laplacian.empty())
+            webserver->setLaplacian(laplacian);
+        if (!hsImg.empty())
+            webserver->setHSImg(hsImg);
         webserver->setPOI(curr->POI);
         webserver->setHeatSources(hs);
         webserver->setCameraComponentTemps(getCameraComponentTemps(is));
