@@ -1,5 +1,5 @@
 #include "img_stream.hpp"
-#include "thermocam-pcb.hpp"
+#include "thermo_img.hpp"
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>

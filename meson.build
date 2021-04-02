@@ -43,6 +43,7 @@ version_h = vcs_tag(input : 'version.h.in', output : 'version.h',
 webserver = static_library('webserver', ['webserver.cpp'],
         dependencies: [
           opencv_dep,
+	  ebus_dep,
           dependency('boost', modules : ['system']),
           dependency('threads')
         ],
@@ -53,6 +54,7 @@ executable('thermocam-pcb',
 	     'thermocam-pcb.cpp',
 	     'point-tracking.cpp',
 	     'img_stream.cpp',
+	     'thermo_img.cpp',
 	   ],
 	   dependencies: [
 	     opencv_dep,

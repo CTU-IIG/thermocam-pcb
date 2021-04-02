@@ -1,1 +1,3 @@
 -std=c17
+-D_UNIX_
+-D_LINUX_

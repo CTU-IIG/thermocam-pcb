@@ -6,7 +6,8 @@ img_stream.hpp
 point-tracking.cpp
 point-tracking.hpp
 support/track-test.cpp
+thermo_img.cpp
+thermo_img.hpp
 thermocam-pcb.cpp
-thermocam-pcb.hpp
 webserver.cpp
 webserver.hpp

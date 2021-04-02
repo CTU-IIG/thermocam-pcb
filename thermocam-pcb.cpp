@@ -1,4 +1,4 @@
-#include "thermocam-pcb.hpp"
+#include "thermo_img.hpp"
 #include "heat-sources.hpp"
 #include "webserver.hpp"
 #include "CameraCenter.h"
@@ -93,36 +93,6 @@ void signalHandler(int signal_num)
 {
     if (signal_num == SIGINT || signal_num == SIGTERM)
         signal_received = true;
-}
-
-string poi::to_string(bool print_name)
-{
-    stringstream ss;
-    if (print_name)
-        ss << name << "=";
-    ss << fixed << setprecision(2) << temp;
-    return ss.str();
-}
-
-Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
-{
-    if (min == 0 && max == 0) {
-        // Dynamic range
-        max = 0;
-        min = UINT16_MAX;
-        for (int i = 0; i < h * w; ++i) {
-            min = (min > temp[i]) ? temp[i] : min;
-            max = (max < temp[i]) ? temp[i] : max;
-        }
-    }
-
-    Mat G(h, w, CV_8U);
-    // Write gray values
-    double step = 255 / (double)(max - min); // Make pix values to 0-255
-    for (int i = 0; i < h * w; ++i)
-        G.data[i] = (temp[i] < min) ? 0 : (temp[i] > max) ? 255 : (temp[i] - min) * step;
-
-    return G;
 }
 
 // Prints vector of strings at given point in a column
@@ -255,67 +225,6 @@ Mat readJsonImg(string path)
     return imdecode(decoded_v,0);
 }
 
-void setStatusHeightWidth(im_status *s, img_stream *is)
-{
-    if (is->is_video) {
-        s->height = is->video->get(cv::CAP_PROP_FRAME_HEIGHT);
-        s->width = is->video->get(cv::CAP_PROP_FRAME_WIDTH);
-    } else {
-        s->height = is->camera->getSettings()->getResolutionY();
-        s->width = is->camera->getSettings()->getResolutionX();
-    }
-}
-
-void updateStatusImgs(im_status *s, img_stream *is)
-{
-    if (!s->height || !s->width)
-        setStatusHeightWidth(&(*s), is);
-
-    if (!s->rawtemp)
-        s->rawtemp = new uint16_t[s->height * s->width]{ 0 };
-
-    if (is->is_video) {
-        *is->video >> s->gray;
-        if (s->gray.empty()) {
-            is->video->set(cv::CAP_PROP_POS_FRAMES, 0);
-            *is->video >> s->gray;
-        }
-        cvtColor(s->gray, s->gray, COLOR_RGB2GRAY);
-    } else {
-        if (is->camera->getSettings()->doNothing() < 0) {
-            is->camera->disconnect();
-            err(1,"Lost connection to camera, exiting.");
-        }
-        uint16_t *tmp = (uint16_t *)is->camera->retrieveBuffer();
-        memcpy(s->rawtemp, tmp, s->height * s->width * sizeof(uint16_t));
-        is->camera->releaseBuffer();
-        s->gray = temp2gray(s->rawtemp, s->height, s->width, is->min_rawtemp, is->max_rawtemp);
-
-	static uint16_t *last_buffer = NULL;
-	static unsigned same_buffer_cnt = 0;
-	if (tmp == last_buffer) {
-	    if (same_buffer_cnt++ > 10) {
-		warnx("Frozen frame detected!!!!!!!!!!!!!!!!!!!!!!!!!!");
-		is->camera->stopAcquisition();
-		is->camera->startAcquisition();
-		same_buffer_cnt = 0;
-	    }
-	} else {
-		last_buffer = tmp;
-		same_buffer_cnt = 0;
-	}
-    }
-}
-
-void clearStatusImgs(im_status *s)
-{
-    if (s->rawtemp) {
-        delete[] s->rawtemp;
-        s->rawtemp = nullptr;
-    }
-    s->gray.release();
-}
-
 void updatePOICoords(im_status *s, im_status *ref)
 {
     std::vector<cv::DMatch> matches = matchToReference(s->desc);
@@ -348,7 +257,7 @@ void updateKpDesc(im_status *s)
 
 void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_on)
 {
-    updateStatusImgs(s, is);
+    s->update(is);
 
     if(s->POI.size() == 0  || !tracking_on) {
         s->POI = ref->POI;
@@ -387,11 +296,11 @@ vector<string> split(const string str, const char *delimiters)
 void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on, string heat_sources_border_points)
 {
     if (poi_filename.empty()) {
-        updateStatusImgs(s, is);
+        s->update(is);
     } else {
         s->gray = readJsonImg(poi_filename);
         s->POI = readPOI(poi_filename);
-        setStatusHeightWidth(s, is);
+        s->setHeightWidth(is);
     }
 
     vector<Point2f> hs_border;
@@ -752,9 +661,6 @@ int main(int argc, char **argv)
 	    pthread_kill(web_thread, SIGINT);
 	pthread_join(web_thread, NULL);
     }
-
-    clearStatusImgs(&ref);
-    clearStatusImgs(&curr);
 
     return 0;
 }

@@ -1,11 +1,9 @@
-#ifndef THERMOCAM_PCB_HPP
-#define THERMOCAM_PCB_HPP
+#ifndef THERMO_IMG_HPP
+#define THERMO_IMG_HPP
 
-#include <opencv2/core/core.hpp>
 #include <opencv2/core/mat.hpp>
 #include <vector>
-
-using namespace cv;
+#include "img_stream.hpp"
 
 struct poi {
     std::string name;
@@ -20,11 +18,16 @@ struct poi {
 struct im_status {
     int height=0,width=0;
     uint16_t *rawtemp = nullptr;
-    Mat gray;
+    cv::Mat gray;
     std::vector<poi> POI; // Points of interest
-    std::vector<Point2f> heat_sources_border;
-    std::vector<KeyPoint> kp;
-    Mat desc;
+    std::vector<cv::Point2f> heat_sources_border;
+    std::vector<cv::KeyPoint> kp;
+    cv::Mat desc;
+
+    ~im_status();
+
+    void setHeightWidth(img_stream *is);
+    void update(img_stream *is);
 };
 
-#endif
+#endif // THERMO_IMG_HPP
