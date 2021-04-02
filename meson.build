@@ -48,7 +48,12 @@ webserver = static_library('webserver', ['webserver.cpp'],
         ],
        )
 
-executable('thermocam-pcb', ['thermocam-pcb.cpp','point-tracking.cpp'],
+executable('thermocam-pcb',
+	   [
+	     'thermocam-pcb.cpp',
+	     'point-tracking.cpp',
+	     'img_stream.cpp',
+	   ],
 	   dependencies: [
 	     opencv_dep,
 	     wic_dep,

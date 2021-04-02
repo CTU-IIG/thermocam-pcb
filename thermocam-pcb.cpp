@@ -104,57 +104,6 @@ string poi::to_string(bool print_name)
     return ss.str();
 }
 
-void initCamera(string license_dir, CameraCenter*& cc, Camera*& c)
-{
-    // Path to directory containing license file
-    cc = new CameraCenter(license_dir);
-
-    if (cc->getCameras().size() == 0)
-        err(1,"No camera found");
-
-    c = cc->getCameras().at(0);
-
-    if (c->connect() != 0)
-        errx(1,"Error connecting camera");
-}
-
-// Find the closest raw value corresponding to a Celsius temperature
-// Linear search for simplicity
-// Only use for initialization, or rewrite to log complexity!
-uint16_t findRawtempC(double temp, Camera *c)
-{
-    uint16_t raw;
-    for (raw = 0; raw < 1 << 16; raw++)
-        if (c->calculateTemperatureC(raw) >= temp)
-            return raw;
-}
-
-void initImgStream(img_stream *is, string vid_in_path, string license_dir)
-{
-    is->is_video = !vid_in_path.empty();
-    if (is->is_video) {
-        if (access(vid_in_path.c_str(), F_OK) == -1) // File does not exist
-            err(1,"Video open");
-        is->video = new VideoCapture(vid_in_path);
-    } else {
-        initCamera(license_dir, is->cc, is->camera);
-        is->camera->startAcquisition();
-        is->min_rawtemp = findRawtempC(RECORD_MIN_C, is->camera);
-        is->max_rawtemp = findRawtempC(RECORD_MAX_C, is->camera);
-    }
-}
-
-void clearImgStream(img_stream *is)
-{
-    if (is->is_video) {
-        delete is->video;
-    } else {
-        is->camera->stopAcquisition();
-        is->camera->disconnect();
-        delete is->cc;
-    }
-}
-
 Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
 {
     if (min == 0 && max == 0) {
@@ -315,20 +264,6 @@ void setStatusHeightWidth(im_status *s, img_stream *is)
         s->height = is->camera->getSettings()->getResolutionY();
         s->width = is->camera->getSettings()->getResolutionX();
     }
-}
-
-// Temperature of various camera components
-std::vector<std::pair<std::string,double>> getCameraComponentTemps(img_stream *is)
-{
-    std::vector<std::pair<std::string, double>> v = { { "camera_shutter", 0 },
-                                                      { "camera_sensor",  0 },
-                                                      { "camera_housing", 0 } };
-    if (!is->is_video) {
-        v[0].second = is->camera->getSettings()->getShutterTemperature();
-        v[1].second = is->camera->getSettings()->getSensorTemperature();
-        v[2].second = is->camera->getSettings()->getHousingTemperature();
-    }
-    return v;
 }
 
 void updateStatusImgs(im_status *s, img_stream *is)
@@ -595,7 +530,7 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
             webserver->setHSImg(hsImg);
         webserver->setPOI(curr->POI);
         webserver->setHeatSources(hs);
-        webserver->setCameraComponentTemps(getCameraComponentTemps(is));
+        webserver->setCameraComponentTemps(is->getCameraComponentTemps());
     }
 
     if (gui_available) {
@@ -796,9 +731,8 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    img_stream is;
+    img_stream is(args.vid_in_path, args.license_dir);
     im_status ref, curr;
-    initImgStream(&is, args.vid_in_path, args.license_dir);
     setRefStatus(&ref, &is, args.POI_import_path, args.tracking_on, args.heat_sources_border_points);
 
     if (args.webserver_active) {
@@ -821,7 +755,6 @@ int main(int argc, char **argv)
 
     clearStatusImgs(&ref);
     clearStatusImgs(&curr);
-    clearImgStream(&is);
 
     return 0;
 }

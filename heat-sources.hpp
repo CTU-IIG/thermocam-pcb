@@ -1,5 +1,5 @@
+#include "img_stream.hpp"
 #include "thermocam-pcb.hpp"
-#include "CameraCenter.h"
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -14,15 +14,6 @@
 
 using namespace cv;
 namespace pt = boost::property_tree;
-
-struct img_stream {
-    bool is_video;
-    Camera *camera = nullptr;
-    CameraCenter *cc = nullptr;
-    VideoCapture *video = nullptr;
-    uint16_t min_rawtemp;
-    uint16_t max_rawtemp;
-};
 
 inline double pixel2Temp(uint8_t px, double min = RECORD_MIN_C,
                          double max = RECORD_MAX_C)

@@ -5,10 +5,6 @@
 #include <opencv2/core/mat.hpp>
 #include <vector>
 
-// The colors 0-255 in recordings correspond to temperatures 15-120C
-#define RECORD_MIN_C 15
-#define RECORD_MAX_C 120
-
 using namespace cv;
 
 struct poi {
