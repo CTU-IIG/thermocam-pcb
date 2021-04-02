@@ -813,9 +813,11 @@ int main(int argc, char **argv)
     if (!args.POI_export_path.empty())
         writePOI(curr.POI, curr.gray, args.POI_export_path, true);
 
-    if (args.webserver_active && !webserver->finished)
-        if (pthread_kill(web_thread, SIGINT) || pthread_join(web_thread, NULL))
-            err(1, "webserver kill, join");
+    if (args.webserver_active) {
+	if (!webserver->finished)
+	    pthread_kill(web_thread, SIGINT);
+	pthread_join(web_thread, NULL);
+    }
 
     clearStatusImgs(&ref);
     clearStatusImgs(&curr);

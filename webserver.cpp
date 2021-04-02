@@ -179,5 +179,6 @@ void* Webserver::start(void*)
         .run();
 
     this->finished = true;
-    pthread_exit(NULL);
+    std::cout << "Shutting down webserver thread" << std::endl;
+    return NULL;
 }
