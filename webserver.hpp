@@ -11,8 +11,8 @@ class Webserver
 private:
     std::mutex lock;
     cv::Mat img;
-    cv::Mat laplacian_img;
-    cv::Mat hs_img;
+    cv::Mat laplacian_img = {Size(1, 1), CV_8U, 255};
+    cv::Mat hs_img = {Size(1, 1), CV_8U, 255};
     std::vector<poi> POI;
     std::vector<poi> heat_sources;
     std::vector<std::pair<std::string,double>> cameraComponentTemps;
