@@ -232,7 +232,7 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
 
     for (unsigned i = 0; i < POI.size(); i++) {
         POI[i].p *= 2; // Rescale points with image
-        circle(R, POI[i].p, 4, (255,255,255), -1); // Dot at POI position
+        circle(R, POI[i].p, 4, Scalar(255,255,255), -1); // Dot at POI position
 
         // Print point labels
         vector<string> label;
@@ -247,7 +247,7 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
             label = { to_string(i) };
             break;
         }
-        imgPrintStrings(R, label, POI[i].p, (255,255,255));
+        imgPrintStrings(R, label, POI[i].p, Scalar(255,255,255));
     }
 
     vector<Mat> v = {BG,BG,R};
