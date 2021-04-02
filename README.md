@@ -264,8 +264,9 @@ temperature. Writes the temperatures of entered POIs to stdout.
                              them to json file at supplied path.
       --fourcc=CODE          4-letter code for video coded used by -r (e.g.
                              MJPG, h264), default: HFYU
-  -h, --heat-sources=FILE    Detect sources of heat on-chip, inside border
-                             specified in json file.
+  -h, --heat-sources=PT_LIST Enables heat sources detection. PT_LIST is a comma
+                             separated list of names of 4 points (specified
+                             with -p) that define detection area. Implies -t.
   -l, --license-dir=FILE     Path to directory containing WIC license file.
                              "." by default.
   -p, --poi-path=FILE        Path to config file containing saved POIs.

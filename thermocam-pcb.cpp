@@ -53,7 +53,7 @@ struct cmd_arguments{
     double save_img_period = 0;
     bool webserver_active = false;
     bool tracking_on = false;
-    string heat_sources_border_file;
+    string heat_sources_border_points;
 };
 cmd_arguments args;
 
@@ -431,7 +431,25 @@ void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_
 
 }
 
-void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on, string heat_sources_border_file)
+vector<string> split(const string str, const char *delimiters)
+{
+    vector<string> words;
+
+    for (size_t start = 0, end = 0;;) {
+        start = str.find_first_not_of(delimiters, end);
+        if (start == string::npos)
+            break;
+
+        end = str.find_first_of(delimiters, start);
+        if (end == string::npos)
+            end = str.size();
+
+        words.push_back(str.substr(start, end - start));
+    }
+    return words;
+}
+
+void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on, string heat_sources_border_points)
 {
     if (poi_filename.empty()) {
         updateStatusImgs(s, is);
@@ -441,37 +459,46 @@ void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracki
         setStatusHeightWidth(s, is);
     }
 
-    if (tracking_on || !heat_sources_border_file.empty()) {
+    vector<Point2f> hs_border;
+    if (!heat_sources_border_points.empty()) {
+	vector<string> pt_names = split(heat_sources_border_points, ",");
+	if (pt_names.size() != 4)
+	    throw runtime_error("Four heat source point names are required, not " + to_string(pt_names.size()) +
+				" as in: " + heat_sources_border_points);
+	for (auto &name: pt_names) {
+	    poi *p = nullptr;
+	    for (auto &poi : s->POI) {
+		if (poi.name == name) {
+		    p = &poi;
+		    break;
+		}
+	    }
+	    if (!p)
+		throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
+	    hs_border.push_back(p->p);
+	    remove_if(s->POI.begin(), s->POI.end(), [p](poi &pp){return &pp == p;});
+	}
+    }
+
+    if (tracking_on) {
         updateKpDesc(s);
         trainMatcher(s->desc); // train once on reference image
         // Calculate point position rolling variance from last 20 images
         r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s->POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
     }
 
-    if (!heat_sources_border_file.empty()) {
+    if (!hs_border.empty()) {
         // Find perspective transform from heat source border to reference frame
         im_status hs;
-        vector<Point2f> hs_border;
-        if(!set_border_by_POI_names(heat_sources_border_file, s->POI, hs_border)) {
-            // Read and transform heat source border points
-            vector <poi> tmp = readPOI(heat_sources_border_file);
-            hs_border = vector <Point2f>(tmp.size());
-            for (unsigned i = 0; i < tmp.size(); i++)
-                hs_border[i] = tmp[i].p;
-            hs.gray = readJsonImg(heat_sources_border_file);
-        } else {
-            hs.gray = s->gray;
-        }
+	hs.gray = s->gray;
 
-        // Find perspective transform from heat source border to reference frame
         updateKpDesc(&hs);
-        std::vector<cv::DMatch> matches = matchToReference(hs.desc);
+        std::vector<cv::DMatch> matches = matchToReference(hs.desc); // Why this takes so long?
         Mat H = findH(s->kp, hs.kp, matches);
         H = H.inv();
 
         perspectiveTransform(hs_border, s->heat_sources_border, H);
     }
-
 }
 
 void onMouse(int event, int x, int y, int flags, void *param)
@@ -685,7 +712,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         args.tracking_on = true;
         break;
     case 'h':
-        args.heat_sources_border_file = arg;
+        args.tracking_on = true;
+        args.heat_sources_border_points = arg;
         break;
     case -1:
         args.save_img_dir = arg;
@@ -725,7 +753,7 @@ static struct argp_option options[] = {
     { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
     { "save-img-period", -2,  "NUM",         0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
     { "track-points",    't', 0,             0, "Turn on tracking of points."},
-    { "heat-sources",    'h', "FILE",        0, "Detect sources of heat on-chip, inside border specified in json file."},
+    { "heat-sources",    'h', "PT_LIST",     0, "Enables heat sources detection. PT_LIST is a comma separated list of names of 4 points (specified with -p) that define detection area. Implies -t."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { "webserver",       'w', 0,             0, "Start webserver to display image and temperatures."},
     { 0 } 
@@ -771,7 +799,7 @@ int main(int argc, char **argv)
     img_stream is;
     im_status ref, curr;
     initImgStream(&is, args.vid_in_path, args.license_dir);
-    setRefStatus(&ref, &is, args.POI_import_path, args.tracking_on, args.heat_sources_border_file);
+    setRefStatus(&ref, &is, args.POI_import_path, args.tracking_on, args.heat_sources_border_points);
 
     if (args.webserver_active) {
         webserver = new Webserver();

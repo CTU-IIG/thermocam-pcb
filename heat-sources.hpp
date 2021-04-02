@@ -116,24 +116,3 @@ vector<poi> heatSources(im_status *s, img_stream *is, Mat &laplacian, Mat &hsImg
 
     return hs;
 }
-
-bool set_border_by_POI_names(string heat_sources_border_file, const vector<poi> &POI, vector<Point2f> &hs_border)
-{
-    pt::ptree root;
-    pt::read_json(heat_sources_border_file, root);
-
-    auto child = root.get_child_optional("names");
-    if(! child){return false;}
-
-    // Try to find POI by names
-    for (pt::ptree::value_type &name : root.get_child("names")){
-        for(poi p : POI){
-            if ((string)name.second.data() == p.name){
-                hs_border.push_back(p.p);
-                break;
-            }
-        }
-    }
-
-    return hs_border.size() == 4;
-}
