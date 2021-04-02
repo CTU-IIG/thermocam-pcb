@@ -27,7 +27,8 @@ stdenv.mkDerivation rec {
     tar -xf data.tar.gz -C ebus_sdk
     mv ebus_sdk/opt/pleora/ebus_sdk/Ubuntu-x86_64 $ebus_sdk/
 
-    export LD_LIBRARY_PATH=$ebus_sdk/lib:$ebus_sdk/lib/genicam/bin/Linux64_x64
+    addAutoPatchelfSearchPath $ebus_sdk/lib
+    addAutoPatchelfSearchPath $ebus_sdk/lib/genicam/bin/Linux64_x64
     autoPatchelf $out
     autoPatchelf $ebus_sdk
   '';
