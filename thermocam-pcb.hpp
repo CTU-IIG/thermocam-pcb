@@ -17,6 +17,8 @@ struct poi {
     double temp;
     double rolling_std;
     double neg_laplacian;
+
+    std::string to_string(bool print_name = true);
 };
 
 struct im_status {

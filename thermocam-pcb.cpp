@@ -95,12 +95,12 @@ void signalHandler(int signal_num)
         signal_received = true;
 }
 
-string POI2Str(poi p, bool print_name = true)
+string poi::to_string(bool print_name)
 {
     stringstream ss;
-    if(print_name)
-        ss << p.name << "=";
-    ss << fixed << setprecision(2) << p.temp;
+    if (print_name)
+        ss << name << "=";
+    ss << fixed << setprecision(2) << temp;
     return ss.str();
 }
 
@@ -210,7 +210,7 @@ void drawSidebar(Mat& img, vector<poi> POI)
     // Print point names and temperatures
     vector<string> s(POI.size());
     for (unsigned i = 0; i < POI.size(); i++)
-        s[i] = to_string(i) + ": " + POI2Str(POI[i]) + " C";
+        s[i] = to_string(i) + ": " + POI[i].to_string() + " C";
     Point2f print_coords = { (float)(img.cols - sbw + 5), 0 };
     imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
 }
@@ -238,10 +238,10 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
         vector<string> label;
         switch (mode) {
         case FULL:
-            label = { POI[i].name, POI2Str(POI[i], false).append(" C") };
+            label = { POI[i].name, POI[i].to_string(false).append(" C") };
             break;
         case TEMP:
-            label = { POI2Str(POI[i], false).append(" C") };
+            label = { POI[i].to_string(false).append(" C") };
             break;
         case NUM:
             label = { to_string(i) };
@@ -547,7 +547,7 @@ void printPOITemp(vector<poi> POI, string file)
     if (file.empty()) {
         cout << "Temperature of points of interest:";
         for (unsigned i = 0; i < POI.size(); i++)
-	    cout << " " << POI2Str(POI[i]);
+	    cout << " " << POI[i].to_string();
         cout << endl;
     } else {
         string str;
