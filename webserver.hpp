@@ -5,6 +5,7 @@
 #include <atomic>
 #include "thermo_img.hpp"
 #include <opencv2/core/core.hpp>
+#include <thread>
 
 class Webserver
 {
@@ -19,6 +20,9 @@ private:
 
 public:
     std::atomic<bool> finished{ false };
+
+    Webserver();
+    void terminate();
     
     void setImg(cv::Mat img)
     {   
@@ -56,7 +60,10 @@ public:
         this->cameraComponentTemps = cct;
     }
 
-    void *start(void*);
+private:
+    std::thread web_thread;
+
+    void start();
 };
 
 #endif

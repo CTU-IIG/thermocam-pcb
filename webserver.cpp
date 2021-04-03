@@ -1,6 +1,7 @@
 #include "webserver.hpp"
 #include "crow_all.h"
 #include <opencv2/highgui/highgui.hpp>
+#include <err.h>
 
 const std::string html_code =
 R"(
@@ -95,7 +96,18 @@ void sendImg(crow::response &res, cv::Mat img)
     res.write(img_s);
 }
 
-void* Webserver::start(void*)
+Webserver::Webserver()
+    : web_thread(&Webserver::start, this)
+{}
+
+void Webserver::terminate()
+{
+    if (!finished)
+        pthread_kill(web_thread.native_handle(), SIGINT);
+    web_thread.join();
+}
+
+void Webserver::start()
 {
     crow::SimpleApp app;
     crow::mustache::set_base(".");
@@ -180,5 +192,4 @@ void* Webserver::start(void*)
 
     this->finished = true;
     std::cout << "Shutting down webserver thread" << std::endl;
-    return NULL;
 }

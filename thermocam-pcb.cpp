@@ -7,7 +7,6 @@
 #include <err.h>
 #include <unistd.h>
 #include <time.h>
-#include <pthread.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/accumulators/statistics/rolling_variance.hpp>
@@ -63,8 +62,6 @@ bool signal_received = false;
 
 /* Webserver globals */
 Webserver *webserver = nullptr;
-pthread_t web_thread;
-typedef void * (*THREADFUNCPTR)(void *);
 
 /* Rolling variance of point positions for tracking */
 std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>> r_var;
@@ -644,23 +641,16 @@ int main(int argc, char **argv)
     im_status ref, curr;
     setRefStatus(&ref, &is, args.POI_import_path, args.tracking_on, args.heat_sources_border_points);
 
-    if (args.webserver_active) {
+    if (args.webserver_active)
         webserver = new Webserver();
-        int ret = pthread_create(&web_thread, nullptr, (THREADFUNCPTR)&Webserver::start, webserver);
-        if (ret)
-            err(1, "pthread_create");
-    }
 
     processStream(&is, &ref, &curr, &args);
 
     if (!args.POI_export_path.empty())
         writePOI(curr.POI, curr.gray, args.POI_export_path, true);
 
-    if (args.webserver_active) {
-	if (!webserver->finished)
-	    pthread_kill(web_thread, SIGINT);
-	pthread_join(web_thread, NULL);
-    }
+    if (webserver)
+        webserver->terminate();
 
     return 0;
 }
