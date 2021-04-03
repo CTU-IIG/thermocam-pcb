@@ -300,7 +300,7 @@ void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracki
     } else {
         s->gray = readJsonImg(poi_filename);
         s->POI = readPOI(poi_filename);
-        s->setHeightWidth(is);
+	is->get_height_width(s->height, s->width);
     }
 
     vector<Point2f> hs_border;

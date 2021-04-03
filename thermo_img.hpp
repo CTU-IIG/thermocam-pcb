@@ -26,7 +26,6 @@ struct im_status {
 
     ~im_status();
 
-    void setHeightWidth(img_stream *is);
     void update(img_stream *is);
 };
 

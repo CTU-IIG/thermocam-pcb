@@ -23,6 +23,9 @@ public:
     ~img_stream();
 
     std::vector<std::pair<std::string, double>> getCameraComponentTemps();
+
+    void get_height_width(int &height, int &width);
+    cv::Mat get_image(uint16_t *rawtemp);
 private:
     void initCamera(std::string license_dir);
     uint16_t findRawtempC(double temp);

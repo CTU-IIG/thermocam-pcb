@@ -1,5 +1,6 @@
 #include "img_stream.hpp"
 #include <err.h>
+#include <opencv2/imgproc.hpp>
 
 using namespace cv;
 
@@ -41,6 +42,80 @@ std::vector<std::pair<string, double> > img_stream::getCameraComponentTemps()
         v[2].second = camera->getSettings()->getHousingTemperature();
     }
     return v;
+}
+
+void img_stream::get_height_width(int &height, int &width)
+{
+    if (is_video) {
+        height = video->get(cv::CAP_PROP_FRAME_HEIGHT);
+        width = video->get(cv::CAP_PROP_FRAME_WIDTH);
+    } else {
+        height = camera->getSettings()->getResolutionY();
+        width = camera->getSettings()->getResolutionX();
+    }
+}
+
+static Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
+{
+    if (min == 0 && max == 0) {
+        // Dynamic range
+        max = 0;
+        min = UINT16_MAX;
+        for (int i = 0; i < h * w; ++i) {
+            min = (min > temp[i]) ? temp[i] : min;
+            max = (max < temp[i]) ? temp[i] : max;
+        }
+    }
+
+    Mat G(h, w, CV_8U);
+    // Write gray values
+    double step = 255 / (double)(max - min); // Make pix values to 0-255
+    for (int i = 0; i < h * w; ++i)
+        G.data[i] = (temp[i] < min) ? 0 : (temp[i] > max) ? 255 : (temp[i] - min) * step;
+
+    return G;
+}
+
+Mat img_stream::get_image(uint16_t *rawtemp)
+{
+    // TODO: Convert this to return Mat_<uint16_t> (raw temperatures)
+    Mat gray; // output
+
+    if (is_video) {
+        *video >> gray;
+        if (gray.empty()) {
+            video->set(cv::CAP_PROP_POS_FRAMES, 0);
+            *video >> gray;
+        }
+        cvtColor(gray, gray, COLOR_RGB2GRAY);
+    } else {
+        if (camera->getSettings()->doNothing() < 0) {
+            camera->disconnect();
+            err(1,"Lost connection to camera, exiting.");
+        }
+        int height, width;
+        get_height_width(height, width);
+        uint16_t *tmp = (uint16_t *)camera->retrieveBuffer();
+        memcpy(rawtemp, tmp, height * width * sizeof(uint16_t));
+        camera->releaseBuffer();
+        gray = temp2gray(rawtemp, height, width, min_rawtemp, max_rawtemp);
+
+        static uint16_t *last_buffer = NULL;
+        static unsigned same_buffer_cnt = 0;
+        if (tmp == last_buffer) {
+            if (same_buffer_cnt++ > 10) {
+                warnx("Frozen frame detected!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                camera->stopAcquisition();
+                camera->startAcquisition();
+                same_buffer_cnt = 0;
+            }
+        } else {
+            last_buffer = tmp;
+            same_buffer_cnt = 0;
+        }
+    }
+
+    return gray;
 }
 
 void img_stream::initCamera(string license_dir)
