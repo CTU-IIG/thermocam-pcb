@@ -551,7 +551,7 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     printPOITemp(curr->POI, poi_csv_file);
 
     vector<poi> hs;
-    vector<Mat> hs_img;
+    vector<Mat> hs_img = vector<Mat>(2);
     if (curr->heat_sources_border.size() > 0)
         hs = heatSources(curr, is, hs_img);
 

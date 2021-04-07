@@ -37,6 +37,14 @@ void display_mat(Mat mat){
     imshow( "Display window", mat);
 }
 
+void normalize_and_convert_to_uchar(Mat &mat){
+    double min, max;
+    minMaxLoc(mat, &min, &max);
+    mat -= min;
+    mat *= 255.0 / (max - min);
+    mat.convertTo(mat, CV_8UC1);
+}
+
 // Get local maxima by dilation and comparing with original image
 vector<Point> localMaxima(Mat I, Mat &hs)
 {
@@ -46,7 +54,7 @@ vector<Point> localMaxima(Mat I, Mat &hs)
     dilate(I, imageLM, getStructuringElement(MORPH_RECT, cv::Size (3, 3)));
 
     localMaxima = I >= imageLM;
-    hs = Mat(localMaxima);
+    hs = localMaxima.clone();
 
     vector<Point> locations;
     findNonZero(localMaxima, locations);
@@ -83,7 +91,7 @@ vector<poi> heatSources(im_status *s, img_stream *is, vector<Mat> &hs_images)
     GaussianBlur(I, I, Size(0, 0), blur_sigma, blur_sigma);
     Laplacian(I, I, I.depth());
     I = -I;
-    hs_images.push_back(Mat(I));
+    hs_images[0] = I.clone();
 
     // Mask points outside of heat source border polygon
     Mat mask(I.rows, I.cols, CV_64F, std::numeric_limits<double>::min());
@@ -103,10 +111,15 @@ vector<poi> heatSources(im_status *s, img_stream *is, vector<Mat> &hs_images)
     }
 
     I = I(Rect(x_min,y_min,x_max-x_min,y_max-y_min));
-    hs_images[0] = hs_images[0](Rect(x_min,y_min,x_max-x_min,y_max-y_min));
 
-    hs_images.push_back(Mat());
+    /* Applies perspective transform to obtain correct detail of the core */
+    vector<Point2f> rect = {Point2f(0, 0), Point2f(x_max-x_min, 0), Point2f(x_max-x_min, y_max-y_min), Point2f(0, y_max-y_min)};
+    Mat transform = getPerspectiveTransform(s->heat_sources_border, rect);
+    warpPerspective(hs_images[0], hs_images[0], transform, Rect(x_min,y_min,x_max-x_min,y_max-y_min).size());
+    prepare_mat_for_display(hs_images[0]);
+
     vector<Point> lm = localMaxima(I, hs_images[1]);
+
     resize(hs_images[0], hs_images[0], Size(), 4, 4);
     resize(hs_images[1], hs_images[1], Size(), 4, 4);
 
