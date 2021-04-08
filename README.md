@@ -1,6 +1,34 @@
 # thermocam-pcb
 Tool for measuring temperature of PCB board with WorksWell thermo camera
 
+<!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
+**Table of Contents**
+
+- [Requirements](#requirements)
+    - [Operating System](#operating-system)
+    - [WIC SDK](#wic-sdk)
+        - [Download & prerequisites](#download--prerequisites)
+        - [Installation](#installation)
+        - [Environment setup](#environment-setup)
+    - [OpenCV](#opencv)
+    - [Webserver](#webserver)
+- [Compilation](#compilation)
+- [Building and deploying with Nix](#building-and-deploying-with-nix)
+- [Usage](#usage)
+    - [Basic functionality](#basic-functionality)
+    - [Additional functionality](#additional-functionality)
+    - [Setting video as input instead of camera](#setting-video-as-input-instead-of-camera)
+    - [Changing between views](#changing-between-views)
+    - [Enable point tracking](#enable-point-tracking)
+    - [Detect heat source locations in a defined area](#detect-heat-source-locations-in-a-defined-area)
+    - [Access webserver](#access-webserver)
+- [Precise temperature measurement](#precise-temperature-measurement)
+    - [WIC SDK bug](#wic-sdk-bug)
+- [Command line reference](#command-line-reference)
+
+<!-- markdown-toc end -->
+
+
 ## Requirements
 
 ### Operating System
@@ -107,8 +135,8 @@ above procedure, as Nix automatically handles all the dependencies.
 2. (optional) Enable THERMAC binary cache to get prebuilt OpenCV
    - `nix-env -iA cachix -f https://cachix.org/api/v1/install`
    - `cachix use thermac`
-3. Place `WIC_SDK-Linux_Ubuntu_16.04_64b-1.1.0.run` to the top-level
-   directory.
+3. Add WIC SDK to the nix store:
+   - `nix-store --add-fixed sha256 wic-sdk-1.2.1_Ubuntu16.06-x86_64_installer.run`
 4. Run `nix build`
 5. Run the program with `./result/bin/run` or `./result/bin/thermocam-pcb`.
 
@@ -234,6 +262,11 @@ temperature. Writes the temperatures of entered POIs to stdout.
                              seconds.
   -e, --enter-poi[=FILE]     Enter Points of interest by hand, optionally save
                              them to json file at supplied path.
+      --fourcc=CODE          4-letter code for video coded used by -r (e.g.
+                             MJPG, h264), default: HFYU
+  -h, --heat-sources=PT_LIST Enables heat sources detection. PT_LIST is a comma
+                             separated list of names of 4 points (specified
+                             with -p) that define detection area. Implies -t.
   -l, --license-dir=FILE     Path to directory containing WIC license file.
                              "." by default.
   -p, --poi-path=FILE        Path to config file containing saved POIs.
@@ -267,3 +300,7 @@ Esc                - Exit program
 Report bugs to https://github.com/CTU-IIG/thermocam-pcb/issues.
 ```
 <!-- help end -->
+
+<!-- Local Variables: -->
+<!-- markdown-toc-user-toc-structure-manipulation-fn: markdown-toc-structure-demote -->
+<!-- End: -->

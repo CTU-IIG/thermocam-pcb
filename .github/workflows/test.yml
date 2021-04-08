@@ -1,0 +1,24 @@
+name: "Complie & Test"
+on:
+  pull_request:
+  push:
+  schedule:
+    - cron:  '0 0 * * Mon'
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - uses: cachix/install-nix-action@v12
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+    - uses: cachix/cachix-action@v8
+      with:
+        name: thermac
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+    - name: Register gcc problem matcher # After subprojects to not see their warings
+      run: echo "::add-matcher::.github/problem-matchers/gcc.json"
+    - name: Build with nix-build
+      run: nix-build

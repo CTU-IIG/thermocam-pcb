@@ -1,4 +1,4 @@
-#include "thermocam-pcb.hpp"
+#include "thermo_img.hpp"
 #include "heat-sources.hpp"
 #include "webserver.hpp"
 #include "CameraCenter.h"
@@ -7,7 +7,6 @@
 #include <err.h>
 #include <unistd.h>
 #include <time.h>
-#include <pthread.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/accumulators/statistics/rolling_variance.hpp>
@@ -53,7 +52,7 @@ struct cmd_arguments{
     double save_img_period = 0;
     bool webserver_active = false;
     bool tracking_on = false;
-    string heat_sources_border_file;
+    string heat_sources_border_points;
 };
 cmd_arguments args;
 
@@ -63,8 +62,6 @@ bool signal_received = false;
 
 /* Webserver globals */
 Webserver *webserver = nullptr;
-pthread_t web_thread;
-typedef void * (*THREADFUNCPTR)(void *);
 
 /* Rolling variance of point positions for tracking */
 std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>> r_var;
@@ -93,87 +90,6 @@ void signalHandler(int signal_num)
 {
     if (signal_num == SIGINT || signal_num == SIGTERM)
         signal_received = true;
-}
-
-string POI2Str(poi p, bool print_name = true)
-{
-    stringstream ss;
-    if(print_name)
-        ss << p.name << "=";
-    ss << fixed << setprecision(2) << p.temp;
-    return ss.str();
-}
-
-void initCamera(string license_dir, CameraCenter*& cc, Camera*& c)
-{
-    // Path to directory containing license file
-    cc = new CameraCenter(license_dir);
-
-    if (cc->getCameras().size() == 0)
-        err(1,"No camera found");
-
-    c = cc->getCameras().at(0);
-
-    if (c->Connect() != 0)
-        errx(1,"Error connecting camera");
-}
-
-// Find the closest raw value corresponding to a Celsius temperature
-// Linear search for simplicity
-// Only use for initialization, or rewrite to log complexity!
-uint16_t findRawtempC(double temp, Camera *c)
-{
-    uint16_t raw;
-    for (raw = 0; raw < 1 << 16; raw++)
-        if (c->CalculateTemperatureC(raw) >= temp)
-            return raw;
-}
-
-void initImgStream(img_stream *is, string vid_in_path, string license_dir)
-{
-    is->is_video = !vid_in_path.empty();
-    if (is->is_video) {
-        if (access(vid_in_path.c_str(), F_OK) == -1) // File does not exist
-            err(1,"Video open");
-        is->video = new VideoCapture(vid_in_path);
-    } else {
-        initCamera(license_dir, is->cc, is->camera);
-        is->camera->StartAcquisition();
-        is->min_rawtemp = findRawtempC(RECORD_MIN_C, is->camera);
-        is->max_rawtemp = findRawtempC(RECORD_MAX_C, is->camera);
-    }
-}
-
-void clearImgStream(img_stream *is)
-{
-    if (is->is_video) {
-        delete is->video;
-    } else {
-        is->camera->StopAcquisition();
-        is->camera->Disconnect();
-        delete is->cc;
-    }
-}
-
-Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
-{
-    if (min == 0 && max == 0) {
-        // Dynamic range
-        max = 0;
-        min = UINT16_MAX;
-        for (int i = 0; i < h * w; ++i) {
-            min = (min > temp[i]) ? temp[i] : min;
-            max = (max < temp[i]) ? temp[i] : max;
-        }
-    }
-
-    Mat G(h, w, CV_8U);
-    // Write gray values
-    double step = 255 / (double)(max - min); // Make pix values to 0-255
-    for (int i = 0; i < h * w; ++i)
-        G.data[i] = (temp[i] < min) ? 0 : (temp[i] > max) ? 255 : (temp[i] - min) * step;
-
-    return G;
 }
 
 // Prints vector of strings at given point in a column
@@ -210,7 +126,7 @@ void drawSidebar(Mat& img, vector<poi> POI)
     // Print point names and temperatures
     vector<string> s(POI.size());
     for (unsigned i = 0; i < POI.size(); i++)
-        s[i] = to_string(i) + ": " + POI2Str(POI[i]) + " C";
+        s[i] = to_string(i) + ": " + POI[i].to_string() + " C";
     Point2f print_coords = { (float)(img.cols - sbw + 5), 0 };
     imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
 }
@@ -232,22 +148,22 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
 
     for (unsigned i = 0; i < POI.size(); i++) {
         POI[i].p *= 2; // Rescale points with image
-        circle(R, POI[i].p, 4, (255,255,255), -1); // Dot at POI position
+        circle(R, POI[i].p, 4, Scalar(255,255,255), -1); // Dot at POI position
 
         // Print point labels
         vector<string> label;
         switch (mode) {
         case FULL:
-            label = { POI[i].name, POI2Str(POI[i], false).append(" C") };
+            label = { POI[i].name, POI[i].to_string(false).append(" C") };
             break;
         case TEMP:
-            label = { POI2Str(POI[i], false).append(" C") };
+            label = { POI[i].to_string(false).append(" C") };
             break;
         case NUM:
             label = { to_string(i) };
             break;
         }
-        imgPrintStrings(R, label, POI[i].p, (255,255,255));
+        imgPrintStrings(R, label, POI[i].p, Scalar(255,255,255));
     }
 
     vector<Mat> v = {BG,BG,R};
@@ -306,81 +222,6 @@ Mat readJsonImg(string path)
     return imdecode(decoded_v,0);
 }
 
-void setStatusHeightWidth(im_status *s, img_stream *is)
-{
-    if (is->is_video) {
-        s->height = is->video->get(cv::CAP_PROP_FRAME_HEIGHT);
-        s->width = is->video->get(cv::CAP_PROP_FRAME_WIDTH);
-    } else {
-        s->height = is->camera->GetSettings()->GetResolutionY();
-        s->width = is->camera->GetSettings()->GetResolutionX();
-    }
-}
-
-// Temperature of various camera components
-std::vector<std::pair<std::string,double>> getCameraComponentTemps(img_stream *is)
-{
-    std::vector<std::pair<std::string, double>> v = { { "camera_shutter", 0 },
-                                                      { "camera_sensor",  0 },
-                                                      { "camera_housing", 0 } };
-    if (!is->is_video) {
-        v[0].second = is->camera->GetSettings()->GetShutterTemperature();
-        v[1].second = is->camera->GetSettings()->GetSensorTemperature();
-        v[2].second = is->camera->GetSettings()->GetHousingTemperature();
-    }
-    return v;
-}
-
-void updateStatusImgs(im_status *s, img_stream *is)
-{
-    if (!s->height || !s->width)
-        setStatusHeightWidth(&(*s), is);
-
-    if (!s->rawtemp)
-        s->rawtemp = new uint16_t[s->height * s->width]{ 0 };
-
-    if (is->is_video) {
-        *is->video >> s->gray;
-        if (s->gray.empty()) {
-            is->video->set(cv::CAP_PROP_POS_FRAMES, 0);
-            *is->video >> s->gray;
-        }
-        cvtColor(s->gray, s->gray, COLOR_RGB2GRAY);
-    } else {
-        if (is->camera->GetSettings()->DoNothing() < 0) {
-            is->camera->Disconnect();
-            err(1,"Lost connection to camera, exiting.");
-        }
-        uint16_t *tmp = (uint16_t *)is->camera->RetreiveBuffer();
-        memcpy(s->rawtemp, tmp, s->height * s->width * sizeof(uint16_t));
-        is->camera->ReleaseBuffer();
-        s->gray = temp2gray(s->rawtemp, s->height, s->width, is->min_rawtemp, is->max_rawtemp);
-
-        static uint16_t *last_buffer = NULL;
-        static unsigned same_buffer_cnt = 0;
-        if (tmp == last_buffer) {
-            if (same_buffer_cnt++ > 10) {
-            warnx("Frozen frame detected!!!!!!!!!!!!!!!!!!!!!!!!!!");
-            is->camera->StopAcquisition();
-            is->camera->StartAcquisition();
-            same_buffer_cnt = 0;
-            }
-        } else {
-            last_buffer = tmp;
-            same_buffer_cnt = 0;
-        }
-    }
-}
-
-void clearStatusImgs(im_status *s)
-{
-    if (s->rawtemp) {
-        delete[] s->rawtemp;
-        s->rawtemp = nullptr;
-    }
-    s->gray.release();
-}
-
 void updatePOICoords(im_status *s, im_status *ref)
 {
     std::vector<cv::DMatch> matches = matchToReference(s->desc);
@@ -413,7 +254,7 @@ void updateKpDesc(im_status *s)
 
 void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_on)
 {
-    updateStatusImgs(s, is);
+    s->update(is);
 
     if(s->POI.size() == 0  || !tracking_on) {
         s->POI = ref->POI;
@@ -431,47 +272,74 @@ void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_
 
 }
 
-void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on, string heat_sources_border_file)
+vector<string> split(const string str, const char *delimiters)
+{
+    vector<string> words;
+
+    for (size_t start = 0, end = 0;;) {
+        start = str.find_first_not_of(delimiters, end);
+        if (start == string::npos)
+            break;
+
+        end = str.find_first_of(delimiters, start);
+        if (end == string::npos)
+            end = str.size();
+
+        words.push_back(str.substr(start, end - start));
+    }
+    return words;
+}
+
+void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on, string heat_sources_border_points)
 {
     if (poi_filename.empty()) {
-        updateStatusImgs(s, is);
+        s->update(is);
     } else {
         s->gray = readJsonImg(poi_filename);
         s->POI = readPOI(poi_filename);
-        setStatusHeightWidth(s, is);
+	is->get_height_width(s->height, s->width);
     }
 
-    if (tracking_on || !heat_sources_border_file.empty()) {
+    vector<Point2f> hs_border;
+    if (!heat_sources_border_points.empty()) {
+	vector<string> pt_names = split(heat_sources_border_points, ",");
+	if (pt_names.size() != 4)
+	    throw runtime_error("Four heat source point names are required, not " + to_string(pt_names.size()) +
+				" as in: " + heat_sources_border_points);
+	for (auto &name: pt_names) {
+	    poi *p = nullptr;
+	    for (auto &poi : s->POI) {
+		if (poi.name == name) {
+		    p = &poi;
+		    break;
+		}
+	    }
+	    if (!p)
+		throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
+	    hs_border.push_back(p->p);
+	    remove_if(s->POI.begin(), s->POI.end(), [p](poi &pp){return &pp == p;});
+	}
+    }
+
+    if (tracking_on) {
         updateKpDesc(s);
         trainMatcher(s->desc); // train once on reference image
         // Calculate point position rolling variance from last 20 images
         r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s->POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
     }
 
-    if (!heat_sources_border_file.empty()) {
+    if (!hs_border.empty()) {
         // Find perspective transform from heat source border to reference frame
         im_status hs;
-        vector<Point2f> hs_border;
-        if(!set_border_by_POI_names(heat_sources_border_file, s->POI, hs_border)) {
-            // Read and transform heat source border points
-            vector <poi> tmp = readPOI(heat_sources_border_file);
-            hs_border = vector <Point2f>(tmp.size());
-            for (unsigned i = 0; i < tmp.size(); i++)
-                hs_border[i] = tmp[i].p;
-            hs.gray = readJsonImg(heat_sources_border_file);
-        } else {
-            hs.gray = s->gray;
-        }
+	    hs.gray = s->gray;
 
-        // Find perspective transform from heat source border to reference frame
         updateKpDesc(&hs);
-        std::vector<cv::DMatch> matches = matchToReference(hs.desc);
+        std::vector<cv::DMatch> matches = matchToReference(hs.desc); // Why this takes so long?
         Mat H = findH(s->kp, hs.kp, matches);
         H = H.inv();
 
         perspectiveTransform(hs_border, s->heat_sources_border, H);
     }
-
 }
 
 void onMouse(int event, int x, int y, int flags, void *param)
@@ -520,7 +388,7 @@ void printPOITemp(vector<poi> POI, string file)
     if (file.empty()) {
         cout << "Temperature of points of interest:";
         for (unsigned i = 0; i < POI.size(); i++)
-	    cout << " " << POI2Str(POI[i]);
+	    cout << " " << POI[i].to_string();
         cout << endl;
     } else {
         string str;
@@ -551,9 +419,10 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     printPOITemp(curr->POI, poi_csv_file);
 
     vector<poi> hs;
-    vector<Mat> hs_img = vector<Mat>(2);
+
+    Mat laplacian, hsImg;
     if (curr->heat_sources_border.size() > 0)
-        hs = heatSources(curr, is, hs_img);
+        hs = heatSources(curr, is, laplacian, hsImg);
 
     Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
 
@@ -562,11 +431,13 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
 
     if (webserver) {
         webserver->setImg(img);
-        webserver->setLaplacian(hs_img[0]);
-        webserver->setHSImg(hs_img[1]);
+        if (!laplacian.empty())
+            webserver->setLaplacian(laplacian);
+        if (!hsImg.empty())
+            webserver->setHSImg(hsImg);
         webserver->setPOI(curr->POI);
         webserver->setHeatSources(hs);
-        webserver->setCameraComponentTemps(getCameraComponentTemps(is));
+        webserver->setCameraComponentTemps(is->getCameraComponentTemps());
     }
 
     if (gui_available) {
@@ -683,7 +554,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         args.tracking_on = true;
         break;
     case 'h':
-        args.heat_sources_border_file = arg;
+        args.tracking_on = true;
+        args.heat_sources_border_points = arg;
         break;
     case -1:
         args.save_img_dir = arg;
@@ -723,7 +595,7 @@ static struct argp_option options[] = {
     { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
     { "save-img-period", -2,  "NUM",         0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
     { "track-points",    't', 0,             0, "Turn on tracking of points."},
-    { "heat-sources",    'h', "FILE",        0, "Detect sources of heat on-chip, inside border specified in json file."},
+    { "heat-sources",    'h', "PT_LIST",     0, "Enables heat sources detection. PT_LIST is a comma separated list of names of 4 points (specified with -p) that define detection area. Implies -t."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { "webserver",       'w', 0,             0, "Start webserver to display image and temperatures."},
     { 0 } 
@@ -766,30 +638,20 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    img_stream is;
+    img_stream is(args.vid_in_path, args.license_dir);
     im_status ref, curr;
-    initImgStream(&is, args.vid_in_path, args.license_dir);
-    setRefStatus(&ref, &is, args.POI_import_path, args.tracking_on, args.heat_sources_border_file);
+    setRefStatus(&ref, &is, args.POI_import_path, args.tracking_on, args.heat_sources_border_points);
 
-    if (args.webserver_active) {
+    if (args.webserver_active)
         webserver = new Webserver();
-        int ret = pthread_create(&web_thread, nullptr, (THREADFUNCPTR)&Webserver::start, webserver);
-        if (ret)
-            err(1, "pthread_create");
-    }
 
     processStream(&is, &ref, &curr, &args);
 
     if (!args.POI_export_path.empty())
         writePOI(curr.POI, curr.gray, args.POI_export_path, true);
 
-    if (args.webserver_active && !webserver->finished)
-        if (pthread_kill(web_thread, SIGINT) || pthread_join(web_thread, NULL))
-            err(1, "webserver kill, join");
-
-    clearStatusImgs(&ref);
-    clearStatusImgs(&curr);
-    clearImgStream(&is);
+    if (webserver)
+        webserver->terminate();
 
     return 0;
 }

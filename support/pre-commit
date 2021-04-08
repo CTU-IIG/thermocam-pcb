@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Ensure that up-to-date hook is backed up in the repository (must be
+# added manually). I don't want the hook to be updated from the repo
+# automatically for security reasons.
+cp --update .git/hooks/pre-commit support/pre-commit
+
+temp=.git/pre-commit.tmp
+
+worktree=$(git stash create)
+[[ -z $worktree ]] && exit 0
+(
+    [ -d "$temp" ] || mkdir -p "$temp"
+
+    # Use custom index that remembers the state of files in $temp worktree
+    export GIT_INDEX_FILE=$PWD/.git/index.pre-commit.tmp
+    export GIT_WORK_TREE=$PWD/$temp
+    # Checkout the index to $temp but only update the files that
+    # changed (to avoid unnecessary recompilation)
+    git read-tree -m "$worktree^2" # Checkout index
+    git checkout-index -f -u -a
+)
+(
+    cd "$temp"
+    if [ ! -f build/build.ninja ]; then
+	# $mesonFlags is from nix-shell (or lorri) and we use it here
+	# to find WIC_SDK etc.
+	meson setup build $mesonFlags -Dversion=none
+    fi
+    ninja -v -C build
+)
+git diff --quiet README.md
+README_clean=$?
+hash=$(
+    {
+	sed -n '1,/<!-- help start -->/p' "$temp"/README.md
+	echo '```'
+	export ASAN_OPTIONS=alloc_dealloc_mismatch=0
+	"$temp"/build/run --help
+	echo '```'
+	sed -n '/<!-- help end -->/,$p' "$temp"/README.md
+    } | git hash-object -w --stdin)
+git update-index --cacheinfo 100644 "$hash" README.md
+
+if [ "$README_clean" = 0 ]; then
+    # Update the working tree copy
+    git checkout README.md
+fi

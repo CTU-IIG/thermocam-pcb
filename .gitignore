@@ -33,3 +33,10 @@
 /thermocam-pcb
 /webserver/thermocam-webserver
 /webserver/images/*
+
+/build/
+WIC_SDK-Linux_Ubuntu_16.04_64b-1.1.0.run
+*.avi
+/.ccls-cache/
+/result/
+/wic-sdk-1.2.1_Ubuntu16.06-x86_64_installer.run

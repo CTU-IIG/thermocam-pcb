@@ -1,2 +1,3 @@
 option('wic_home',  type : 'string', value : '/opt/workswell/wic_sdk')
 option('ebus_home', type : 'string', value : '/opt/pleora/ebus_sdk/Ubuntu-x86_64')
+option('version', type : 'string', value : '', description : 'If non-empty, overrides compiled-in git-based version number')
