@@ -331,7 +331,7 @@ void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracki
     if (!hs_border.empty()) {
         // Find perspective transform from heat source border to reference frame
         im_status hs;
-	hs.gray = s->gray;
+        hs.gray = s->gray;
 
         updateKpDesc(&hs);
         std::vector<cv::DMatch> matches = matchToReference(hs.desc); // Why this takes so long?
@@ -477,8 +477,8 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
                              CAM_FPS, Size(ref->width*scale, ref->height*scale),
                              isColor);
 	if (!vw->isOpened()) {
-		warnx("VideoWriter for %s not available", args->vid_out_path.c_str());
-		return;
+	    warnx("VideoWriter for %s not available", args->vid_out_path.c_str());
+	    return;
 	}
     }
 
@@ -598,7 +598,7 @@ static struct argp_option options[] = {
     { "heat-sources",    'h', "PT_LIST",     0, "Enables heat sources detection. PT_LIST is a comma separated list of names of 4 points (specified with -p) that define detection area. Implies -t."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { "webserver",       'w', 0,             0, "Start webserver to display image and temperatures."},
-    { 0 } 
+    { 0 }
 };
 
 const char * argp_program_bug_address = "https://github.com/CTU-IIG/thermocam-pcb/issues";
@@ -609,7 +609,7 @@ static struct argp argp = {
     options, parse_opt, "[--] COMMAND...",
 
     "Displays thermocamera image and entered points of interest and their "
-    "temperature. Writes the temperatures of entered POIs to stdout." 
+    "temperature. Writes the temperatures of entered POIs to stdout."
 
     "\v"
 
