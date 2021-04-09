@@ -1,9 +1,7 @@
 #include "img_stream.hpp"
 #include "thermo_img.hpp"
-
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
-
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -28,6 +26,14 @@ void display_mat(Mat mat){
     imshow( "Display window", mat);
 }
 
+void normalize_and_convert_to_uchar(Mat &mat){
+    double min, max;
+    minMaxLoc(mat, &min, &max);
+    mat -= min;
+    mat *= 255.0 / (max - min);
+    mat.convertTo(mat, CV_8UC1);
+}
+
 // Get local maxima by dilation and comparing with original image
 vector<Point> localMaxima(Mat I, Mat &hs)
 {
@@ -35,8 +41,9 @@ vector<Point> localMaxima(Mat I, Mat &hs)
         return {};
     Mat imageLM, localMaxima;
     dilate(I, imageLM, getStructuringElement(MORPH_RECT, cv::Size (3, 3)));
+
     localMaxima = I >= imageLM;
-    hs = Mat(localMaxima);
+    hs = localMaxima.clone();
 
     vector<Point> locations;
     findNonZero(localMaxima, locations);
@@ -50,6 +57,7 @@ double getTemp(Point p, img_stream *is, im_status *s)
         return nan("");
     }
     int idx = s->width * p.y + p.x;
+
     if (is->is_video)
         return pixel2Temp(s->gray.data[idx]);
     else
@@ -72,12 +80,13 @@ vector<poi> heatSources(im_status *s, img_stream *is, Mat &laplacian, Mat &hsImg
     GaussianBlur(I, I, Size(0, 0), blur_sigma, blur_sigma);
     Laplacian(I, I, I.depth());
     I = -I;
-    laplacian = I;
+    laplacian = I.clone();
 
     // Mask points outside of heat source border polygon
     Mat mask(I.rows, I.cols, CV_64F, std::numeric_limits<double>::min());
     Mat border_int32; // fillConvexPoly needs int32 points
     Mat(s->heat_sources_border).convertTo(border_int32, CV_32S);
+
     fillConvexPoly(mask, border_int32, Scalar(1), CV_AA);
     I = I.mul(mask); // Mask all values outside of border
 
@@ -89,12 +98,15 @@ vector<poi> heatSources(im_status *s, img_stream *is, Mat &laplacian, Mat &hsImg
         x_min = (x_min > el.x) ? el.x : x_min;
         y_min = (y_min > el.y) ? el.y : y_min;
     }
-    Rect rect(x_min,y_min,x_max-x_min,y_max-y_min);
-    I = I(rect);
-    laplacian = laplacian(rect);
+    I = I(Rect(x_min,y_min,x_max-x_min,y_max-y_min));
+
+    /* Applies perspective transform to obtain correct detail of the core */
+    vector<Point2f> rect = {Point2f(0, 0), Point2f(x_max-x_min, 0), Point2f(x_max-x_min, y_max-y_min), Point2f(0, y_max-y_min)};
+    Mat transform = getPerspectiveTransform(s->heat_sources_border, rect);
+    warpPerspective(laplacian, laplacian, transform, I.size());
+    normalize_and_convert_to_uchar(laplacian);
 
     vector<Point> lm = localMaxima(I, hsImg);
-    // Enlarge the image 4 times
     resize(laplacian, laplacian, Size(), 4, 4);
     resize(hsImg, hsImg, Size(), 4, 4);
 

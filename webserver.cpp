@@ -22,6 +22,7 @@ R"(
           }
         </script>
       </div>
+
       <div style="display: flex;">
 	<div style="margin-right: 1em;">
           <h2>Heat-sources</h2>
