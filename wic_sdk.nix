@@ -7,7 +7,8 @@ stdenv.mkDerivation rec {
     sha256 = "97df553ad47f84e1803d5eafaf50d39f5e0d896751941b67e1a541fb0bc8c763";
     message = ''
         Unfortunately, we cannot download file ${name} automatically.
-        Please add it to the Nix store manually using:
+        Please download it from https://software.workswell.eu/wic_sdk/Linux/
+        and add it to the Nix store manually using:
           nix-store --add-fixed sha256 ${name}
       '';
   };
