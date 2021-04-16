@@ -318,8 +318,8 @@ void setFixedFrame(im_status &im){
 
     im.border_frame = {cv::Point2f(0, 0),
                        cv::Point2f(x_max - x_min, 0),
-		       cv::Point2f(x_max - x_min, y_max - y_min),
-		       cv::Point2f(0, y_max - y_min)};
+                       cv::Point2f(x_max - x_min, y_max - y_min),
+                       cv::Point2f(0, y_max - y_min)};
 }
 
 void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracking_on, string heat_sources_border_points)
@@ -335,23 +335,23 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
 
     vector<Point2f> hs_border;
     if (!heat_sources_border_points.empty()) {
-	vector<string> pt_names = split(heat_sources_border_points, ",");
-	if (pt_names.size() != 4)
-	    throw runtime_error("Four heat source point names are required, not " + to_string(pt_names.size()) +
-				" as in: " + heat_sources_border_points);
-	for (auto &name: pt_names) {
-	    poi *p = nullptr;
-	    for (auto &poi : s.POI) {
-		if (poi.name == name) {
-		    p = &poi;
-		    break;
-		}
-	    }
-	    if (!p)
-		throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
-	    hs_border.push_back(p->p);
-	    remove_if(s.POI.begin(), s.POI.end(), [p](poi &pp){return &pp == p;});
-	}
+        vector<string> pt_names = split(heat_sources_border_points, ",");
+        if (pt_names.size() != 4)
+            throw runtime_error("Four heat source point names are required, not " + to_string(pt_names.size()) +
+                                " as in: " + heat_sources_border_points);
+        for (auto &name: pt_names) {
+            poi *p = nullptr;
+            for (auto &poi : s.POI) {
+                if (poi.name == name) {
+                    p = &poi;
+                    break;
+                }
+            }
+            if (!p)
+                throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
+            hs_border.push_back(p->p);
+            remove_if(s.POI.begin(), s.POI.end(), [p](poi &pp){return &pp == p;});
+        }
     }
 
     if (tracking_on) {
@@ -422,7 +422,7 @@ void printPOITemp(vector<poi> POI, string file)
     if (file.empty()) {
         cout << "Temperature of points of interest:";
         for (unsigned i = 0; i < POI.size(); i++)
-	    cout << " " << POI[i].to_string();
+            cout << " " << POI[i].to_string();
         cout << endl;
     } else {
         string str;
@@ -446,8 +446,8 @@ void showPOIImg(string path){
 }
 
 void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
-		      string window_name, VideoWriter *vw,
-		      string poi_csv_file, bool tracking_on)
+                      string window_name, VideoWriter *vw,
+                      string poi_csv_file, bool tracking_on)
 {
     updateImStatus(curr, is, ref, tracking_on);
     printPOITemp(curr.POI, poi_csv_file);
@@ -520,12 +520,12 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
         string cc = args.fourcc;
         vw = new VideoWriter(args.vid_out_path,
                              cv::VideoWriter::fourcc(cc[0], cc[1], cc[2], cc[3]),
-                             CAM_FPS, Size(ref.width*scale, ref.height*scale),
-                             isColor);
-	if (!vw->isOpened()) {
-	    warnx("VideoWriter for %s not available", args.vid_out_path.c_str());
-	    return;
-	}
+                CAM_FPS, Size(ref.width*scale, ref.height*scale),
+                isColor);
+        if (!vw->isOpened()) {
+            warnx("VideoWriter for %s not available", args.vid_out_path.c_str());
+            return;
+        }
     }
 
     bool watchdog_enabled = sd_watchdog_enabled(true, NULL) > 0;
@@ -534,18 +534,18 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
         save_img_clk = chrono::system_clock::now();
 
     while (!exit) {
-	if (watchdog_enabled)
-	    sd_notify(false, "WATCHDOG=1");
+        if (watchdog_enabled)
+            sd_notify(false, "WATCHDOG=1");
 
         auto begin = chrono::system_clock::now();
         processNextFrame(is, ref, curr, window_name, vw,
-			 args.poi_csv_file, args.tracking_on);
+                         args.poi_csv_file, args.tracking_on);
         auto end = chrono::system_clock::now();
 
-	exit = handle_input(args.enter_POI, ref);
+        exit = handle_input(args.enter_POI, ref);
 
         if (args.save_img &&
-            duration_us(save_img_clk, end) > args.save_img_period * 1000000) {
+                duration_us(save_img_clk, end) > args.save_img_period * 1000000) {
             save_img_clk = chrono::system_clock::now();
             string img_path = args.save_img_dir + "/"
                               + clkDateTimeString(save_img_clk) + ".png";

@@ -21,6 +21,6 @@ void im_status::update(img_stream &is)
     height = rawtemp.rows;
 
     rawtemp.convertTo(gray, CV_8U,
-		      255.0 / (is.max_rawtemp - is.min_rawtemp),
-		      255.0 / (1.0 - double(is.max_rawtemp) / double(is.min_rawtemp)));
+                      255.0 / (is.max_rawtemp - is.min_rawtemp),
+                      255.0 / (1.0 - double(is.max_rawtemp) / double(is.min_rawtemp)));
 }

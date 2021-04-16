@@ -92,8 +92,8 @@ double img_stream::get_temperature(uint16_t pixel_value)
 {
     if (is_video)
         return RECORD_MIN_C +
-		(RECORD_MAX_C - RECORD_MIN_C) *
-		double(pixel_value - min_rawtemp) / (max_rawtemp - min_rawtemp);
+                (RECORD_MAX_C - RECORD_MIN_C) *
+                double(pixel_value - min_rawtemp) / (max_rawtemp - min_rawtemp);
     else
         return camera->calculateTemperatureC(pixel_value);
 }
