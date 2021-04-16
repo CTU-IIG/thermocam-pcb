@@ -237,7 +237,7 @@ Mat readJsonImg(string path)
     return imdecode(decoded_v,0);
 }
 
-void updatePOICoords(im_status *s, im_status *ref)
+void updatePOICoords(im_status *s, const im_status *ref)
 {
     std::vector<cv::DMatch> matches = matchToReference(s->desc);
     Mat H = findH(ref->kp, s->kp, matches);
@@ -267,7 +267,7 @@ void updateKpDesc(im_status *s)
     s->desc = getDescriptors(pre, s->kp);
 }
 
-void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_on)
+void updateImStatus(im_status *s, img_stream *is, const im_status *ref, bool tracking_on)
 {
     s->update(is);
 
@@ -442,9 +442,9 @@ void showPOIImg(string path){
     destroyAllWindows();
 }
 
-int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
-                     string window_name, bool enter_POI, VideoWriter *vw,
-                     string poi_csv_file, bool tracking_on)
+void processNextFrame(img_stream *is, const im_status *ref, im_status *curr,
+		      string window_name, VideoWriter *vw,
+		      string poi_csv_file, bool tracking_on)
 {
     updateImStatus(curr, is, ref, tracking_on);
     printPOITemp(curr->POI, poi_csv_file);
@@ -477,19 +477,27 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
 
     if (gui_available) {
         imshow(window_name, img);
+    }
+}
+
+bool handle_input(bool enter_POI, im_status *ref)
+{
+    bool is_exit = false;
+
+    if (gui_available) {
         char key = waitKey(1) & 0xEFFFFF;
         if (key == 8 && enter_POI && ref->POI.size() > 0) // Backspace
             ref->POI.pop_back();
         if (key == 9) // Tab
             curr_draw_mode = next(curr_draw_mode);
         if (key == 27) // Esc
-            return 1;
+            is_exit = true;
     }
 
     if (signal_received || (webserver && webserver->finished))
-        return 1;
+        is_exit = true;
 
-    return 0;
+    return is_exit;
 }
 
 void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_arguments *args)
@@ -527,9 +535,11 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
 	    sd_notify(false, "WATCHDOG=1");
 
         auto begin = chrono::system_clock::now();
-        exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw,
-                                args->poi_csv_file, args->tracking_on);
+        processNextFrame(is, ref, curr, window_name, vw,
+			 args->poi_csv_file, args->tracking_on);
         auto end = chrono::system_clock::now();
+
+	exit = handle_input(args->enter_POI, ref);
 
         if (args->save_img &&
             duration_us(save_img_clk, end) > args->save_img_period * 1000000) {
