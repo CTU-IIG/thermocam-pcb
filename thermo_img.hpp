@@ -21,6 +21,7 @@ struct im_status {
     cv::Mat gray;
     std::vector<poi> POI; // Points of interest
     std::vector<cv::Point2f> heat_sources_border;
+    std::vector<cv::Point2f> border_frame;
     std::vector<cv::KeyPoint> kp;
     cv::Mat desc;
 

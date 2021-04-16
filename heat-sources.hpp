@@ -64,7 +64,14 @@ double getTemp(Point p, img_stream *is, im_status *s)
         return is->camera->calculateTemperatureC(s->rawtemp[idx]);
 }
 
-vector<poi> heatSources(im_status *s, img_stream *is, Mat &laplacian, Mat &hsImg)
+Point2f apply_transformation_on_point(const Matx33f &mat, Point2f p){
+    Point3f point = Point3f(p.x, p.y, 1);
+
+    point = mat * point;
+    return Point2f(max(0.0f, round(point.x)), max(0.0f, round(point.y)));   //sometimes transformation moves point around 0 close to -1.
+}
+
+vector<poi> heatSources(im_status *s, img_stream *is, Mat &laplacian, Mat &hsImg, Mat &detail)
 {
     for (auto &p : s->heat_sources_border) {
         if (p.x < 0 || p.x > s->width || p.y < 0 || p.y > s->height) {
@@ -98,24 +105,36 @@ vector<poi> heatSources(im_status *s, img_stream *is, Mat &laplacian, Mat &hsImg
         x_min = (x_min > el.x) ? el.x : x_min;
         y_min = (y_min > el.y) ? el.y : y_min;
     }
-    I = I(Rect(x_min,y_min,x_max-x_min,y_max-y_min));
+    auto rect = Rect(x_min,y_min,x_max-x_min,y_max-y_min);
+    I = I(rect);
 
     /* Applies perspective transform to obtain correct detail of the core */
-    vector<Point2f> rect = {Point2f(0, 0), Point2f(x_max-x_min, 0), Point2f(x_max-x_min, y_max-y_min), Point2f(0, y_max-y_min)};
-    Mat transform = getPerspectiveTransform(s->heat_sources_border, rect);
-    warpPerspective(laplacian, laplacian, transform, I.size());
-    normalize_and_convert_to_uchar(laplacian);
+    Mat transform = getPerspectiveTransform(s->heat_sources_border, s->border_frame);
+    warpPerspective(laplacian, laplacian, transform, Size(s->border_frame[2]));
+    warpPerspective(s->gray, detail, transform, Size(s->border_frame[2]));
 
-    vector<Point> lm = localMaxima(I, hsImg);
-    resize(laplacian, laplacian, Size(), 4, 4);
-    resize(hsImg, hsImg, Size(), 4, 4);
+    Mat dump;
+    vector<Point> lm = localMaxima(I, dump);    //Local maxima has to be calculated on shifted image to gain precise temperatures
+    localMaxima(laplacian, hsImg);      //For display we use transformed image
 
     vector<poi> hs(lm.size());
     for (unsigned i=0; i<lm.size(); i++) {
         hs[i].p = lm[i] + Point(x_min,y_min);
         hs[i].temp = getTemp(hs[i].p,is,s);
         hs[i].neg_laplacian = I.at<double>(lm[i]);
+
+        hs[i].p = apply_transformation_on_point(transform, hs[i].p);
     }
+
+    normalize_and_convert_to_uchar(laplacian);
+    equalizeHist(detail, detail);   //for display purpose only, nothing is visible otherwise.
+
+    if(!laplacian.empty())
+        resize(laplacian, laplacian, Size(), 4, 4);
+    if(!hsImg.empty())
+        resize(hsImg, hsImg, Size(), 4, 4);
+    if(!detail.empty())
+        resize(detail, detail, Size(), 4, 4);
 
     return hs;
 }

@@ -11,7 +11,7 @@ R"(
         <meta charset="utf-8" />
         <title>Thermocam-PCB</title>
     </head>
-    <body onload="setInterval(reloadImg, 330); setInterval(reloadImgHs, 330); setInterval(reloadLaplacian, 330);">
+    <body onload="setInterval(reloadImg, 330); setInterval(reloadImgDetail, 330); setInterval(reloadImgHs, 330); setInterval(reloadLaplacian, 330);">
       <div>
         <h2>Thermocam-PCB</h2>
         <img src="thermocam-current.jpg" id=camera />
@@ -24,6 +24,16 @@ R"(
       </div>
 
       <div style="display: flex;">
+	<div style="margin-right: 1em;">
+          <h2>Detail</h2>
+          <img src="detail-current.jpg" id=detail />
+          <script>
+            var counter = 0;
+            function reloadImgDetail() {
+            document.getElementById('detail').src='detail-current.jpg?c=' + counter++;
+            }
+          </script>
+	</div>
 	<div style="margin-right: 1em;">
           <h2>Heat-sources</h2>
           <img src="heat_sources-current.jpg" id=hs />
@@ -140,6 +150,15 @@ void Webserver::start()
             ([this](const crow::request& req, crow::response& res){
                 this->lock.lock();
                 cv::Mat curr_img = this->laplacian_img;
+                this->lock.unlock();
+                sendImg(res,curr_img);
+                res.end();
+            });
+
+    CROW_ROUTE(app, "/detail-current.jpg")
+            ([this](const crow::request& req, crow::response& res){
+                this->lock.lock();
+                cv::Mat curr_img = this->detail_img;
                 this->lock.unlock();
                 sendImg(res,curr_img);
                 res.end();
