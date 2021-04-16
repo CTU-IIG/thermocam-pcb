@@ -589,7 +589,7 @@ static struct argp_option options[] = {
     { "show-poi",        's', "FILE",        0, "Show camera image taken at saving POIs." },
     { "license-dir",     'l', "FILE",        0, "Path to directory containing WIC license file.\n\".\" by default." },
     { "record-video",    'r', "FILE",        0, "Record video and store it with entered filename"},
-    { "fourcc",          OPT_FOURCC, "CODE", 0, "4-letter code for video coded used by -r (e.g. MJPG, h264), default: HFYU"},
+    { "fourcc",          OPT_FOURCC, "CODE", 0, "4-letter code for video codec used by -r (e.g. MJPG, h264), default: HFYU"},
     { "load-video",      'v', "FILE",        0, "Load and process video instead of camera feed"},
     { "csv-log",         'c', "FILE",        0, "Log temperature of POIs to a csv file instead of printing them to stdout."},
     { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},

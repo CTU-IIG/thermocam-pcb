@@ -262,7 +262,7 @@ temperature. Writes the temperatures of entered POIs to stdout.
                              seconds.
   -e, --enter-poi[=FILE]     Enter Points of interest by hand, optionally save
                              them to json file at supplied path.
-      --fourcc=CODE          4-letter code for video coded used by -r (e.g.
+      --fourcc=CODE          4-letter code for video codec used by -r (e.g.
                              MJPG, h264), default: HFYU
   -h, --heat-sources=PT_LIST Enables heat sources detection. PT_LIST is a comma
                              separated list of names of 4 points (specified
