@@ -33,6 +33,8 @@ namespace acc = boost::accumulators;
 
 enum opt {
     OPT_FOURCC = 1000,
+    OPT_SAVE_IMG_DIR,
+    OPT_SAVE_IMG_PER,
 };
 
 /* Command line options */
@@ -602,11 +604,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         args.tracking_on = true;
         args.heat_sources_border_points = arg;
         break;
-    case -1:
+    case OPT_SAVE_IMG_DIR:
         args.save_img_dir = arg;
         args.save_img = true;
         break;
-    case -2:
+    case OPT_SAVE_IMG_PER:
         args.save_img_period = atof(arg);
         args.save_img = true;
         break;
@@ -637,8 +639,8 @@ static struct argp_option options[] = {
     { "fourcc",          OPT_FOURCC, "CODE", 0, "4-letter code for video coded used by -r (e.g. MJPG, h264), default: HFYU"},
     { "load-video",      'v', "FILE",        0, "Load and process video instead of camera feed"},
     { "csv-log",         'c', "FILE",        0, "Log temperature of POIs to a csv file instead of printing them to stdout."},
-    { "save-img-dir",    -1,  "DIR",         0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
-    { "save-img-period", -2,  "SECS",        0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
+    { "save-img-dir",    OPT_SAVE_IMG_DIR, "DIR",  0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
+    { "save-img-period", OPT_SAVE_IMG_PER, "SECS", 0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
     { "track-points",    't', 0,             0, "Turn on tracking of points."},
     { "heat-sources",    'h', "PT_LIST",     0, "Enables heat sources detection. PT_LIST is a comma separated list of names of 4 points (specified with -p) that define detection area. Implies -t."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
