@@ -46,17 +46,6 @@ std::vector<std::pair<string, double> > img_stream::getCameraComponentTemps()
     return v;
 }
 
-void img_stream::get_height_width(int &height, int &width)
-{
-    if (is_video) {
-        height = video->get(cv::CAP_PROP_FRAME_HEIGHT);
-        width = video->get(cv::CAP_PROP_FRAME_WIDTH);
-    } else {
-        height = camera->getSettings()->getResolutionY();
-        width = camera->getSettings()->getResolutionX();
-    }
-}
-
 void img_stream::get_image(Mat_<uint16_t> &result)
 {
     if (is_video) {
@@ -76,8 +65,8 @@ void img_stream::get_image(Mat_<uint16_t> &result)
             camera->disconnect();
             err(1,"Lost connection to camera, exiting.");
         }
-        int height, width;
-        get_height_width(height, width);
+        int height = camera->getSettings()->getResolutionY();
+        int width = camera->getSettings()->getResolutionX();
         uint16_t *tmp = (uint16_t *)camera->retrieveBuffer();
         result.create(height, width);
         memcpy(result.data, tmp, result.total()*result.elemSize());

@@ -16,10 +16,9 @@ string poi::to_string(bool print_name)
 
 void im_status::update(img_stream &is)
 {
-    if (!height || !width)
-        is.get_height_width(height, width);
-
     is.get_image(rawtemp);
+    width = rawtemp.cols;
+    height = rawtemp.rows;
 
     rawtemp.convertTo(gray, CV_8U,
 		      255.0 / (is.max_rawtemp - is.min_rawtemp),
