@@ -6,19 +6,18 @@ using namespace cv;
 
 img_stream::img_stream(string vid_in_path, string license_dir)
     : is_video(!vid_in_path.empty())
+    , cc(init_camera_center(license_dir))
+    , camera(init_camera())
+    // In case of video, set the same values as those returned by our camera
+    , min_rawtemp(is_video ? 7231 : findRawtempC(RECORD_MIN_C))
+    , max_rawtemp(is_video ? 9799 : findRawtempC(RECORD_MAX_C))
 {
     if (is_video) {
         if (access(vid_in_path.c_str(), F_OK) == -1) // File does not exist
             throw runtime_error("Video open: " + vid_in_path);
         video = new VideoCapture(vid_in_path);
-	// Set the same values as those returned by our camera below
-        min_rawtemp = 7231;
-        max_rawtemp = 9799;
     } else {
-        initCamera(license_dir);
         camera->startAcquisition();
-        min_rawtemp = findRawtempC(RECORD_MIN_C);
-        max_rawtemp = findRawtempC(RECORD_MAX_C);
     }
 }
 
@@ -110,18 +109,24 @@ double img_stream::get_temperature(uint16_t pixel_value)
         return camera->calculateTemperatureC(pixel_value);
 }
 
-void img_stream::initCamera(string license_dir)
+CameraCenter *img_stream::init_camera_center(string license_dir)
 {
-    // Path to directory containing license file
-    cc = new CameraCenter(license_dir);
+    return is_video ? nullptr : new CameraCenter(license_dir);
+}
 
-    if (cc->getCameras().size() == 0)
+Camera *img_stream::init_camera()
+{
+    if (is_video)
+        return nullptr;
+
+    if (!cc || cc->getCameras().size() == 0)
         err(1,"No camera found");
 
-    camera = cc->getCameras().at(0);
-
-    if (camera->connect() != 0)
+    Camera *c = cc->getCameras().at(0);
+    if (!c || c->connect() != 0)
         errx(1,"Error connecting camera");
+
+    return c;
 }
 
 // Find the closest raw value corresponding to a Celsius temperature

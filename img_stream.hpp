@@ -11,9 +11,6 @@
 #define RECORD_MAX_C 120
 
 struct img_stream {
-    uint16_t min_rawtemp;
-    uint16_t max_rawtemp;
-
 public:
     img_stream(std::string vid_in_path, std::string license_dir);
     ~img_stream();
@@ -28,11 +25,17 @@ public:
 
 private:
     const bool is_video;
-    Camera *camera = nullptr;
-    CameraCenter *cc = nullptr;
     cv::VideoCapture *video = nullptr;
+    CameraCenter *cc = nullptr;
+    Camera *camera = nullptr;
 
-    void initCamera(std::string license_dir);
+public:
+    const uint16_t min_rawtemp; // must be initialized after camera
+    const uint16_t max_rawtemp;
+
+private:
+    CameraCenter *init_camera_center(std::string license_dir);
+    Camera *init_camera();
     uint16_t findRawtempC(double temp);
 };
 
