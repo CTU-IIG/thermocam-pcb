@@ -272,10 +272,10 @@ temperature. Writes the temperatures of entered POIs to stdout.
   -p, --poi-path=FILE        Path to config file containing saved POIs.
   -r, --record-video=FILE    Record video and store it with entered filename
   -s, --show-poi=FILE        Show camera image taken at saving POIs.
-      --save-img-dir=FILE    Target directory for saving an image with POIs
+      --save-img-dir=DIR     Target directory for saving an image with POIs
                              every "save-img-period" seconds.
                              "." by default.
-      --save-img-period=NUM  Period for saving an image with POIs to
+      --save-img-period=SECS Period for saving an image with POIs to
                              "save-img-dir".
                              1s by default.
   -t, --track-points         Turn on tracking of points.
