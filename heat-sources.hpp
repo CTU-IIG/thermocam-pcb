@@ -13,12 +13,6 @@
 using namespace cv;
 namespace pt = boost::property_tree;
 
-inline double pixel2Temp(uint8_t px, double min = RECORD_MIN_C,
-                         double max = RECORD_MAX_C)
-{
-    return ((double)px) / 255 * (max - min) + min;
-}
-
 void display_mat(Mat mat){
     resize(mat, mat, Size(), 4, 4);
 
@@ -56,12 +50,9 @@ double getTemp(Point p, img_stream *is, im_status *s)
         cerr << "Point at (" << p.x << "," << p.y << ") out of image!" << endl;
         return nan("");
     }
-    int idx = s->width * p.y + p.x;
+    uint16_t pixel = s->rawtemp(p);
 
-    if (is->is_video)
-        return pixel2Temp(s->gray.data[idx]);
-    else
-        return is->camera->calculateTemperatureC(s->rawtemp[idx]);
+    return is->get_temperature(pixel);
 }
 
 Point2f apply_transformation_on_point(const Matx33f &mat, Point2f p){

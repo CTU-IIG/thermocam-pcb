@@ -14,23 +14,14 @@ string poi::to_string(bool print_name)
     return ss.str();
 }
 
-
-im_status::~im_status()
-{
-    if (rawtemp) {
-        delete[] rawtemp;
-        rawtemp = nullptr;
-    }
-    gray.release();
-}
-
 void im_status::update(img_stream *is)
 {
     if (!height || !width)
         is->get_height_width(height, width);
 
-    if (!rawtemp)
-        rawtemp = new uint16_t[height * width]{ 0 };
+    is->get_image(rawtemp);
 
-    gray = is->get_image(rawtemp);
+    rawtemp.convertTo(gray, CV_8U,
+		      255.0 / (is->max_rawtemp - is->min_rawtemp),
+		      255.0 / (1.0 - double(is->max_rawtemp) / double(is->min_rawtemp)));
 }

@@ -11,10 +11,6 @@
 #define RECORD_MAX_C 120
 
 struct img_stream {
-    const bool is_video;
-    Camera *camera = nullptr;
-    CameraCenter *cc = nullptr;
-    cv::VideoCapture *video = nullptr;
     uint16_t min_rawtemp;
     uint16_t max_rawtemp;
 
@@ -24,9 +20,18 @@ public:
 
     std::vector<std::pair<std::string, double>> getCameraComponentTemps();
 
+    // TODO: Needs this to be public?
     void get_height_width(int &height, int &width);
-    cv::Mat get_image(uint16_t *rawtemp);
+    void get_image(cv::Mat_<uint16_t> &result);
+
+    double get_temperature(uint16_t pixel_value);
+
 private:
+    const bool is_video;
+    Camera *camera = nullptr;
+    CameraCenter *cc = nullptr;
+    cv::VideoCapture *video = nullptr;
+
     void initCamera(std::string license_dir);
     uint16_t findRawtempC(double temp);
 };

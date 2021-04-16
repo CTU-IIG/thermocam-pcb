@@ -17,15 +17,13 @@ struct poi {
 
 struct im_status {
     int height=0,width=0;
-    uint16_t *rawtemp = nullptr;
+    cv::Mat_<uint16_t> rawtemp;
     cv::Mat gray;
     std::vector<poi> POI; // Points of interest
     std::vector<cv::Point2f> heat_sources_border;
     std::vector<cv::Point2f> border_frame;
     std::vector<cv::KeyPoint> kp;
     cv::Mat desc;
-
-    ~im_status();
 
     void update(img_stream *is);
 };

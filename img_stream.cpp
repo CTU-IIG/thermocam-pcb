@@ -11,6 +11,9 @@ img_stream::img_stream(string vid_in_path, string license_dir)
         if (access(vid_in_path.c_str(), F_OK) == -1) // File does not exist
             throw runtime_error("Video open: " + vid_in_path);
         video = new VideoCapture(vid_in_path);
+	// Set the same values as those returned by our camera below
+        min_rawtemp = 7231;
+        max_rawtemp = 9799;
     } else {
         initCamera(license_dir);
         camera->startAcquisition();
@@ -55,39 +58,20 @@ void img_stream::get_height_width(int &height, int &width)
     }
 }
 
-static Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
+void img_stream::get_image(Mat_<uint16_t> &result)
 {
-    if (min == 0 && max == 0) {
-        // Dynamic range
-        max = 0;
-        min = UINT16_MAX;
-        for (int i = 0; i < h * w; ++i) {
-            min = (min > temp[i]) ? temp[i] : min;
-            max = (max < temp[i]) ? temp[i] : max;
-        }
-    }
-
-    Mat G(h, w, CV_8U);
-    // Write gray values
-    double step = 255 / (double)(max - min); // Make pix values to 0-255
-    for (int i = 0; i < h * w; ++i)
-        G.data[i] = (temp[i] < min) ? 0 : (temp[i] > max) ? 255 : (temp[i] - min) * step;
-
-    return G;
-}
-
-Mat img_stream::get_image(uint16_t *rawtemp)
-{
-    // TODO: Convert this to return Mat_<uint16_t> (raw temperatures)
-    Mat gray; // output
-
     if (is_video) {
+        Mat gray; // 8-bit gray
         *video >> gray;
         if (gray.empty()) {
+            // loop to start
             video->set(cv::CAP_PROP_POS_FRAMES, 0);
             *video >> gray;
         }
         cvtColor(gray, gray, COLOR_RGB2GRAY);
+        gray.convertTo(result, CV_16U,
+                       (max_rawtemp - min_rawtemp)/256.0,
+                       min_rawtemp);
     } else {
         if (camera->getSettings()->doNothing() < 0) {
             camera->disconnect();
@@ -96,9 +80,9 @@ Mat img_stream::get_image(uint16_t *rawtemp)
         int height, width;
         get_height_width(height, width);
         uint16_t *tmp = (uint16_t *)camera->retrieveBuffer();
-        memcpy(rawtemp, tmp, height * width * sizeof(uint16_t));
+        result.create(height, width);
+        memcpy(result.data, tmp, result.total()*result.elemSize());
         camera->releaseBuffer();
-        gray = temp2gray(rawtemp, height, width, min_rawtemp, max_rawtemp);
 
         static uint16_t *last_buffer = NULL;
         static unsigned same_buffer_cnt = 0;
@@ -114,8 +98,16 @@ Mat img_stream::get_image(uint16_t *rawtemp)
             same_buffer_cnt = 0;
         }
     }
+}
 
-    return gray;
+double img_stream::get_temperature(uint16_t pixel_value)
+{
+    if (is_video)
+        return RECORD_MIN_C +
+		(RECORD_MAX_C - RECORD_MIN_C) *
+		double(pixel_value - min_rawtemp) / (max_rawtemp - min_rawtemp);
+    else
+        return camera->calculateTemperatureC(pixel_value);
 }
 
 void img_stream::initCamera(string license_dir)
