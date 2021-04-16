@@ -138,8 +138,9 @@ void img_stream::initCamera(string license_dir)
 uint16_t img_stream::findRawtempC(double temp)
 {
     uint16_t raw;
-    for (raw = 0; raw < 1 << 16; raw++)
+    for (raw = 0; raw <= UINT16_MAX; raw++)
         if (camera->calculateTemperatureC(raw) >= temp)
             return raw;
+    return UINT16_MAX;
 }
 
