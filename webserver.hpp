@@ -15,8 +15,8 @@ private:
     cv::Mat laplacian_img = {cv::Size(1, 1), CV_8U, 255};
     cv::Mat hs_img = {cv::Size(1, 1), CV_8U, 255};
     cv::Mat detail_img = {cv::Size(1, 1), CV_8U, 255};
-    std::vector<poi> POI;
-    std::vector<poi> heat_sources;
+    std::vector<POI> poi;
+    std::vector<POI> heat_sources;
     std::vector<std::pair<std::string,double>> cameraComponentTemps;
 
 public:
@@ -49,13 +49,13 @@ public:
         this->laplacian_img = img;
     }
 
-    void setPOI(std::vector<poi> POI)
+    void setPOI(std::vector<POI> poi)
     {
         std::lock_guard<std::mutex> lk(lock);
-        this->POI = POI;
+        this->poi = poi;
     }
 
-    void setHeatSources(std::vector<poi> hs)
+    void setHeatSources(std::vector<POI> hs)
     {
         std::lock_guard<std::mutex> lk(lock);
         this->heat_sources = hs;

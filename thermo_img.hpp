@@ -5,7 +5,8 @@
 #include <vector>
 #include "img_stream.hpp"
 
-struct poi {
+// Point of interrest
+struct POI {
     std::string name;
     cv::Point2f p;
     double temp;
@@ -19,7 +20,7 @@ struct im_status {
     int height=0,width=0;
     cv::Mat_<uint16_t> rawtemp;
     cv::Mat gray;
-    std::vector<poi> POI; // Points of interest
+    std::vector<POI> poi; // Points of interest
     std::vector<cv::Point2f> heat_sources_border;
     std::vector<cv::Point2f> border_frame;
     std::vector<cv::KeyPoint> kp;

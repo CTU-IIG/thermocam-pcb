@@ -5,7 +5,7 @@
 using namespace std;
 using namespace cv;
 
-string poi::to_string(bool print_name)
+string POI::to_string(bool print_name)
 {
     stringstream ss;
     if (print_name)

@@ -62,7 +62,7 @@ Point2f apply_transformation_on_point(const Matx33f &mat, Point2f p){
     return Point2f(max(0.0f, round(point.x)), max(0.0f, round(point.y)));   //sometimes transformation moves point around 0 close to -1.
 }
 
-vector<poi> heatSources(im_status &s, img_stream &is, Mat &laplacian, Mat &hsImg, Mat &detail)
+vector<POI> heatSources(im_status &s, img_stream &is, Mat &laplacian, Mat &hsImg, Mat &detail)
 {
     for (auto &p : s.heat_sources_border) {
         if (p.x < 0 || p.x > s.width || p.y < 0 || p.y > s.height) {
@@ -108,7 +108,7 @@ vector<poi> heatSources(im_status &s, img_stream &is, Mat &laplacian, Mat &hsImg
     vector<Point> lm = localMaxima(I, dump);    //Local maxima has to be calculated on shifted image to gain precise temperatures
     localMaxima(laplacian, hsImg);      //For display we use transformed image
 
-    vector<poi> hs(lm.size());
+    vector<POI> hs(lm.size());
     for (unsigned i=0; i<lm.size(); i++) {
         hs[i].p = lm[i] + Point(x_min,y_min);
         hs[i].temp = getTemp(hs[i].p,is,s);

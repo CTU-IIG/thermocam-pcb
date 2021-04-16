@@ -39,10 +39,10 @@ enum opt {
 
 /* Command line options */
 struct cmd_arguments{
-    bool enter_POI = false;
-    string POI_export_path;
-    string POI_import_path;
-    string show_POI_path;
+    bool enter_poi = false;
+    string poi_export_path;
+    string poi_import_path;
+    string show_poi_path;
     string license_dir;
     string vid_in_path;
     string vid_out_path;
@@ -107,34 +107,34 @@ void imgPrintStrings(Mat& img, vector<string> strings, Point2f p, Scalar color)
     }
 }
 
-int getSidebarWidth(vector<poi> POI)
+int getSidebarWidth(vector<POI> poi)
 {
     int max = 0; // max text width
     int bl = 0; // baseline
-    for (unsigned i = 0; i < POI.size(); i++) {
-        string s = "00: " + POI[i].name + " 000.00 C";
+    for (unsigned i = 0; i < poi.size(); i++) {
+        string s = "00: " + poi[i].name + " 000.00 C";
         Size sz = getTextSize(s, FONT_HERSHEY_COMPLEX_SMALL, 1, 2, &bl);
         max = (sz.width > max) ? sz.width : max;
     }
     return max;
 }
 
-void drawSidebar(Mat& img, vector<poi> POI)
+void drawSidebar(Mat& img, vector<POI> poi)
 {
     // Draw sidebar
-    int sbw = getSidebarWidth(POI);
+    int sbw = getSidebarWidth(poi);
     copyMakeBorder(img, img, 0, 0, 0, sbw, BORDER_CONSTANT, Scalar(255, 255, 255));
 
     // Print point names and temperatures
-    vector<string> s(POI.size());
-    for (unsigned i = 0; i < POI.size(); i++)
-        s[i] = to_string(i) + ": " + POI[i].to_string() + " C";
+    vector<string> s(poi.size());
+    for (unsigned i = 0; i < poi.size(); i++)
+        s[i] = to_string(i) + ": " + poi[i].to_string() + " C";
     Point2f print_coords = { (float)(img.cols - sbw + 5), 0 };
     imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
 }
 
 // Only draw points into red channel, so original image can be retrieved
-Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
+Mat drawPOI(Mat in, vector<POI> poi, draw_mode mode)
 {
 
     Mat BG, R, BGR;
@@ -145,27 +145,27 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
 
     resize(R, R, Size(), 2, 2); // Enlarge image 2x for better looking fonts
     if (mode == NUM)
-        drawSidebar(R, POI);
+        drawSidebar(R, poi);
     BG = R.clone();
 
-    for (unsigned i = 0; i < POI.size(); i++) {
-        POI[i].p *= 2; // Rescale points with image
-        circle(R, POI[i].p, 4, Scalar(255,255,255), -1); // Dot at POI position
+    for (unsigned i = 0; i < poi.size(); i++) {
+        poi[i].p *= 2; // Rescale points with image
+        circle(R, poi[i].p, 4, Scalar(255,255,255), -1); // Dot at POI position
 
         // Print point labels
         vector<string> label;
         switch (mode) {
         case FULL:
-            label = { POI[i].name, POI[i].to_string(false).append(" C") };
+            label = { poi[i].name, poi[i].to_string(false).append(" C") };
             break;
         case TEMP:
-            label = { POI[i].to_string(false).append(" C") };
+            label = { poi[i].to_string(false).append(" C") };
             break;
         case NUM:
             label = { to_string(i) };
             break;
         }
-        imgPrintStrings(R, label, POI[i].p, Scalar(255,255,255));
+        imgPrintStrings(R, label, poi[i].p, Scalar(255,255,255));
     }
 
     vector<Mat> v = {BG,BG,R};
@@ -189,24 +189,24 @@ void highlight_core(im_status &s, Mat &image){
     merge(v, image);
 }
 
-void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
+void writePOI(vector<POI> poi, Mat last_img, string path, bool verbose = false)
 {
-    pt::ptree root, POI_pt, POI_img;
-    for (unsigned i = 0; i < POI.size(); i++) {
+    pt::ptree root, poi_pt, poi_img;
+    for (unsigned i = 0; i < poi.size(); i++) {
         pt::ptree elem;
-        elem.put("name", POI[i].name);
-        elem.put("x", POI[i].p.x);
-        elem.put("y", POI[i].p.y);
-        elem.put("temp", POI[i].temp);
-        POI_pt.push_back(std::make_pair("", elem));
+        elem.put("name", poi[i].name);
+        elem.put("x", poi[i].p.x);
+        elem.put("y", poi[i].p.y);
+        elem.put("temp", poi[i].temp);
+        poi_pt.push_back(std::make_pair("", elem));
     }
-    root.add_child("POI", POI_pt);
+    root.add_child("POI", poi_pt);
 
     vector<uchar> img_v;
     imencode(".jpg",last_img,img_v);
     string img_s(img_v.begin(),img_v.end());
-    POI_img.put("", macaron::Base64::Encode(img_s));
-    root.add_child("POI img", POI_img);
+    poi_img.put("", macaron::Base64::Encode(img_s));
+    root.add_child("POI img", poi_img);
 
     pt::write_json(path, root);
 
@@ -214,16 +214,16 @@ void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
         cout << "Points saved to " << path << endl;
 }
 
-vector<poi> readPOI(string path)
+vector<POI> readPOI(string path)
 {
-    vector<poi> POI;
+    vector<POI> poi;
     pt::ptree root;
     pt::read_json(path, root);
     for (pt::ptree::value_type &p : root.get_child("POI"))
-        POI.push_back({ p.second.get<string>("name"),
+        poi.push_back({ p.second.get<string>("name"),
                         { p.second.get<float>("x"), p.second.get<float>("y") },
                         p.second.get<double>("temp"), 0, 0});
-    return POI;
+    return poi;
 }
 
 Mat readJsonImg(string path)
@@ -247,15 +247,15 @@ void updatePOICoords(im_status &s, const im_status &ref)
     if (H.empty()) // Couldn't find homography - points stay the same
         return;
 
-    for (unsigned i=0; i<s.POI.size(); i++) {
-        vector<Point2f> v = { ref.POI[i].p };
+    for (unsigned i=0; i<s.poi.size(); i++) {
+        vector<Point2f> v = { ref.poi[i].p };
         perspectiveTransform(v, v, H); // only takes vector of points as input
-        s.POI[i].p = v[0];
+        s.poi[i].p = v[0];
 
         // Variance of sum of 2 random variables the same as sum of variances
         // So we only need to track 1 variance per point
-        r_var[i](s.POI[i].p.x + s.POI[i].p.y);
-        s.POI[i].rolling_std = sqrt(acc::rolling_variance(r_var[i]));
+        r_var[i](s.poi[i].p.x + s.poi[i].p.y);
+        s.poi[i].rolling_std = sqrt(acc::rolling_variance(r_var[i]));
     }
 
     if (ref.heat_sources_border.size() > 0)
@@ -273,8 +273,8 @@ void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tra
 {
     s.update(is);
 
-    if(s.POI.size() == 0  || !tracking_on) {
-        s.POI = ref.POI;
+    if(s.poi.size() == 0  || !tracking_on) {
+        s.poi = ref.poi;
         s.heat_sources_border = ref.heat_sources_border;
     }
 
@@ -284,7 +284,7 @@ void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tra
     }
 
 
-    for (poi& point : s.POI)
+    for (POI& point : s.poi)
         point.temp = getTemp((Point)point.p, is, s);
 
 }
@@ -328,7 +328,7 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
         s.update(is);
     } else {
         s.gray = readJsonImg(poi_filename);
-        s.POI = readPOI(poi_filename);
+        s.poi = readPOI(poi_filename);
         s.width = s.gray.cols;
         s.height = s.gray.rows;
     }
@@ -340,8 +340,8 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
             throw runtime_error("Four heat source point names are required, not " + to_string(pt_names.size()) +
                                 " as in: " + heat_sources_border_points);
         for (auto &name: pt_names) {
-            poi *p = nullptr;
-            for (auto &poi : s.POI) {
+            POI *p = nullptr;
+            for (auto &poi : s.poi) {
                 if (poi.name == name) {
                     p = &poi;
                     break;
@@ -350,7 +350,7 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
             if (!p)
                 throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
             hs_border.push_back(p->p);
-            remove_if(s.POI.begin(), s.POI.end(), [p](poi &pp){return &pp == p;});
+            remove_if(s.poi.begin(), s.poi.end(), [p](POI &pp){return &pp == p;});
         }
     }
 
@@ -358,7 +358,7 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
         updateKpDesc(s);
         trainMatcher(s.desc); // train once on reference image
         // Calculate point position rolling variance from last 20 images
-        r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s.POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
+        r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s.poi.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
     }
 
     if (!hs_border.empty()) {
@@ -379,11 +379,11 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
 void onMouse(int event, int x, int y, int flags, void *param)
 {
     if (event == EVENT_LBUTTONDOWN) {
-        vector<poi> &POI = *((vector<poi> *)(param));
-        string name = "Point " + to_string(POI.size());
+        vector<POI> &poi = *((vector<POI> *)(param));
+        string name = "Point " + to_string(poi.size());
         // The image is upscaled 2x when displaying POI
         // Thus we need to divide coords by 2 when getting mouse input
-        POI.push_back({ name, { (float)x/2, (float)y/2 } });
+        poi.push_back({ name, { (float)x/2, (float)y/2 } });
     }
 }
 
@@ -396,39 +396,39 @@ string clkDateTimeString(chrono::time_point<chrono::system_clock> clk){
     return s;
 }
 
-string csvHeaderPOI(vector<poi> POI){
+string csvHeaderPOI(vector<POI> poi){
     string s;
     s = "Time";
-    for (unsigned i = 0; i < POI.size(); i++)
-        s += ", " + POI[i].name + " [°C]";
+    for (unsigned i = 0; i < poi.size(); i++)
+        s += ", " + poi[i].name + " [°C]";
     s += "\n";
     return s;
 }
 
-string csvRowPOI(vector<poi> POI){
+string csvRowPOI(vector<POI> poi){
     stringstream ss;
     ss << clkDateTimeString(chrono::system_clock::now());
-    for (unsigned i = 0; i < POI.size(); i++)
-        ss << ", " << fixed << setprecision(2) << POI[i].temp;
+    for (unsigned i = 0; i < poi.size(); i++)
+        ss << ", " << fixed << setprecision(2) << poi[i].temp;
     ss << endl;
     return ss.str();
 }
 
-void printPOITemp(vector<poi> POI, string file)
+void printPOITemp(vector<POI> poi, string file)
 {
-    if (POI.size() == 0)
+    if (poi.size() == 0)
         return;
 
     if (file.empty()) {
         cout << "Temperature of points of interest:";
-        for (unsigned i = 0; i < POI.size(); i++)
-            cout << " " << POI[i].to_string();
+        for (unsigned i = 0; i < poi.size(); i++)
+            cout << " " << poi[i].to_string();
         cout << endl;
     } else {
         string str;
         if (access(file.c_str(), F_OK) == -1) // File does not exist
-            str += csvHeaderPOI(POI);
-        str += csvRowPOI(POI);
+            str += csvHeaderPOI(poi);
+        str += csvRowPOI(poi);
         ofstream f(file, ofstream::app);
         f << str;
         f.close();
@@ -436,9 +436,9 @@ void printPOITemp(vector<poi> POI, string file)
 }
 
 void showPOIImg(string path){
-    vector<poi> POI =  readPOI(path);
+    vector<POI> poi =  readPOI(path);
     Mat img = readJsonImg(path);
-    Mat imdraw = drawPOI(img, POI, draw_mode::NUM);
+    Mat imdraw = drawPOI(img, poi, draw_mode::NUM);
     string title = "POI from " + path;
     imshow(title,imdraw);
     waitKey(0);
@@ -450,16 +450,16 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
                       string poi_csv_file, bool tracking_on)
 {
     updateImStatus(curr, is, ref, tracking_on);
-    printPOITemp(curr.POI, poi_csv_file);
+    printPOITemp(curr.poi, poi_csv_file);
 
-    vector<poi> hs;
+    vector<POI> hs;
     Mat laplacian, hsImg, detail;
     if (curr.heat_sources_border.size() > 0) {
         curr.border_frame = ref.border_frame;
         hs = heatSources(curr, is, laplacian, hsImg, detail);
     }
 
-    Mat img = drawPOI(curr.gray, curr.POI, curr_draw_mode);
+    Mat img = drawPOI(curr.gray, curr.poi, curr_draw_mode);
     highlight_core(curr, img);
 
     if (vw)
@@ -473,7 +473,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
             webserver->setHSImg(hsImg);
         if (!detail.empty())
             webserver->setDetail(detail);
-        webserver->setPOI(curr.POI);
+        webserver->setPOI(curr.poi);
         webserver->setHeatSources(hs);
         webserver->setCameraComponentTemps(is.getCameraComponentTemps());
     }
@@ -483,14 +483,14 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     }
 }
 
-bool handle_input(bool enter_POI, im_status &ref)
+bool handle_input(bool enter_poi, im_status &ref)
 {
     bool is_exit = false;
 
     if (gui_available) {
         char key = waitKey(1) & 0xEFFFFF;
-        if (key == 8 && enter_POI && ref.POI.size() > 0) // Backspace
-            ref.POI.pop_back();
+        if (key == 8 && enter_poi && ref.poi.size() > 0) // Backspace
+            ref.poi.pop_back();
         if (key == 9) // Tab
             curr_draw_mode = next(curr_draw_mode);
         if (key == 27) // Esc
@@ -512,8 +512,8 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
 
     if (gui_available)
         namedWindow(window_name, WINDOW_NORMAL);
-    if (gui_available && args.enter_POI)
-        setMouseCallback(window_name, onMouse, &ref.POI);
+    if (gui_available && args.enter_poi)
+        setMouseCallback(window_name, onMouse, &ref.poi);
     if (!args.vid_out_path.empty()) {
         int scale = args.tracking_on ? 2 : 1;
         bool isColor = args.tracking_on;
@@ -542,14 +542,14 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
                          args.poi_csv_file, args.tracking_on);
         auto end = chrono::system_clock::now();
 
-        exit = handle_input(args.enter_POI, ref);
+        exit = handle_input(args.enter_poi, ref);
 
         if (args.save_img &&
                 duration_us(save_img_clk, end) > args.save_img_period * 1000000) {
             save_img_clk = chrono::system_clock::now();
             string img_path = args.save_img_dir + "/"
                               + clkDateTimeString(save_img_clk) + ".png";
-            imwrite(img_path, drawPOI(curr.gray, curr.POI, draw_mode::NUM));
+            imwrite(img_path, drawPOI(curr.gray, curr.poi, draw_mode::NUM));
         }
         double process_time_us = duration_us(begin, end);
         if (args.display_delay_us > process_time_us)
@@ -566,15 +566,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
 {
     switch (key) {
     case 'e':
-        args.enter_POI = true;
+        args.enter_poi = true;
         if(arg != NULL)
-            args.POI_export_path = arg;
+            args.poi_export_path = arg;
         break;
     case 'p':
-        args.POI_import_path = arg;
+        args.poi_import_path = arg;
         break;
     case 's':
-        args.show_POI_path = arg;
+        args.show_poi_path = arg;
         break;
     case 'l':
         args.license_dir = arg;
@@ -674,29 +674,29 @@ int main(int argc, char **argv)
 {
     argp_parse(&argp, argc, argv, 0, 0, NULL);
 
-    if (args.enter_POI && args.tracking_on)
+    if (args.enter_poi && args.tracking_on)
         err(1,"Can't enter points and have tracking enabled at the same time!");
 
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);
     detectDisplay();
 
-    if (!args.show_POI_path.empty() && gui_available) {
-        showPOIImg(args.show_POI_path);
+    if (!args.show_poi_path.empty() && gui_available) {
+        showPOIImg(args.show_poi_path);
         exit(0);
     }
 
     img_stream is(args.vid_in_path, args.license_dir);
     im_status ref, curr;
-    setRefStatus(ref, is, args.POI_import_path, args.tracking_on, args.heat_sources_border_points);
+    setRefStatus(ref, is, args.poi_import_path, args.tracking_on, args.heat_sources_border_points);
 
     if (args.webserver_active)
         webserver = new Webserver();
 
     processStream(is, ref, curr, args);
 
-    if (!args.POI_export_path.empty())
-        writePOI(curr.POI, curr.gray, args.POI_export_path, true);
+    if (!args.poi_export_path.empty())
+        writePOI(curr.poi, curr.gray, args.poi_export_path, true);
 
     if (webserver)
         webserver->terminate();
