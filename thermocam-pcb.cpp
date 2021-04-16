@@ -172,6 +172,21 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
     return BGR;
 }
 
+void highlight_core(im_status *s, Mat &image){
+    Mat BG, R, BRG;
+    R = image.clone();
+    if (R.channels() == 3)
+        cvtColor(R, R, COLOR_RGB2GRAY);
+    BG = R.clone();
+
+    for(int i = 0; i < s->heat_sources_border.size(); i++){
+        line(R, s->heat_sources_border[i] * 2, s->heat_sources_border[(i + 1) % s->heat_sources_border.size()] * 2,
+                Scalar(255,255,255));
+    }
+    vector<Mat> v = {BG,BG,R};
+    merge(v, image);
+}
+
 void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
 {
     pt::ptree root, POI_pt, POI_img;
@@ -442,6 +457,7 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
     }
 
     Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
+    highlight_core(curr, img);
 
     if (vw)
         vw->write(tracking_on ? img : curr->gray);

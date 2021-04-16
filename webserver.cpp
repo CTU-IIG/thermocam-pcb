@@ -35,22 +35,22 @@ R"(
           </script>
 	</div>
 	<div style="margin-right: 1em;">
-          <h2>Heat-sources</h2>
-          <img src="heat_sources-current.jpg" id=hs />
-          <script>
-            var counter = 0;
-            function reloadImgHs() {
-            document.getElementById('hs').src='heat_sources-current.jpg?c=' + counter++;
-            }
-          </script>
-	</div>
-	<div>
           <h2>Laplacian</h2>
           <img src="laplacian-current.jpg" id=laplacian />
           <script>
             var counter = 0;
             function reloadLaplacian() {
             document.getElementById('laplacian').src='laplacian-current.jpg?c=' + counter++;
+            }
+          </script>
+	</div>
+	<div>
+          <h2>Heat-sources</h2>
+          <img src="heat_sources-current.jpg" id=hs />
+          <script>
+            var counter = 0;
+            function reloadImgHs() {
+            document.getElementById('hs').src='heat_sources-current.jpg?c=' + counter++;
             }
           </script>
 	</div>
