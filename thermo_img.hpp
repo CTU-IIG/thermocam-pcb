@@ -25,7 +25,7 @@ struct im_status {
     std::vector<cv::KeyPoint> kp;
     cv::Mat desc;
 
-    void update(img_stream *is);
+    void update(img_stream &is);
 };
 
 #endif // THERMO_IMG_HPP

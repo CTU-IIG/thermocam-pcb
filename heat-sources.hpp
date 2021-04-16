@@ -44,15 +44,15 @@ vector<Point> localMaxima(Mat I, Mat &hs)
     return locations;
 }
 
-double getTemp(Point p, img_stream *is, im_status *s)
+double getTemp(Point p, img_stream &is, im_status &s)
 {
-    if (p.y < 0 || p.y > s->height || p.x < 0 || p.x > s->width) {
+    if (p.y < 0 || p.y > s.height || p.x < 0 || p.x > s.width) {
         cerr << "Point at (" << p.x << "," << p.y << ") out of image!" << endl;
         return nan("");
     }
-    uint16_t pixel = s->rawtemp(p);
+    uint16_t pixel = s.rawtemp(p);
 
-    return is->get_temperature(pixel);
+    return is.get_temperature(pixel);
 }
 
 Point2f apply_transformation_on_point(const Matx33f &mat, Point2f p){
@@ -62,16 +62,16 @@ Point2f apply_transformation_on_point(const Matx33f &mat, Point2f p){
     return Point2f(max(0.0f, round(point.x)), max(0.0f, round(point.y)));   //sometimes transformation moves point around 0 close to -1.
 }
 
-vector<poi> heatSources(im_status *s, img_stream *is, Mat &laplacian, Mat &hsImg, Mat &detail)
+vector<poi> heatSources(im_status &s, img_stream &is, Mat &laplacian, Mat &hsImg, Mat &detail)
 {
-    for (auto &p : s->heat_sources_border) {
-        if (p.x < 0 || p.x > s->width || p.y < 0 || p.y > s->height) {
+    for (auto &p : s.heat_sources_border) {
+        if (p.x < 0 || p.x > s.width || p.y < 0 || p.y > s.height) {
             cerr << "Heat source border out of the image!" << endl;
             return {};
         }
     }
 
-    Mat I = s->gray.clone();
+    Mat I = s.gray.clone();
     I.convertTo(I, CV_64F);
 
     double blur_sigma = 5;
@@ -83,14 +83,14 @@ vector<poi> heatSources(im_status *s, img_stream *is, Mat &laplacian, Mat &hsImg
     // Mask points outside of heat source border polygon
     Mat mask(I.rows, I.cols, CV_64F, std::numeric_limits<double>::min());
     Mat border_int32; // fillConvexPoly needs int32 points
-    Mat(s->heat_sources_border).convertTo(border_int32, CV_32S);
+    Mat(s.heat_sources_border).convertTo(border_int32, CV_32S);
 
     fillConvexPoly(mask, border_int32, Scalar(1), CV_AA);
     I = I.mul(mask); // Mask all values outside of border
 
     // Crop minimum rectangle containing border polygon for speed
     int x_max = INT_MIN, y_max = INT_MIN, x_min = INT_MAX, y_min = INT_MAX;
-    for (auto el : s->heat_sources_border) {
+    for (auto el : s.heat_sources_border) {
         x_max = (x_max < el.x) ? el.x : x_max;
         y_max = (y_max < el.y) ? el.y : y_max;
         x_min = (x_min > el.x) ? el.x : x_min;
@@ -100,9 +100,9 @@ vector<poi> heatSources(im_status *s, img_stream *is, Mat &laplacian, Mat &hsImg
     I = I(rect);
 
     /* Applies perspective transform to obtain correct detail of the core */
-    Mat transform = getPerspectiveTransform(s->heat_sources_border, s->border_frame);
-    warpPerspective(laplacian, laplacian, transform, Size(s->border_frame[2]));
-    warpPerspective(s->gray, detail, transform, Size(s->border_frame[2]));
+    Mat transform = getPerspectiveTransform(s.heat_sources_border, s.border_frame);
+    warpPerspective(laplacian, laplacian, transform, Size(s.border_frame[2]));
+    warpPerspective(s.gray, detail, transform, Size(s.border_frame[2]));
 
     Mat dump;
     vector<Point> lm = localMaxima(I, dump);    //Local maxima has to be calculated on shifted image to gain precise temperatures

@@ -174,15 +174,15 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
     return BGR;
 }
 
-void highlight_core(im_status *s, Mat &image){
+void highlight_core(im_status &s, Mat &image){
     Mat BG, R, BRG;
     R = image.clone();
     if (R.channels() == 3)
         cvtColor(R, R, COLOR_RGB2GRAY);
     BG = R.clone();
 
-    for(unsigned i = 0; i < s->heat_sources_border.size(); i++){
-        line(R, s->heat_sources_border[i] * 2, s->heat_sources_border[(i + 1) % s->heat_sources_border.size()] * 2,
+    for(unsigned i = 0; i < s.heat_sources_border.size(); i++){
+        line(R, s.heat_sources_border[i] * 2, s.heat_sources_border[(i + 1) % s.heat_sources_border.size()] * 2,
                 Scalar(255,255,255));
     }
     vector<Mat> v = {BG,BG,R};
@@ -239,43 +239,43 @@ Mat readJsonImg(string path)
     return imdecode(decoded_v,0);
 }
 
-void updatePOICoords(im_status *s, const im_status *ref)
+void updatePOICoords(im_status &s, const im_status &ref)
 {
-    std::vector<cv::DMatch> matches = matchToReference(s->desc);
-    Mat H = findH(ref->kp, s->kp, matches);
+    std::vector<cv::DMatch> matches = matchToReference(s.desc);
+    Mat H = findH(ref.kp, s.kp, matches);
 
     if (H.empty()) // Couldn't find homography - points stay the same
         return;
 
-    for (unsigned i=0; i<s->POI.size(); i++) {
-        vector<Point2f> v = { ref->POI[i].p };
+    for (unsigned i=0; i<s.POI.size(); i++) {
+        vector<Point2f> v = { ref.POI[i].p };
         perspectiveTransform(v, v, H); // only takes vector of points as input
-        s->POI[i].p = v[0];
+        s.POI[i].p = v[0];
 
         // Variance of sum of 2 random variables the same as sum of variances
         // So we only need to track 1 variance per point
-        r_var[i](s->POI[i].p.x + s->POI[i].p.y);
-        s->POI[i].rolling_std = sqrt(acc::rolling_variance(r_var[i]));
+        r_var[i](s.POI[i].p.x + s.POI[i].p.y);
+        s.POI[i].rolling_std = sqrt(acc::rolling_variance(r_var[i]));
     }
 
-    if (ref->heat_sources_border.size() > 0)
-        perspectiveTransform(ref->heat_sources_border, s->heat_sources_border, H);
+    if (ref.heat_sources_border.size() > 0)
+        perspectiveTransform(ref.heat_sources_border, s.heat_sources_border, H);
 }
 
-void updateKpDesc(im_status *s)
+void updateKpDesc(im_status &s)
 {
-    Mat pre = preprocess(s->gray);
-    s->kp = getKeyPoints(pre);
-    s->desc = getDescriptors(pre, s->kp);
+    Mat pre = preprocess(s.gray);
+    s.kp = getKeyPoints(pre);
+    s.desc = getDescriptors(pre, s.kp);
 }
 
-void updateImStatus(im_status *s, img_stream *is, const im_status *ref, bool tracking_on)
+void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tracking_on)
 {
-    s->update(is);
+    s.update(is);
 
-    if(s->POI.size() == 0  || !tracking_on) {
-        s->POI = ref->POI;
-        s->heat_sources_border = ref->heat_sources_border;
+    if(s.POI.size() == 0  || !tracking_on) {
+        s.POI = ref.POI;
+        s.heat_sources_border = ref.heat_sources_border;
     }
 
     if (tracking_on) {
@@ -284,7 +284,7 @@ void updateImStatus(im_status *s, img_stream *is, const im_status *ref, bool tra
     }
 
 
-    for (poi& point : s->POI)
+    for (poi& point : s.POI)
         point.temp = getTemp((Point)point.p, is, s);
 
 }
@@ -307,29 +307,29 @@ vector<string> split(const string str, const char *delimiters)
     return words;
 }
 
-void setFixedFrame(im_status *im){
+void setFixedFrame(im_status &im){
     int x_max = INT_MIN, y_max = INT_MIN, x_min = INT_MAX, y_min = INT_MAX;
-    for (auto el : im->heat_sources_border) {
+    for (auto el : im.heat_sources_border) {
         x_max = (x_max < el.x) ? el.x : x_max;
         y_max = (y_max < el.y) ? el.y : y_max;
         x_min = (x_min > el.x) ? el.x : x_min;
         y_min = (y_min > el.y) ? el.y : y_min;
     }
 
-    im->border_frame = {cv::Point2f(0, 0),
-                        cv::Point2f(x_max - x_min, 0),
-                        cv::Point2f(x_max - x_min, y_max - y_min),
-                        cv::Point2f(0, y_max - y_min)};
+    im.border_frame = {cv::Point2f(0, 0),
+                       cv::Point2f(x_max - x_min, 0),
+		       cv::Point2f(x_max - x_min, y_max - y_min),
+		       cv::Point2f(0, y_max - y_min)};
 }
 
-void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on, string heat_sources_border_points)
+void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracking_on, string heat_sources_border_points)
 {
     if (poi_filename.empty()) {
-        s->update(is);
+        s.update(is);
     } else {
-        s->gray = readJsonImg(poi_filename);
-        s->POI = readPOI(poi_filename);
-	is->get_height_width(s->height, s->width);
+        s.gray = readJsonImg(poi_filename);
+        s.POI = readPOI(poi_filename);
+        is.get_height_width(s.height, s.width);
     }
 
     vector<Point2f> hs_border;
@@ -340,7 +340,7 @@ void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracki
 				" as in: " + heat_sources_border_points);
 	for (auto &name: pt_names) {
 	    poi *p = nullptr;
-	    for (auto &poi : s->POI) {
+	    for (auto &poi : s.POI) {
 		if (poi.name == name) {
 		    p = &poi;
 		    break;
@@ -349,28 +349,28 @@ void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracki
 	    if (!p)
 		throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
 	    hs_border.push_back(p->p);
-	    remove_if(s->POI.begin(), s->POI.end(), [p](poi &pp){return &pp == p;});
+	    remove_if(s.POI.begin(), s.POI.end(), [p](poi &pp){return &pp == p;});
 	}
     }
 
     if (tracking_on) {
         updateKpDesc(s);
-        trainMatcher(s->desc); // train once on reference image
+        trainMatcher(s.desc); // train once on reference image
         // Calculate point position rolling variance from last 20 images
-        r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s->POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
+        r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s.POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
     }
 
     if (!hs_border.empty()) {
         // Find perspective transform from heat source border to reference frame
         im_status hs;
-        hs.gray = s->gray;
+        hs.gray = s.gray;
 
-        updateKpDesc(&hs);
+        updateKpDesc(hs);
         std::vector<cv::DMatch> matches = matchToReference(hs.desc); // Why this takes so long?
-        Mat H = findH(s->kp, hs.kp, matches);
+        Mat H = findH(s.kp, hs.kp, matches);
         H = H.inv();
 
-        perspectiveTransform(hs_border, s->heat_sources_border, H);
+        perspectiveTransform(hs_border, s.heat_sources_border, H);
         setFixedFrame(s);
     }
 }
@@ -444,25 +444,25 @@ void showPOIImg(string path){
     destroyAllWindows();
 }
 
-void processNextFrame(img_stream *is, const im_status *ref, im_status *curr,
+void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
 		      string window_name, VideoWriter *vw,
 		      string poi_csv_file, bool tracking_on)
 {
     updateImStatus(curr, is, ref, tracking_on);
-    printPOITemp(curr->POI, poi_csv_file);
+    printPOITemp(curr.POI, poi_csv_file);
 
     vector<poi> hs;
     Mat laplacian, hsImg, detail;
-    if (curr->heat_sources_border.size() > 0) {
-        curr->border_frame = ref->border_frame;
+    if (curr.heat_sources_border.size() > 0) {
+        curr.border_frame = ref.border_frame;
         hs = heatSources(curr, is, laplacian, hsImg, detail);
     }
 
-    Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
+    Mat img = drawPOI(curr.gray, curr.POI, curr_draw_mode);
     highlight_core(curr, img);
 
     if (vw)
-        vw->write(tracking_on ? img : curr->gray);
+        vw->write(tracking_on ? img : curr.gray);
 
     if (webserver) {
         webserver->setImg(img);
@@ -472,9 +472,9 @@ void processNextFrame(img_stream *is, const im_status *ref, im_status *curr,
             webserver->setHSImg(hsImg);
         if (!detail.empty())
             webserver->setDetail(detail);
-        webserver->setPOI(curr->POI);
+        webserver->setPOI(curr.POI);
         webserver->setHeatSources(hs);
-        webserver->setCameraComponentTemps(is->getCameraComponentTemps());
+        webserver->setCameraComponentTemps(is.getCameraComponentTemps());
     }
 
     if (gui_available) {
@@ -482,14 +482,14 @@ void processNextFrame(img_stream *is, const im_status *ref, im_status *curr,
     }
 }
 
-bool handle_input(bool enter_POI, im_status *ref)
+bool handle_input(bool enter_POI, im_status &ref)
 {
     bool is_exit = false;
 
     if (gui_available) {
         char key = waitKey(1) & 0xEFFFFF;
-        if (key == 8 && enter_POI && ref->POI.size() > 0) // Backspace
-            ref->POI.pop_back();
+        if (key == 8 && enter_POI && ref.POI.size() > 0) // Backspace
+            ref.POI.pop_back();
         if (key == 9) // Tab
             curr_draw_mode = next(curr_draw_mode);
         if (key == 27) // Esc
@@ -502,7 +502,7 @@ bool handle_input(bool enter_POI, im_status *ref)
     return is_exit;
 }
 
-void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_arguments *args)
+void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_arguments &args)
 {
     int exit = 0;
     VideoWriter *vw = nullptr;
@@ -511,25 +511,25 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
 
     if (gui_available)
         namedWindow(window_name, WINDOW_NORMAL);
-    if (gui_available && args->enter_POI)
-        setMouseCallback(window_name, onMouse, &ref->POI);
-    if (!args->vid_out_path.empty()) {
-        int scale = args->tracking_on ? 2 : 1;
-        bool isColor = args->tracking_on;
-        string cc = args->fourcc;
-        vw = new VideoWriter(args->vid_out_path,
+    if (gui_available && args.enter_POI)
+        setMouseCallback(window_name, onMouse, &ref.POI);
+    if (!args.vid_out_path.empty()) {
+        int scale = args.tracking_on ? 2 : 1;
+        bool isColor = args.tracking_on;
+        string cc = args.fourcc;
+        vw = new VideoWriter(args.vid_out_path,
                              cv::VideoWriter::fourcc(cc[0], cc[1], cc[2], cc[3]),
-                             CAM_FPS, Size(ref->width*scale, ref->height*scale),
+                             CAM_FPS, Size(ref.width*scale, ref.height*scale),
                              isColor);
 	if (!vw->isOpened()) {
-	    warnx("VideoWriter for %s not available", args->vid_out_path.c_str());
+	    warnx("VideoWriter for %s not available", args.vid_out_path.c_str());
 	    return;
 	}
     }
 
     bool watchdog_enabled = sd_watchdog_enabled(true, NULL) > 0;
 
-    if (args->save_img)
+    if (args.save_img)
         save_img_clk = chrono::system_clock::now();
 
     while (!exit) {
@@ -538,21 +538,21 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
 
         auto begin = chrono::system_clock::now();
         processNextFrame(is, ref, curr, window_name, vw,
-			 args->poi_csv_file, args->tracking_on);
+			 args.poi_csv_file, args.tracking_on);
         auto end = chrono::system_clock::now();
 
-	exit = handle_input(args->enter_POI, ref);
+	exit = handle_input(args.enter_POI, ref);
 
-        if (args->save_img &&
-            duration_us(save_img_clk, end) > args->save_img_period * 1000000) {
+        if (args.save_img &&
+            duration_us(save_img_clk, end) > args.save_img_period * 1000000) {
             save_img_clk = chrono::system_clock::now();
-            string img_path = args->save_img_dir + "/"
+            string img_path = args.save_img_dir + "/"
                               + clkDateTimeString(save_img_clk) + ".png";
-            imwrite(img_path, drawPOI(curr->gray, curr->POI, draw_mode::NUM));
+            imwrite(img_path, drawPOI(curr.gray, curr.POI, draw_mode::NUM));
         }
         double process_time_us = duration_us(begin, end);
-        if (args->display_delay_us > process_time_us)
-            usleep(args->display_delay_us - process_time_us);
+        if (args.display_delay_us > process_time_us)
+            usleep(args.display_delay_us - process_time_us);
     }
 
     if (gui_available)
@@ -687,12 +687,12 @@ int main(int argc, char **argv)
 
     img_stream is(args.vid_in_path, args.license_dir);
     im_status ref, curr;
-    setRefStatus(&ref, &is, args.POI_import_path, args.tracking_on, args.heat_sources_border_points);
+    setRefStatus(ref, is, args.POI_import_path, args.tracking_on, args.heat_sources_border_points);
 
     if (args.webserver_active)
         webserver = new Webserver();
 
-    processStream(&is, &ref, &curr, &args);
+    processStream(is, ref, curr, args);
 
     if (!args.POI_export_path.empty())
         writePOI(curr.POI, curr.gray, args.POI_export_path, true);
