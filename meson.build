@@ -4,6 +4,9 @@ project('thermocam-pcb', ['cpp'],
 
 cxx = meson.get_compiler('cpp')
 
+# Get rid of some warnings from WIC SDK and Crow
+add_global_arguments('-Wno-unknown-pragmas', '-Wno-non-virtual-dtor', language : 'cpp')
+
 if cxx.has_header('CameraCenter.h', args : '-I@0@/include'.format(get_option('wic_home')))
   wic_dep = declare_dependency(
     include_directories : include_directories(get_option('wic_home') / 'include'),

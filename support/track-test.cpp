@@ -1370,7 +1370,7 @@ Mat manualSelectHomography(Mat I_ref, Mat I)
     for (int i=0; i<100; i++)
         rc.push_back(cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255)));
 
-    bool last_ref;
+    bool last_ref = false;
     while(1) {
         if (p_temp.size() > 0) {
             if (p_temp[0].x < I.cols) { // Click in reference
@@ -1480,11 +1480,11 @@ vector<Mat> createTestTransformations(vector<Mat> I, vector<Mat> H_load = {})
         cv::imshow("Reference | Original | Inverse transform | Difference",concat);
         
         char key = cv::waitKey(0) & 0xEFFFFF;
-        if (key == 8 & i > 2) { // Backspace - prev img
+        if (key == 8 && i > 2) { // Backspace - prev img
             i-=2;
             continue;
         }
-        if (key == 9 & i > 0) { // Tab - redo calc
+        if (key == 9 && i > 0) { // Tab - redo calc
             H_ret[i-1] = Mat();
             i--;
             continue;
