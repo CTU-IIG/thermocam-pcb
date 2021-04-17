@@ -48,3 +48,26 @@ double im_status::get_temperature(Point p)
     return is->get_temperature(pixel);
 }
 
+void im_status::updatePOICoords(const im_status &ref)
+{
+    std::vector<cv::DMatch> matches = matchToReference(desc);
+    Mat H = findH(ref.kp, kp, matches);
+
+    if (H.empty()) // Couldn't find homography - points stay the same
+        return; // FIXME: Let the caller (or at least user) know that this happened
+
+    for (unsigned i=0; i < poi.size(); i++) {
+        vector<Point2f> v = { ref.poi[i].p };
+        perspectiveTransform(v, v, H); // only takes vector of points as input
+        poi[i].p = v[0];
+
+        // Variance of sum of 2 random variables the same as sum of variances
+        // So we only need to track 1 variance per point
+        poi[i].r_var(poi[i].p.x + poi[i].p.y);
+	namespace acc = boost::accumulators;
+        poi[i].rolling_std = sqrt(acc::rolling_variance(poi[i].r_var));
+    }
+
+    if (ref.heat_sources_border.size() > 0)
+        perspectiveTransform(ref.heat_sources_border, heat_sources_border, H);
+}

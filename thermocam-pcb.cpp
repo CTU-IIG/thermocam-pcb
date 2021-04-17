@@ -234,30 +234,6 @@ Mat readJsonImg(string path)
     return imdecode(decoded_v,0);
 }
 
-void updatePOICoords(im_status &s, const im_status &ref)
-{
-    std::vector<cv::DMatch> matches = matchToReference(s.desc);
-    Mat H = findH(ref.kp, s.kp, matches);
-
-    if (H.empty()) // Couldn't find homography - points stay the same
-        return;
-
-    for (unsigned i=0; i<s.poi.size(); i++) {
-        vector<Point2f> v = { ref.poi[i].p };
-        perspectiveTransform(v, v, H); // only takes vector of points as input
-        s.poi[i].p = v[0];
-
-        // Variance of sum of 2 random variables the same as sum of variances
-        // So we only need to track 1 variance per point
-        s.poi[i].r_var(s.poi[i].p.x + s.poi[i].p.y);
-	namespace acc = boost::accumulators;
-	s.poi[i].rolling_std = sqrt(acc::rolling_variance(s.poi[i].r_var));
-    }
-
-    if (ref.heat_sources_border.size() > 0)
-        perspectiveTransform(ref.heat_sources_border, s.heat_sources_border, H);
-}
-
 void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tracking_on)
 {
     s.update(is);
@@ -269,7 +245,7 @@ void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tra
 
     if (tracking_on) {
         s.updateKpDesc();
-        updatePOICoords(s, ref);
+        s.updatePOICoords(ref);
     }
 
 
