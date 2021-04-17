@@ -77,18 +77,3 @@ void im_status::updatePOICoords(const im_status &ref)
     if (ref.heat_sources_border.size() > 0)
         perspectiveTransform(ref.heat_sources_border, heat_sources_border, H);
 }
-
-void im_status::setFixedFrame(){
-    int x_max = INT_MIN, y_max = INT_MIN, x_min = INT_MAX, y_min = INT_MAX;
-    for (auto el : heat_sources_border) {
-        x_max = (x_max < el.x) ? el.x : x_max;
-        y_max = (y_max < el.y) ? el.y : y_max;
-        x_min = (x_min > el.x) ? el.x : x_min;
-        y_min = (y_min > el.y) ? el.y : y_min;
-    }
-
-    border_frame = {cv::Point2f(0, 0),
-                    cv::Point2f(x_max - x_min, 0),
-                    cv::Point2f(x_max - x_min, y_max - y_min),
-                    cv::Point2f(0, y_max - y_min)};
-}

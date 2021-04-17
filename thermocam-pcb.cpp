@@ -272,7 +272,6 @@ void setRefStatus(im_status &ref, img_stream &is, string poi_filename, bool trac
             ref.heat_sources_border.push_back(p->p);
             remove_if(ref.poi.begin(), ref.poi.end(), [p](POI &pp){return &pp == p;});
         }
-        ref.setFixedFrame();
     }
 
     if (tracking_on) {
@@ -360,7 +359,6 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     vector<HeatSource> hs;
     Mat laplacian, hsImg, detail;
     if (curr.heat_sources_border.size() > 0) {
-        curr.border_frame = ref.border_frame;
         hs = heatSources(curr, laplacian, hsImg, detail);
     }
 
