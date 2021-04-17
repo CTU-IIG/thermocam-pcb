@@ -29,17 +29,18 @@ struct im_status {
     cv::Mat gray;
     std::vector<POI> poi; // Points of interest
     std::vector<cv::Point2f> heat_sources_border;
-    std::vector<cv::KeyPoint> kp;
-    cv::Mat desc;
 
     void update(img_stream &is);
     void updateKpDesc();
+    void trainMatcher();
 
     double get_temperature(uint16_t pixel);
     double get_temperature(cv::Point p);
     void updatePOICoords(const im_status &ref);
 private:
     img_stream *is = nullptr;
+    std::vector<cv::KeyPoint> kp;
+    cv::Mat desc;
 };
 
 #endif // THERMO_IMG_HPP

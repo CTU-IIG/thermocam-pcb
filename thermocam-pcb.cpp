@@ -276,7 +276,7 @@ void setRefStatus(im_status &ref, img_stream &is, string poi_filename, bool trac
 
     if (tracking_on) {
         ref.updateKpDesc();
-        trainMatcher(ref.desc); // train once on reference image
+        ref.trainMatcher(); // train once on reference image
     }
 }
 

@@ -35,6 +35,11 @@ void im_status::updateKpDesc()
     desc = getDescriptors(pre, kp);
 }
 
+void im_status::trainMatcher()
+{
+    ::trainMatcher(desc);
+}
+
 double im_status::get_temperature(uint16_t pixel)
 {
     return is->get_temperature(pixel);
