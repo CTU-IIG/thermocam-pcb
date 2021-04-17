@@ -254,7 +254,6 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
         s.height = s.gray.rows;
     }
 
-    vector<Point2f> hs_border;
     if (!heat_sources_border_points.empty()) {
         vector<string> pt_names = split(heat_sources_border_points, ",");
         if (pt_names.size() != 4)
@@ -270,28 +269,15 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
             }
             if (!p)
                 throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
-            hs_border.push_back(p->p);
+            s.heat_sources_border.push_back(p->p);
             remove_if(s.poi.begin(), s.poi.end(), [p](POI &pp){return &pp == p;});
         }
+        s.setFixedFrame();
     }
 
     if (tracking_on) {
         s.updateKpDesc();
         trainMatcher(s.desc); // train once on reference image
-    }
-
-    if (!hs_border.empty()) {
-        // Find perspective transform from heat source border to reference frame
-        im_status hs;
-        hs.gray = s.gray;
-
-        hs.updateKpDesc();
-        std::vector<cv::DMatch> matches = matchToReference(hs.desc); // Why this takes so long?
-        Mat H = findH(s.kp, hs.kp, matches);
-        H = H.inv();
-
-        perspectiveTransform(hs_border, s.heat_sources_border, H);
-        s.setFixedFrame();
     }
 }
 
