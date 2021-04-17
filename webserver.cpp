@@ -68,12 +68,13 @@ void sendPOITemp(crow::response &res, std::vector<POI> poi)
     res.write(ss.str());
 }
 
-void sendHeatSources(crow::response &res, std::vector<POI> poi)
+void sendHeatSources(crow::response &res, std::vector<HeatSource> poi)
 {
     std::stringstream ss;
     ss << "heat_sources=";
     for (auto p : poi)
-        ss << p.p.x << "," << p.p.y << "," << std::fixed << std::setprecision(2) << p.neg_laplacian << ";";
+        ss << p.location.x << "," << p.location.y << "," <<
+              std::fixed << std::setprecision(2) << p.neg_laplacian << ";";
     std::string s = ss.str();
     s.pop_back();
     s += "\n";
@@ -178,7 +179,7 @@ void Webserver::start()
     CROW_ROUTE(app, "/heat-sources.txt")
     ([this](const crow::request& req, crow::response& res){
         this->lock.lock();
-        std::vector<POI> curr_heat_sources = this->heat_sources;
+        std::vector<HeatSource> curr_heat_sources = this->heat_sources;
         this->lock.unlock();
         sendHeatSources(res, curr_heat_sources);
         res.end();
@@ -189,7 +190,7 @@ void Webserver::start()
         this->lock.lock();
         std::vector<POI> curr_poi = this->poi;
         std::vector<std::pair<std::string,double>> curr_cct = this->cameraComponentTemps;
-        std::vector<POI> curr_heat_sources = this->heat_sources;
+        std::vector<HeatSource> curr_heat_sources = this->heat_sources;
         this->lock.unlock();
         sendPOITemp(res, curr_poi);
         sendCameraComponentTemps(res, curr_cct);

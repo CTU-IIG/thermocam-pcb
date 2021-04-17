@@ -6,6 +6,7 @@
 #include "thermo_img.hpp"
 #include <opencv2/core/core.hpp>
 #include <thread>
+#include "heat-sources.hpp"
 
 class Webserver
 {
@@ -16,7 +17,7 @@ private:
     cv::Mat hs_img = {cv::Size(1, 1), CV_8U, 255};
     cv::Mat detail_img = {cv::Size(1, 1), CV_8U, 255};
     std::vector<POI> poi;
-    std::vector<POI> heat_sources;
+    std::vector<HeatSource> heat_sources;
     std::vector<std::pair<std::string,double>> cameraComponentTemps;
 
 public:
@@ -55,7 +56,7 @@ public:
         this->poi = poi;
     }
 
-    void setHeatSources(std::vector<POI> hs)
+    void setHeatSources(std::vector<HeatSource> hs)
     {
         std::lock_guard<std::mutex> lk(lock);
         this->heat_sources = hs;

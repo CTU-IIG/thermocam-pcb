@@ -357,7 +357,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     updateImStatus(curr, is, ref, tracking_on);
     printPOITemp(curr.poi, poi_csv_file);
 
-    vector<POI> hs;
+    vector<HeatSource> hs;
     Mat laplacian, hsImg, detail;
     if (curr.heat_sources_border.size() > 0) {
         curr.border_frame = ref.border_frame;

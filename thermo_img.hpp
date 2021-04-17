@@ -12,7 +12,6 @@ struct POI {
     cv::Point2f p;
     double temp;
     double rolling_std;
-    double neg_laplacian;
 
     POI() {};
     POI(std::string name, cv::Point2f p, double temp = 0.0) : name(name), p(p), temp(temp) {};
@@ -37,6 +36,7 @@ struct im_status {
     void update(img_stream &is);
     void updateKpDesc();
 
+    double get_temperature(uint16_t pixel);
     double get_temperature(cv::Point p);
     void updatePOICoords(const im_status &ref);
     void setFixedFrame();

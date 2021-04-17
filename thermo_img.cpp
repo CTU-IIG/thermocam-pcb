@@ -35,6 +35,12 @@ void im_status::updateKpDesc()
     desc = getDescriptors(pre, kp);
 }
 
+double im_status::get_temperature(uint16_t pixel)
+{
+    return is->get_temperature(pixel);
+}
+
+
 double im_status::get_temperature(Point p)
 {
     if (p.y < 0 || p.y > height || p.x < 0 || p.x > width) {
