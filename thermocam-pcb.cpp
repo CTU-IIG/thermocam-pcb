@@ -243,21 +243,6 @@ vector<string> split(const string str, const char *delimiters)
     return words;
 }
 
-void setFixedFrame(im_status &im){
-    int x_max = INT_MIN, y_max = INT_MIN, x_min = INT_MAX, y_min = INT_MAX;
-    for (auto el : im.heat_sources_border) {
-        x_max = (x_max < el.x) ? el.x : x_max;
-        y_max = (y_max < el.y) ? el.y : y_max;
-        x_min = (x_min > el.x) ? el.x : x_min;
-        y_min = (y_min > el.y) ? el.y : y_min;
-    }
-
-    im.border_frame = {cv::Point2f(0, 0),
-                       cv::Point2f(x_max - x_min, 0),
-                       cv::Point2f(x_max - x_min, y_max - y_min),
-                       cv::Point2f(0, y_max - y_min)};
-}
-
 void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracking_on, string heat_sources_border_points)
 {
     if (poi_filename.empty()) {
@@ -306,7 +291,7 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
         H = H.inv();
 
         perspectiveTransform(hs_border, s.heat_sources_border, H);
-        setFixedFrame(s);
+        s.setFixedFrame();
     }
 }
 

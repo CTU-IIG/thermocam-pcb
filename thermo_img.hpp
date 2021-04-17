@@ -39,6 +39,7 @@ struct im_status {
 
     double get_temperature(cv::Point p);
     void updatePOICoords(const im_status &ref);
+    void setFixedFrame();
 private:
     img_stream *is = nullptr;
 };
