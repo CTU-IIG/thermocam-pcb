@@ -498,7 +498,9 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
 
 int main(int argc, char **argv)
 {
-    argp_parse(&argp, argc, argv, 0, 0, NULL);
+    cmd_arguments args;
+
+    argp_parse(&argp, argc, argv, 0, 0, &args);
 
     if (args.enter_poi && args.tracking_on)
         err(1,"Can't enter points and have tracking enabled at the same time!");

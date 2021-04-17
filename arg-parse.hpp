@@ -32,6 +32,5 @@ struct cmd_arguments{
 };
 
 extern struct argp argp;
-extern cmd_arguments args;
 
 #endif // ARG_PARSE_HPP

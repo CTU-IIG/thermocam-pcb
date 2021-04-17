@@ -2,10 +2,10 @@
 #include "version.h"
 #include <string.h>
 
-cmd_arguments args;
-
 static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
 {
+    cmd_arguments &args = *reinterpret_cast<cmd_arguments*>(argp_state->input);
+
     switch (key) {
     case 'e':
         args.enter_poi = true;
