@@ -175,7 +175,7 @@ void im_status::updatePOICoords(const im_status &ref)
         // Variance of sum of 2 random variables the same as sum of variances
         // So we only need to track 1 variance per point
         poi[i].r_var(poi[i].p.x + poi[i].p.y);
-	namespace acc = boost::accumulators;
+        namespace acc = boost::accumulators;
         poi[i].rolling_std = sqrt(acc::rolling_variance(poi[i].r_var));
     }
 
