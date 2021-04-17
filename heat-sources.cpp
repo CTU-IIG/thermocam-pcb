@@ -94,14 +94,16 @@ vector<POI> heatSources(im_status &s, img_stream &is, Mat &laplacian, Mat &hsImg
 
     normalize_and_convert_to_uchar(laplacian);
     normalize_and_convert_to_uchar(detail);
+    applyColorMap(laplacian, laplacian, cv::COLORMAP_INFERNO);
+    applyColorMap(detail, detail, cv::COLORMAP_INFERNO);
     //equalizeHist(detail, detail);   //for display purpose only, nothing is visible otherwise.
 
     if(!laplacian.empty())
-        resize(laplacian, laplacian, Size(), 4, 4);
+        resize(laplacian, laplacian, Size(), 3, 3);
     if(!hsImg.empty())
-        resize(hsImg, hsImg, Size(), 4, 4);
+        resize(hsImg, hsImg, Size(), 3, 3);
     if(!detail.empty())
-        resize(detail, detail, Size(), 4, 4);
+        resize(detail, detail, Size(), 3, 3);
 
     return hs;
 }
