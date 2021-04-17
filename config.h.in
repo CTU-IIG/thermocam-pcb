@@ -1,0 +1,4 @@
+#pragma once
+
+#define PREFIX "@PREFIX@"
+#define DATADIR "@DATADIR@"

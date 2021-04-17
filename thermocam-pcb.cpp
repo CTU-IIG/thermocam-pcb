@@ -19,6 +19,9 @@
 #include <opencv2/imgproc/imgproc_c.h>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/calib3d.hpp>
+#include <opencv2/freetype.hpp>
+
+#include "config.h"
 
 using namespace cv;
 
@@ -57,16 +60,21 @@ void signalHandler(int signal_num)
         signal_received = true;
 }
 
+cv::Ptr<cv::freetype::FreeType2> ft2;
+
 // Prints vector of strings at given point in a column
 // Workaround for the missing support of linebreaks from OpenCV
 void imgPrintStrings(Mat& img, vector<string> strings, Point2f p, Scalar color)
 {
-    // p += {10,10};
+    int fontHeight = 15;
+    int thickness = -1;
+    int linestyle = cv::LINE_AA;
+
     int bl = 0;
-    Size sz = getTextSize("A", FONT_HERSHEY_COMPLEX_SMALL, 1, 2, &bl);
+    Size sz = ft2->getTextSize("A", fontHeight, thickness, &bl);
     for (string s : strings) {
-        p.y += sz.height + 5;
-        putText(img, s, p, FONT_HERSHEY_COMPLEX_SMALL, 1, color, 2, CV_AA);
+        ft2->putText(img, s, p, fontHeight, color, thickness, linestyle, false);
+        p.y += sz.height * 15 / 10;
     }
 }
 
@@ -91,7 +99,7 @@ void drawSidebar(Mat& img, vector<POI> poi)
     // Print point names and temperatures
     vector<string> s(poi.size());
     for (unsigned i = 0; i < poi.size(); i++)
-        s[i] = to_string(i) + ": " + poi[i].to_string() + " C";
+        s[i] = to_string(i) + ": " + poi[i].to_string() + "°C";
     Point2f print_coords = { (float)(img.cols - sbw + 5), 0 };
     imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
 }
@@ -100,41 +108,38 @@ void drawSidebar(Mat& img, vector<POI> poi)
 Mat drawPOI(Mat in, vector<POI> poi, draw_mode mode)
 {
 
-    Mat BG, R, BGR;
+    Mat R;
 
     R = in.clone();
-    if (R.channels() == 3)
-        cvtColor(R, R, COLOR_RGB2GRAY); // We only draw to red channel
+    if (R.channels() == 1)
+        cvtColor(R, R, COLOR_GRAY2BGR);
 
     resize(R, R, Size(), 2, 2); // Enlarge image 2x for better looking fonts
     if (mode == NUM)
         drawSidebar(R, poi);
-    BG = R.clone();
 
     for (unsigned i = 0; i < poi.size(); i++) {
         poi[i].p *= 2; // Rescale points with image
-        circle(R, poi[i].p, 4, Scalar(255,255,255), -1); // Dot at POI position
+        circle(R, poi[i].p, 3, Scalar(0,255,0), -1); // Dot at POI position
 
         // Print point labels
         vector<string> label;
         switch (mode) {
         case FULL:
-            label = { poi[i].name, poi[i].to_string(false).append(" C") };
+            label = { poi[i].name, poi[i].to_string(false).append("°C") };
             break;
         case TEMP:
-            label = { poi[i].to_string(false).append(" C") };
+            label = { poi[i].to_string(false).append("°C") };
             break;
         case NUM:
             label = { to_string(i) };
             break;
         }
-        imgPrintStrings(R, label, poi[i].p, Scalar(255,255,255));
+        imgPrintStrings(R, label, poi[i].p + Point2f(3, 6), Scalar(0,0,0));
+        imgPrintStrings(R, label, poi[i].p + Point2f(2, 5), Scalar(0,255,0));
     }
 
-    vector<Mat> v = {BG,BG,R};
-    merge(v, BGR);
-
-    return BGR;
+    return R;
 }
 
 void highlight_core(im_status &s, Mat &image){
@@ -370,6 +375,28 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
         delete vw; // Destructor calls VideoWriter.release to close stream
 }
 
+void init_font()
+{
+    bool success = false;
+    const char *font;
+    ft2 = cv::freetype::createFreeType2();
+    for (const char* f : {
+	    PREFIX "/" DATADIR "/thermocam-pcb/DejaVuSans.ttf",
+	    "./DejaVuSans.ttf",
+	}) {
+	try {
+	    ft2->loadFontData(f, 0);
+	} catch (...) {
+	    font = f;
+	    continue;
+	}
+	success = true;
+	break;
+    }
+    if (!success)
+	err(1, "Font load error: %s", font);
+}
+
 int main(int argc, char **argv)
 {
     cmd_arguments args;
@@ -382,6 +409,9 @@ int main(int argc, char **argv)
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);
     detectDisplay();
+
+
+    init_font();
 
     if (!args.show_poi_path.empty() && gui_available) {
         showPOIImg(args.show_poi_path);

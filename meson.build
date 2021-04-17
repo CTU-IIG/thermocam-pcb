@@ -84,6 +84,7 @@ conf_data.set('EBUS_HOME', get_option('ebus_home'))
 conf_data.set('WIC_HOME', get_option('wic_home'))
 conf_data.set('OPENCV_HOME', opencv_dep.get_pkgconfig_variable('prefix'))
 conf_data.set('PREFIX', get_option('prefix'))
+conf_data.set('DATADIR', get_option('datadir'))
 
 configure_file(input : 'run.in',
                output : 'run',
@@ -96,3 +97,11 @@ configure_file(input : 'thermocam-pcb.service.in',
                configuration : conf_data,
 	       install_dir : 'lib/systemd'
 	      )
+
+configure_file(input : 'config.h.in',
+	       output : 'config.h',
+	       configuration : conf_data,
+	      )
+
+
+install_data('DejaVuSans.ttf')
