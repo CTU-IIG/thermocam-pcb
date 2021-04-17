@@ -30,7 +30,7 @@ static void normalize_and_convert_to_uchar(Mat &mat){
     mat.convertTo(mat, CV_8UC1);
 }
 
-vector<HeatSource> heatSources(im_status &s, Mat &laplacian, Mat &hsImg, Mat &detail)
+vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out, Mat &detail_out)
 {
     for (auto &p : s.heat_sources_border) {
         if (p.x < 0 || p.x > s.width || p.y < 0 || p.y > s.height) {
@@ -43,11 +43,11 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian, Mat &hsImg, Mat &de
     vector<Point2f> detail_rect = { {0, 0}, {float(sz.width), 0}, {float(sz.width), float(sz.height)}, {0, float(sz.height)} };
 
     Mat transform = getPerspectiveTransform(s.heat_sources_border, detail_rect);
-    Mat raw_float;
+    Mat raw_float, detail;
     s.rawtemp.convertTo(raw_float, CV_64F);
     warpPerspective(raw_float, detail, transform, sz);
 
-    Mat blur;
+    Mat blur, laplacian, hsImg;
     const double blur_sigma = 5;
     GaussianBlur(detail, blur, Size(0, 0), blur_sigma, blur_sigma);
     Laplacian(blur, laplacian, blur.depth());
@@ -74,6 +74,10 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian, Mat &hsImg, Mat &de
         resize(hsImg, hsImg, Size(), 2, 2);
     if(!detail.empty())
         resize(detail, detail, Size(), 2, 2);
+
+    detail_out = detail;
+    laplacian_out = laplacian;
+    hsImg_out = hsImg;
 
     return hs;
 }
