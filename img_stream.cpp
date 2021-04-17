@@ -6,16 +6,18 @@ using namespace cv;
 
 img_stream::img_stream(string vid_in_path, string license_dir)
     : is_video(!vid_in_path.empty())
+    , cc(init_camera_center(license_dir))
+    , camera(init_camera())
+    // In case of video, set the same values as those returned by our camera
+    , min_rawtemp(is_video ? 7231 : findRawtempC(RECORD_MIN_C))
+    , max_rawtemp(is_video ? 9799 : findRawtempC(RECORD_MAX_C))
 {
     if (is_video) {
         if (access(vid_in_path.c_str(), F_OK) == -1) // File does not exist
             throw runtime_error("Video open: " + vid_in_path);
         video = new VideoCapture(vid_in_path);
     } else {
-        initCamera(license_dir);
         camera->startAcquisition();
-        min_rawtemp = findRawtempC(RECORD_MIN_C);
-        max_rawtemp = findRawtempC(RECORD_MAX_C);
     }
 }
 
@@ -44,61 +46,31 @@ std::vector<std::pair<string, double> > img_stream::getCameraComponentTemps()
     return v;
 }
 
-void img_stream::get_height_width(int &height, int &width)
+void img_stream::get_image(Mat_<uint16_t> &result)
 {
     if (is_video) {
-        height = video->get(cv::CAP_PROP_FRAME_HEIGHT);
-        width = video->get(cv::CAP_PROP_FRAME_WIDTH);
-    } else {
-        height = camera->getSettings()->getResolutionY();
-        width = camera->getSettings()->getResolutionX();
-    }
-}
-
-static Mat temp2gray(uint16_t *temp, int h, int w, uint16_t min = 0, uint16_t max = 0)
-{
-    if (min == 0 && max == 0) {
-        // Dynamic range
-        max = 0;
-        min = UINT16_MAX;
-        for (int i = 0; i < h * w; ++i) {
-            min = (min > temp[i]) ? temp[i] : min;
-            max = (max < temp[i]) ? temp[i] : max;
-        }
-    }
-
-    Mat G(h, w, CV_8U);
-    // Write gray values
-    double step = 255 / (double)(max - min); // Make pix values to 0-255
-    for (int i = 0; i < h * w; ++i)
-        G.data[i] = (temp[i] < min) ? 0 : (temp[i] > max) ? 255 : (temp[i] - min) * step;
-
-    return G;
-}
-
-Mat img_stream::get_image(uint16_t *rawtemp)
-{
-    // TODO: Convert this to return Mat_<uint16_t> (raw temperatures)
-    Mat gray; // output
-
-    if (is_video) {
+        Mat gray; // 8-bit gray
         *video >> gray;
         if (gray.empty()) {
+            // loop to start
             video->set(cv::CAP_PROP_POS_FRAMES, 0);
             *video >> gray;
         }
         cvtColor(gray, gray, COLOR_RGB2GRAY);
+        gray.convertTo(result, CV_16U,
+                       (max_rawtemp - min_rawtemp)/256.0,
+                       min_rawtemp);
     } else {
         if (camera->getSettings()->doNothing() < 0) {
             camera->disconnect();
             err(1,"Lost connection to camera, exiting.");
         }
-        int height, width;
-        get_height_width(height, width);
+        int height = camera->getSettings()->getResolutionY();
+        int width = camera->getSettings()->getResolutionX();
         uint16_t *tmp = (uint16_t *)camera->retrieveBuffer();
-        memcpy(rawtemp, tmp, height * width * sizeof(uint16_t));
+        result.create(height, width);
+        memcpy(result.data, tmp, result.total()*result.elemSize());
         camera->releaseBuffer();
-        gray = temp2gray(rawtemp, height, width, min_rawtemp, max_rawtemp);
 
         static uint16_t *last_buffer = NULL;
         static unsigned same_buffer_cnt = 0;
@@ -114,22 +86,36 @@ Mat img_stream::get_image(uint16_t *rawtemp)
             same_buffer_cnt = 0;
         }
     }
-
-    return gray;
 }
 
-void img_stream::initCamera(string license_dir)
+double img_stream::get_temperature(uint16_t pixel_value)
 {
-    // Path to directory containing license file
-    cc = new CameraCenter(license_dir);
+    if (is_video)
+        return RECORD_MIN_C +
+                (RECORD_MAX_C - RECORD_MIN_C) *
+                double(pixel_value - min_rawtemp) / (max_rawtemp - min_rawtemp);
+    else
+        return camera->calculateTemperatureC(pixel_value);
+}
 
-    if (cc->getCameras().size() == 0)
+CameraCenter *img_stream::init_camera_center(string license_dir)
+{
+    return is_video ? nullptr : new CameraCenter(license_dir);
+}
+
+Camera *img_stream::init_camera()
+{
+    if (is_video)
+        return nullptr;
+
+    if (!cc || cc->getCameras().size() == 0)
         err(1,"No camera found");
 
-    camera = cc->getCameras().at(0);
-
-    if (camera->connect() != 0)
+    Camera *c = cc->getCameras().at(0);
+    if (!c || c->connect() != 0)
         errx(1,"Error connecting camera");
+
+    return c;
 }
 
 // Find the closest raw value corresponding to a Celsius temperature
@@ -138,8 +124,9 @@ void img_stream::initCamera(string license_dir)
 uint16_t img_stream::findRawtempC(double temp)
 {
     uint16_t raw;
-    for (raw = 0; raw < 1 << 16; raw++)
+    for (raw = 0; raw <= UINT16_MAX; raw++)
         if (camera->calculateTemperatureC(raw) >= temp)
             return raw;
+    return UINT16_MAX;
 }
 

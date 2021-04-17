@@ -1,11 +1,12 @@
 #include "thermo_img.hpp"
 #include <opencv2/imgproc/imgproc.hpp>
 #include <err.h>
+#include "point-tracking.hpp"
 
 using namespace std;
 using namespace cv;
 
-string poi::to_string(bool print_name)
+string POI::to_string(bool print_name)
 {
     stringstream ss;
     if (print_name)
@@ -14,23 +15,21 @@ string poi::to_string(bool print_name)
     return ss.str();
 }
 
-
-im_status::~im_status()
+void im_status::update(img_stream &is)
 {
-    if (rawtemp) {
-        delete[] rawtemp;
-        rawtemp = nullptr;
-    }
-    gray.release();
+    is.get_image(rawtemp);
+    width = rawtemp.cols;
+    height = rawtemp.rows;
+
+    rawtemp.convertTo(gray, CV_8U,
+                      255.0 / (is.max_rawtemp - is.min_rawtemp),
+                      255.0 / (1.0 - double(is.max_rawtemp) / double(is.min_rawtemp)));
 }
 
-void im_status::update(img_stream *is)
+void im_status::updateKpDesc()
 {
-    if (!height || !width)
-        is->get_height_width(height, width);
-
-    if (!rawtemp)
-        rawtemp = new uint16_t[height * width]{ 0 };
-
-    gray = is->get_image(rawtemp);
+    Mat pre = preprocess(gray);
+    kp = getKeyPoints(pre);
+    desc = getDescriptors(pre, kp);
 }
+

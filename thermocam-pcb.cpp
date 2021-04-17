@@ -33,14 +33,16 @@ namespace acc = boost::accumulators;
 
 enum opt {
     OPT_FOURCC = 1000,
+    OPT_SAVE_IMG_DIR,
+    OPT_SAVE_IMG_PER,
 };
 
 /* Command line options */
 struct cmd_arguments{
-    bool enter_POI = false;
-    string POI_export_path;
-    string POI_import_path;
-    string show_POI_path;
+    bool enter_poi = false;
+    string poi_export_path;
+    string poi_import_path;
+    string show_poi_path;
     string license_dir;
     string vid_in_path;
     string vid_out_path;
@@ -105,34 +107,34 @@ void imgPrintStrings(Mat& img, vector<string> strings, Point2f p, Scalar color)
     }
 }
 
-int getSidebarWidth(vector<poi> POI)
+int getSidebarWidth(vector<POI> poi)
 {
     int max = 0; // max text width
     int bl = 0; // baseline
-    for (unsigned i = 0; i < POI.size(); i++) {
-        string s = "00: " + POI[i].name + " 000.00 C";
+    for (unsigned i = 0; i < poi.size(); i++) {
+        string s = "00: " + poi[i].name + " 000.00 C";
         Size sz = getTextSize(s, FONT_HERSHEY_COMPLEX_SMALL, 1, 2, &bl);
         max = (sz.width > max) ? sz.width : max;
     }
     return max;
 }
 
-void drawSidebar(Mat& img, vector<poi> POI)
+void drawSidebar(Mat& img, vector<POI> poi)
 {
     // Draw sidebar
-    int sbw = getSidebarWidth(POI);
+    int sbw = getSidebarWidth(poi);
     copyMakeBorder(img, img, 0, 0, 0, sbw, BORDER_CONSTANT, Scalar(255, 255, 255));
 
     // Print point names and temperatures
-    vector<string> s(POI.size());
-    for (unsigned i = 0; i < POI.size(); i++)
-        s[i] = to_string(i) + ": " + POI[i].to_string() + " C";
+    vector<string> s(poi.size());
+    for (unsigned i = 0; i < poi.size(); i++)
+        s[i] = to_string(i) + ": " + poi[i].to_string() + " C";
     Point2f print_coords = { (float)(img.cols - sbw + 5), 0 };
     imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
 }
 
 // Only draw points into red channel, so original image can be retrieved
-Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
+Mat drawPOI(Mat in, vector<POI> poi, draw_mode mode)
 {
 
     Mat BG, R, BGR;
@@ -143,27 +145,27 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
 
     resize(R, R, Size(), 2, 2); // Enlarge image 2x for better looking fonts
     if (mode == NUM)
-        drawSidebar(R, POI);
+        drawSidebar(R, poi);
     BG = R.clone();
 
-    for (unsigned i = 0; i < POI.size(); i++) {
-        POI[i].p *= 2; // Rescale points with image
-        circle(R, POI[i].p, 4, Scalar(255,255,255), -1); // Dot at POI position
+    for (unsigned i = 0; i < poi.size(); i++) {
+        poi[i].p *= 2; // Rescale points with image
+        circle(R, poi[i].p, 4, Scalar(255,255,255), -1); // Dot at POI position
 
         // Print point labels
         vector<string> label;
         switch (mode) {
         case FULL:
-            label = { POI[i].name, POI[i].to_string(false).append(" C") };
+            label = { poi[i].name, poi[i].to_string(false).append(" C") };
             break;
         case TEMP:
-            label = { POI[i].to_string(false).append(" C") };
+            label = { poi[i].to_string(false).append(" C") };
             break;
         case NUM:
             label = { to_string(i) };
             break;
         }
-        imgPrintStrings(R, label, POI[i].p, Scalar(255,255,255));
+        imgPrintStrings(R, label, poi[i].p, Scalar(255,255,255));
     }
 
     vector<Mat> v = {BG,BG,R};
@@ -172,24 +174,39 @@ Mat drawPOI(Mat in, vector<poi> POI, draw_mode mode)
     return BGR;
 }
 
-void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
-{
-    pt::ptree root, POI_pt, POI_img;
-    for (unsigned i = 0; i < POI.size(); i++) {
-        pt::ptree elem;
-        elem.put("name", POI[i].name);
-        elem.put("x", POI[i].p.x);
-        elem.put("y", POI[i].p.y);
-        elem.put("temp", POI[i].temp);
-        POI_pt.push_back(std::make_pair("", elem));
+void highlight_core(im_status &s, Mat &image){
+    Mat BG, R, BRG;
+    R = image.clone();
+    if (R.channels() == 3)
+        cvtColor(R, R, COLOR_RGB2GRAY);
+    BG = R.clone();
+
+    for(unsigned i = 0; i < s.heat_sources_border.size(); i++){
+        line(R, s.heat_sources_border[i] * 2, s.heat_sources_border[(i + 1) % s.heat_sources_border.size()] * 2,
+                Scalar(255,255,255));
     }
-    root.add_child("POI", POI_pt);
+    vector<Mat> v = {BG,BG,R};
+    merge(v, image);
+}
+
+void writePOI(vector<POI> poi, Mat last_img, string path, bool verbose = false)
+{
+    pt::ptree root, poi_pt, poi_img;
+    for (unsigned i = 0; i < poi.size(); i++) {
+        pt::ptree elem;
+        elem.put("name", poi[i].name);
+        elem.put("x", poi[i].p.x);
+        elem.put("y", poi[i].p.y);
+        elem.put("temp", poi[i].temp);
+        poi_pt.push_back(std::make_pair("", elem));
+    }
+    root.add_child("POI", poi_pt);
 
     vector<uchar> img_v;
     imencode(".jpg",last_img,img_v);
     string img_s(img_v.begin(),img_v.end());
-    POI_img.put("", macaron::Base64::Encode(img_s));
-    root.add_child("POI img", POI_img);
+    poi_img.put("", macaron::Base64::Encode(img_s));
+    root.add_child("POI img", poi_img);
 
     pt::write_json(path, root);
 
@@ -197,16 +214,16 @@ void writePOI(vector<poi> POI, Mat last_img, string path, bool verbose = false)
         cout << "Points saved to " << path << endl;
 }
 
-vector<poi> readPOI(string path)
+vector<POI> readPOI(string path)
 {
-    vector<poi> POI;
+    vector<POI> poi;
     pt::ptree root;
     pt::read_json(path, root);
     for (pt::ptree::value_type &p : root.get_child("POI"))
-        POI.push_back({ p.second.get<string>("name"),
+        poi.push_back({ p.second.get<string>("name"),
                         { p.second.get<float>("x"), p.second.get<float>("y") },
                         p.second.get<double>("temp"), 0, 0});
-    return POI;
+    return poi;
 }
 
 Mat readJsonImg(string path)
@@ -222,52 +239,45 @@ Mat readJsonImg(string path)
     return imdecode(decoded_v,0);
 }
 
-void updatePOICoords(im_status *s, im_status *ref)
+void updatePOICoords(im_status &s, const im_status &ref)
 {
-    std::vector<cv::DMatch> matches = matchToReference(s->desc);
-    Mat H = findH(ref->kp, s->kp, matches);
+    std::vector<cv::DMatch> matches = matchToReference(s.desc);
+    Mat H = findH(ref.kp, s.kp, matches);
 
     if (H.empty()) // Couldn't find homography - points stay the same
         return;
 
-    for (unsigned i=0; i<s->POI.size(); i++) {
-        vector<Point2f> v = { ref->POI[i].p };
+    for (unsigned i=0; i<s.poi.size(); i++) {
+        vector<Point2f> v = { ref.poi[i].p };
         perspectiveTransform(v, v, H); // only takes vector of points as input
-        s->POI[i].p = v[0];
+        s.poi[i].p = v[0];
 
         // Variance of sum of 2 random variables the same as sum of variances
         // So we only need to track 1 variance per point
-        r_var[i](s->POI[i].p.x + s->POI[i].p.y);
-        s->POI[i].rolling_std = sqrt(acc::rolling_variance(r_var[i]));
+        r_var[i](s.poi[i].p.x + s.poi[i].p.y);
+        s.poi[i].rolling_std = sqrt(acc::rolling_variance(r_var[i]));
     }
 
-    if (ref->heat_sources_border.size() > 0)
-        perspectiveTransform(ref->heat_sources_border, s->heat_sources_border, H);
+    if (ref.heat_sources_border.size() > 0)
+        perspectiveTransform(ref.heat_sources_border, s.heat_sources_border, H);
 }
 
-void updateKpDesc(im_status *s)
+void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tracking_on)
 {
-    Mat pre = preprocess(s->gray);
-    s->kp = getKeyPoints(pre);
-    s->desc = getDescriptors(pre, s->kp);
-}
+    s.update(is);
 
-void updateImStatus(im_status *s, img_stream *is, im_status *ref, bool tracking_on)
-{
-    s->update(is);
-
-    if(s->POI.size() == 0  || !tracking_on) {
-        s->POI = ref->POI;
-        s->heat_sources_border = ref->heat_sources_border;
+    if(s.poi.size() == 0  || !tracking_on) {
+        s.poi = ref.poi;
+        s.heat_sources_border = ref.heat_sources_border;
     }
 
     if (tracking_on) {
-        updateKpDesc(s);
+        s.updateKpDesc();
         updatePOICoords(s, ref);
     }
 
 
-    for (poi& point : s->POI)
+    for (POI& point : s.poi)
         point.temp = getTemp((Point)point.p, is, s);
 
 }
@@ -290,66 +300,83 @@ vector<string> split(const string str, const char *delimiters)
     return words;
 }
 
-void setRefStatus(im_status *s, img_stream *is, string poi_filename, bool tracking_on, string heat_sources_border_points)
+void setFixedFrame(im_status &im){
+    int x_max = INT_MIN, y_max = INT_MIN, x_min = INT_MAX, y_min = INT_MAX;
+    for (auto el : im.heat_sources_border) {
+        x_max = (x_max < el.x) ? el.x : x_max;
+        y_max = (y_max < el.y) ? el.y : y_max;
+        x_min = (x_min > el.x) ? el.x : x_min;
+        y_min = (y_min > el.y) ? el.y : y_min;
+    }
+
+    im.border_frame = {cv::Point2f(0, 0),
+                       cv::Point2f(x_max - x_min, 0),
+                       cv::Point2f(x_max - x_min, y_max - y_min),
+                       cv::Point2f(0, y_max - y_min)};
+}
+
+void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracking_on, string heat_sources_border_points)
 {
     if (poi_filename.empty()) {
-        s->update(is);
+        s.update(is);
     } else {
-        s->gray = readJsonImg(poi_filename);
-        s->POI = readPOI(poi_filename);
-	is->get_height_width(s->height, s->width);
+        s.gray = readJsonImg(poi_filename);
+        s.poi = readPOI(poi_filename);
+        s.width = s.gray.cols;
+        s.height = s.gray.rows;
     }
 
     vector<Point2f> hs_border;
     if (!heat_sources_border_points.empty()) {
-	vector<string> pt_names = split(heat_sources_border_points, ",");
-	if (pt_names.size() != 4)
-	    throw runtime_error("Four heat source point names are required, not " + to_string(pt_names.size()) +
-				" as in: " + heat_sources_border_points);
-	for (auto &name: pt_names) {
-	    poi *p = nullptr;
-	    for (auto &poi : s->POI) {
-		if (poi.name == name) {
-		    p = &poi;
-		    break;
-		}
-	    }
-	    if (!p)
-		throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
-	    hs_border.push_back(p->p);
-	    remove_if(s->POI.begin(), s->POI.end(), [p](poi &pp){return &pp == p;});
-	}
+        vector<string> pt_names = split(heat_sources_border_points, ",");
+        if (pt_names.size() != 4)
+            throw runtime_error("Four heat source point names are required, not " + to_string(pt_names.size()) +
+                                " as in: " + heat_sources_border_points);
+        for (auto &name: pt_names) {
+            POI *p = nullptr;
+            for (auto &poi : s.poi) {
+                if (poi.name == name) {
+                    p = &poi;
+                    break;
+                }
+            }
+            if (!p)
+                throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
+            hs_border.push_back(p->p);
+            remove_if(s.poi.begin(), s.poi.end(), [p](POI &pp){return &pp == p;});
+        }
     }
 
     if (tracking_on) {
-        updateKpDesc(s);
-        trainMatcher(s->desc); // train once on reference image
+        s.updateKpDesc();
+        trainMatcher(s.desc); // train once on reference image
         // Calculate point position rolling variance from last 20 images
-        r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s->POI.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
+        r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s.poi.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
     }
 
     if (!hs_border.empty()) {
         // Find perspective transform from heat source border to reference frame
         im_status hs;
-        hs.gray = s->gray;
+        hs.gray = s.gray;
 
-        updateKpDesc(&hs);
+        hs.updateKpDesc();
         std::vector<cv::DMatch> matches = matchToReference(hs.desc); // Why this takes so long?
-        Mat H = findH(s->kp, hs.kp, matches);
+        Mat H = findH(s.kp, hs.kp, matches);
         H = H.inv();
 
-        perspectiveTransform(hs_border, s->heat_sources_border, H);
+        perspectiveTransform(hs_border, s.heat_sources_border, H);
+        setFixedFrame(s);
     }
 }
 
 void onMouse(int event, int x, int y, int flags, void *param)
 {
     if (event == EVENT_LBUTTONDOWN) {
-        vector<poi> &POI = *((vector<poi> *)(param));
-        string name = "Point " + to_string(POI.size());
+        vector<POI> &poi = *((vector<POI> *)(param));
+        string name = "Point " + to_string(poi.size());
         // The image is upscaled 2x when displaying POI
         // Thus we need to divide coords by 2 when getting mouse input
-        POI.push_back({ name, { (float)x/2, (float)y/2 } });
+        poi.push_back({ name, { (float)x/2, (float)y/2 } });
     }
 }
 
@@ -362,39 +389,39 @@ string clkDateTimeString(chrono::time_point<chrono::system_clock> clk){
     return s;
 }
 
-string csvHeaderPOI(vector<poi> POI){
+string csvHeaderPOI(vector<POI> poi){
     string s;
     s = "Time";
-    for (unsigned i = 0; i < POI.size(); i++)
-        s += ", " + POI[i].name + " [°C]";
+    for (unsigned i = 0; i < poi.size(); i++)
+        s += ", " + poi[i].name + " [°C]";
     s += "\n";
     return s;
 }
 
-string csvRowPOI(vector<poi> POI){
+string csvRowPOI(vector<POI> poi){
     stringstream ss;
     ss << clkDateTimeString(chrono::system_clock::now());
-    for (unsigned i = 0; i < POI.size(); i++)
-        ss << ", " << fixed << setprecision(2) << POI[i].temp;
+    for (unsigned i = 0; i < poi.size(); i++)
+        ss << ", " << fixed << setprecision(2) << poi[i].temp;
     ss << endl;
     return ss.str();
 }
 
-void printPOITemp(vector<poi> POI, string file)
+void printPOITemp(vector<POI> poi, string file)
 {
-    if (POI.size() == 0)
+    if (poi.size() == 0)
         return;
 
     if (file.empty()) {
         cout << "Temperature of points of interest:";
-        for (unsigned i = 0; i < POI.size(); i++)
-	    cout << " " << POI[i].to_string();
+        for (unsigned i = 0; i < poi.size(); i++)
+            cout << " " << poi[i].to_string();
         cout << endl;
     } else {
         string str;
         if (access(file.c_str(), F_OK) == -1) // File does not exist
-            str += csvHeaderPOI(POI);
-        str += csvRowPOI(POI);
+            str += csvHeaderPOI(poi);
+        str += csvRowPOI(poi);
         ofstream f(file, ofstream::app);
         f << str;
         f.close();
@@ -402,32 +429,34 @@ void printPOITemp(vector<poi> POI, string file)
 }
 
 void showPOIImg(string path){
-    vector<poi> POI =  readPOI(path);
+    vector<POI> poi =  readPOI(path);
     Mat img = readJsonImg(path);
-    Mat imdraw = drawPOI(img, POI, draw_mode::NUM);
+    Mat imdraw = drawPOI(img, poi, draw_mode::NUM);
     string title = "POI from " + path;
     imshow(title,imdraw);
     waitKey(0);
     destroyAllWindows();
 }
 
-int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
-                     string window_name, bool enter_POI, VideoWriter *vw,
-                     string poi_csv_file, bool tracking_on)
+void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
+                      string window_name, VideoWriter *vw,
+                      string poi_csv_file, bool tracking_on)
 {
     updateImStatus(curr, is, ref, tracking_on);
-    printPOITemp(curr->POI, poi_csv_file);
+    printPOITemp(curr.poi, poi_csv_file);
 
-    vector<poi> hs;
+    vector<POI> hs;
+    Mat laplacian, hsImg, detail;
+    if (curr.heat_sources_border.size() > 0) {
+        curr.border_frame = ref.border_frame;
+        hs = heatSources(curr, is, laplacian, hsImg, detail);
+    }
 
-    Mat laplacian, hsImg;
-    if (curr->heat_sources_border.size() > 0)
-        hs = heatSources(curr, is, laplacian, hsImg);
-
-    Mat img = drawPOI(curr->gray, curr->POI, curr_draw_mode);
+    Mat img = drawPOI(curr.gray, curr.poi, curr_draw_mode);
+    highlight_core(curr, img);
 
     if (vw)
-        vw->write(tracking_on ? img : curr->gray);
+        vw->write(tracking_on ? img : curr.gray);
 
     if (webserver) {
         webserver->setImg(img);
@@ -435,29 +464,39 @@ int processNextFrame(img_stream *is, im_status *ref, im_status *curr,
             webserver->setLaplacian(laplacian);
         if (!hsImg.empty())
             webserver->setHSImg(hsImg);
-        webserver->setPOI(curr->POI);
+        if (!detail.empty())
+            webserver->setDetail(detail);
+        webserver->setPOI(curr.poi);
         webserver->setHeatSources(hs);
-        webserver->setCameraComponentTemps(is->getCameraComponentTemps());
+        webserver->setCameraComponentTemps(is.getCameraComponentTemps());
     }
 
     if (gui_available) {
         imshow(window_name, img);
+    }
+}
+
+bool handle_input(bool enter_poi, im_status &ref)
+{
+    bool is_exit = false;
+
+    if (gui_available) {
         char key = waitKey(1) & 0xEFFFFF;
-        if (key == 8 && enter_POI && ref->POI.size() > 0) // Backspace
-            ref->POI.pop_back();
+        if (key == 8 && enter_poi && ref.poi.size() > 0) // Backspace
+            ref.poi.pop_back();
         if (key == 9) // Tab
             curr_draw_mode = next(curr_draw_mode);
         if (key == 27) // Esc
-            return 1;
+            is_exit = true;
     }
 
     if (signal_received || (webserver && webserver->finished))
-        return 1;
+        is_exit = true;
 
-    return 0;
+    return is_exit;
 }
 
-void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_arguments *args)
+void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_arguments &args)
 {
     int exit = 0;
     VideoWriter *vw = nullptr;
@@ -466,46 +505,48 @@ void processStream(img_stream *is, im_status *ref, im_status *curr, cmd_argument
 
     if (gui_available)
         namedWindow(window_name, WINDOW_NORMAL);
-    if (gui_available && args->enter_POI)
-        setMouseCallback(window_name, onMouse, &ref->POI);
-    if (!args->vid_out_path.empty()) {
-        int scale = args->tracking_on ? 2 : 1;
-        bool isColor = args->tracking_on;
-        string cc = args->fourcc;
-        vw = new VideoWriter(args->vid_out_path,
+    if (gui_available && args.enter_poi)
+        setMouseCallback(window_name, onMouse, &ref.poi);
+    if (!args.vid_out_path.empty()) {
+        int scale = args.tracking_on ? 2 : 1;
+        bool isColor = args.tracking_on;
+        string cc = args.fourcc;
+        vw = new VideoWriter(args.vid_out_path,
                              cv::VideoWriter::fourcc(cc[0], cc[1], cc[2], cc[3]),
-                             CAM_FPS, Size(ref->width*scale, ref->height*scale),
-                             isColor);
-	if (!vw->isOpened()) {
-	    warnx("VideoWriter for %s not available", args->vid_out_path.c_str());
-	    return;
-	}
+                CAM_FPS, Size(ref.width*scale, ref.height*scale),
+                isColor);
+        if (!vw->isOpened()) {
+            warnx("VideoWriter for %s not available", args.vid_out_path.c_str());
+            return;
+        }
     }
 
     bool watchdog_enabled = sd_watchdog_enabled(true, NULL) > 0;
 
-    if (args->save_img)
+    if (args.save_img)
         save_img_clk = chrono::system_clock::now();
 
     while (!exit) {
-	if (watchdog_enabled)
-	    sd_notify(false, "WATCHDOG=1");
+        if (watchdog_enabled)
+            sd_notify(false, "WATCHDOG=1");
 
         auto begin = chrono::system_clock::now();
-        exit = processNextFrame(is, ref, curr, window_name, args->enter_POI, vw,
-                                args->poi_csv_file, args->tracking_on);
+        processNextFrame(is, ref, curr, window_name, vw,
+                         args.poi_csv_file, args.tracking_on);
         auto end = chrono::system_clock::now();
 
-        if (args->save_img &&
-            duration_us(save_img_clk, end) > args->save_img_period * 1000000) {
+        exit = handle_input(args.enter_poi, ref);
+
+        if (args.save_img &&
+                duration_us(save_img_clk, end) > args.save_img_period * 1000000) {
             save_img_clk = chrono::system_clock::now();
-            string img_path = args->save_img_dir + "/"
+            string img_path = args.save_img_dir + "/"
                               + clkDateTimeString(save_img_clk) + ".png";
-            imwrite(img_path, drawPOI(curr->gray, curr->POI, draw_mode::NUM));
+            imwrite(img_path, drawPOI(curr.gray, curr.poi, draw_mode::NUM));
         }
         double process_time_us = duration_us(begin, end);
-        if (args->display_delay_us > process_time_us)
-            usleep(args->display_delay_us - process_time_us);
+        if (args.display_delay_us > process_time_us)
+            usleep(args.display_delay_us - process_time_us);
     }
 
     if (gui_available)
@@ -518,15 +559,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
 {
     switch (key) {
     case 'e':
-        args.enter_POI = true;
+        args.enter_poi = true;
         if(arg != NULL)
-            args.POI_export_path = arg;
+            args.poi_export_path = arg;
         break;
     case 'p':
-        args.POI_import_path = arg;
+        args.poi_import_path = arg;
         break;
     case 's':
-        args.show_POI_path = arg;
+        args.show_poi_path = arg;
         break;
     case 'l':
         args.license_dir = arg;
@@ -557,11 +598,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         args.tracking_on = true;
         args.heat_sources_border_points = arg;
         break;
-    case -1:
+    case OPT_SAVE_IMG_DIR:
         args.save_img_dir = arg;
         args.save_img = true;
         break;
-    case -2:
+    case OPT_SAVE_IMG_PER:
         args.save_img_period = atof(arg);
         args.save_img = true;
         break;
@@ -592,8 +633,8 @@ static struct argp_option options[] = {
     { "fourcc",          OPT_FOURCC, "CODE", 0, "4-letter code for video codec used by -r (e.g. MJPG, h264), default: HFYU"},
     { "load-video",      'v', "FILE",        0, "Load and process video instead of camera feed"},
     { "csv-log",         'c', "FILE",        0, "Log temperature of POIs to a csv file instead of printing them to stdout."},
-    { "save-img-dir",    -1,  "FILE",        0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
-    { "save-img-period", -2,  "NUM",         0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
+    { "save-img-dir",    OPT_SAVE_IMG_DIR, "DIR",  0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
+    { "save-img-period", OPT_SAVE_IMG_PER, "SECS", 0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
     { "track-points",    't', 0,             0, "Turn on tracking of points."},
     { "heat-sources",    'h', "PT_LIST",     0, "Enables heat sources detection. PT_LIST is a comma separated list of names of 4 points (specified with -p) that define detection area. Implies -t."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
@@ -626,29 +667,29 @@ int main(int argc, char **argv)
 {
     argp_parse(&argp, argc, argv, 0, 0, NULL);
 
-    if (args.enter_POI && args.tracking_on)
+    if (args.enter_poi && args.tracking_on)
         err(1,"Can't enter points and have tracking enabled at the same time!");
 
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);
     detectDisplay();
 
-    if (!args.show_POI_path.empty() && gui_available) {
-        showPOIImg(args.show_POI_path);
+    if (!args.show_poi_path.empty() && gui_available) {
+        showPOIImg(args.show_poi_path);
         exit(0);
     }
 
     img_stream is(args.vid_in_path, args.license_dir);
     im_status ref, curr;
-    setRefStatus(&ref, &is, args.POI_import_path, args.tracking_on, args.heat_sources_border_points);
+    setRefStatus(ref, is, args.poi_import_path, args.tracking_on, args.heat_sources_border_points);
 
     if (args.webserver_active)
         webserver = new Webserver();
 
-    processStream(&is, &ref, &curr, &args);
+    processStream(is, ref, curr, args);
 
-    if (!args.POI_export_path.empty())
-        writePOI(curr.POI, curr.gray, args.POI_export_path, true);
+    if (!args.poi_export_path.empty())
+        writePOI(curr.poi, curr.gray, args.poi_export_path, true);
 
     if (webserver)
         webserver->terminate();

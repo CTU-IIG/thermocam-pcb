@@ -29,6 +29,19 @@ stdenv.mkDerivation {
 
   # Meson is no longer able to pick up Boost automatically.
   # https://github.com/NixOS/nixpkgs/issues/86131
-  BOOST_INCLUDEDIR = "${stdenv.lib.getDev boost}/include";
-  BOOST_LIBRARYDIR = "${stdenv.lib.getLib boost}/lib";
+  BOOST_INCLUDEDIR = "${lib.getDev boost}/include";
+  BOOST_LIBRARYDIR = "${lib.getLib boost}/lib";
+
+  shellHook = ''
+    export PUREGEV_ROOT="${ebus_sdk}";
+    export GENICAM_ROOT=$PUREGEV_ROOT/lib/genicam
+    export GENICAM_ROOT_V2_4=$GENICAM_ROOT
+    export GENICAM_LOG_CONFIG=$GENICAM_ROOT/log/config/DefaultLogging.properties
+    export GENICAM_LOG_CONFIG_V2_4=$GENICAM_LOG_CONFIG
+    export GENICAM_CACHE_V2_4=$HOME/.config/Pleora/genicam_cache_v2_4
+    export GENICAM_CACHE=$GENICAM_CACHE_V2_4
+    export GENICAM_LIB_DIR=$GENICAM_ROOT/bin/Linux64_x64
+    mkdir -p "$GENICAM_CACHE"
+    export GENICAM_ROOT_V3_0=$GENICAM_ROOT
+  '';
 }

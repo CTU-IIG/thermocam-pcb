@@ -1,5 +1,6 @@
 Base64.h
 crow_all.h
+heat-sources.cpp
 heat-sources.hpp
 img_stream.cpp
 img_stream.hpp

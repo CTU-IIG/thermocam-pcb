@@ -1,6 +1,6 @@
-{ stdenv, fetchurl, static ? false }:
+{ stdenv, lib, fetchurl, static ? false }:
 
-with stdenv.lib;
+with lib;
 
 stdenv.mkDerivation {
   name = "libjpeg-8d";
@@ -17,7 +17,7 @@ stdenv.mkDerivation {
   meta = {
     homepage = http://www.ijg.org/;
     description = "A library that implements the JPEG image file format";
-    license = stdenv.lib.licenses.free;
-    platforms = stdenv.lib.platforms.unix;
+    license = lib.licenses.free;
+    platforms = lib.platforms.unix;
   };
 }
