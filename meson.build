@@ -58,6 +58,7 @@ executable('thermocam-pcb',
 	     'point-tracking.cpp',
 	     'img_stream.cpp',
 	     'thermo_img.cpp',
+	     'heat-sources.cpp',
 	   ],
 	   dependencies: [
 	     opencv_dep,
