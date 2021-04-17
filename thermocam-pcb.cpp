@@ -143,18 +143,10 @@ Mat drawPOI(Mat in, vector<POI> poi, draw_mode mode)
 }
 
 void highlight_core(im_status &s, Mat &image){
-    Mat BG, R, BRG;
-    R = image.clone();
-    if (R.channels() == 3)
-        cvtColor(R, R, COLOR_RGB2GRAY);
-    BG = R.clone();
-
     for(unsigned i = 0; i < s.heat_sources_border.size(); i++){
-        line(R, s.heat_sources_border[i] * 2, s.heat_sources_border[(i + 1) % s.heat_sources_border.size()] * 2,
-                Scalar(255,255,255));
+        line(image, s.heat_sources_border[i] * 2, s.heat_sources_border[(i + 1) % s.heat_sources_border.size()] * 2,
+                Scalar(0,0,255));
     }
-    vector<Mat> v = {BG,BG,R};
-    merge(v, image);
 }
 
 void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tracking_on)
@@ -362,7 +354,7 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
             save_img_clk = chrono::system_clock::now();
             string img_path = args.save_img_dir + "/"
                               + clkDateTimeString(save_img_clk) + ".png";
-            imwrite(img_path, drawPOI(curr.gray, curr.poi, draw_mode::NUM));
+            imwrite(img_path, curr.gray);
         }
         double process_time_us = duration_us(begin, end);
         if (args.display_delay_us > process_time_us)
