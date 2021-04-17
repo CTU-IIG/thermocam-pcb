@@ -59,6 +59,8 @@ executable('thermocam-pcb',
 	     'img_stream.cpp',
 	     'thermo_img.cpp',
 	     'heat-sources.cpp',
+	     'arg-parse.cpp',
+	     version_h
 	   ],
 	   dependencies: [
 	     opencv_dep,

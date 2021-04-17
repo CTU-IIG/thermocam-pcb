@@ -7,6 +7,12 @@ set -euo pipefail
 # automatically for security reasons.
 cp --update .git/hooks/pre-commit support/pre-commit
 
+if git diff --cached --quiet arg-parse.cpp; then
+    # No changes to arg-parse.cpp to be commited => No need to update
+    # help in README.md.
+    exit 0
+fi
+
 temp=.git/pre-commit.tmp
 
 worktree=$(git stash create)
