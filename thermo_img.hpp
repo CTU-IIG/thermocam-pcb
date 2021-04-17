@@ -27,6 +27,7 @@ struct im_status {
     cv::Mat desc;
 
     void update(img_stream &is);
+    void updateKpDesc();
 };
 
 #endif // THERMO_IMG_HPP

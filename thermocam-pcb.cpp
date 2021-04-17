@@ -262,13 +262,6 @@ void updatePOICoords(im_status &s, const im_status &ref)
         perspectiveTransform(ref.heat_sources_border, s.heat_sources_border, H);
 }
 
-void updateKpDesc(im_status &s)
-{
-    Mat pre = preprocess(s.gray);
-    s.kp = getKeyPoints(pre);
-    s.desc = getDescriptors(pre, s.kp);
-}
-
 void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tracking_on)
 {
     s.update(is);
@@ -279,7 +272,7 @@ void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tra
     }
 
     if (tracking_on) {
-        updateKpDesc(s);
+        s.updateKpDesc();
         updatePOICoords(s, ref);
     }
 
@@ -355,7 +348,7 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
     }
 
     if (tracking_on) {
-        updateKpDesc(s);
+        s.updateKpDesc();
         trainMatcher(s.desc); // train once on reference image
         // Calculate point position rolling variance from last 20 images
         r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s.poi.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
@@ -366,7 +359,7 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
         im_status hs;
         hs.gray = s.gray;
 
-        updateKpDesc(hs);
+        hs.updateKpDesc();
         std::vector<cv::DMatch> matches = matchToReference(hs.desc); // Why this takes so long?
         Mat H = findH(s.kp, hs.kp, matches);
         H = H.inv();
