@@ -46,8 +46,8 @@ vector<POI> heatSources(im_status &s, img_stream &is, Mat &laplacian, Mat &hsImg
         }
     }
 
-    Mat I = s.gray.clone();
-    I.convertTo(I, CV_64F);
+    Mat I;
+    s.rawtemp.convertTo(I, CV_64F);
 
     double blur_sigma = 5;
     GaussianBlur(I, I, Size(0, 0), blur_sigma, blur_sigma);
@@ -77,7 +77,7 @@ vector<POI> heatSources(im_status &s, img_stream &is, Mat &laplacian, Mat &hsImg
     /* Applies perspective transform to obtain correct detail of the core */
     Mat transform = getPerspectiveTransform(s.heat_sources_border, s.border_frame);
     warpPerspective(laplacian, laplacian, transform, Size(s.border_frame[2]));
-    warpPerspective(s.gray, detail, transform, Size(s.border_frame[2]));
+    warpPerspective(s.rawtemp, detail, transform, Size(s.border_frame[2]));
 
     Mat dump;
     vector<Point> lm = localMaxima(I, dump);    //Local maxima has to be calculated on shifted image to gain precise temperatures
@@ -93,7 +93,8 @@ vector<POI> heatSources(im_status &s, img_stream &is, Mat &laplacian, Mat &hsImg
     }
 
     normalize_and_convert_to_uchar(laplacian);
-    equalizeHist(detail, detail);   //for display purpose only, nothing is visible otherwise.
+    normalize_and_convert_to_uchar(detail);
+    //equalizeHist(detail, detail);   //for display purpose only, nothing is visible otherwise.
 
     if(!laplacian.empty())
         resize(laplacian, laplacian, Size(), 4, 4);
