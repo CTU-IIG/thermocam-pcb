@@ -98,7 +98,8 @@ void im_status::read_from_poi_json(string poi_filename, string heat_sources_bord
             if (!p)
                 throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
             heat_sources_border.push_back(p->p);
-            remove_if(poi.begin(), poi.end(), [p](POI &pp){return &pp == p;});
+            poi.erase(remove_if(poi.begin(), poi.end(), [p](POI &pp){return &pp == p;}),
+                      poi.end());
         }
     }
 }
