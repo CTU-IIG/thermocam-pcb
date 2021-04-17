@@ -9,7 +9,6 @@
 #include <time.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
-#include <boost/accumulators/statistics/rolling_variance.hpp>
 #include "Base64.h"
 #include <systemd/sd-daemon.h>
 
@@ -27,7 +26,6 @@
 
 using namespace cv;
 namespace pt = boost::property_tree;
-namespace acc = boost::accumulators;
 
 #define CAM_FPS 9 // The camera is 9Hz
 
@@ -64,9 +62,6 @@ bool signal_received = false;
 
 /* Webserver globals */
 Webserver *webserver = nullptr;
-
-/* Rolling variance of point positions for tracking */
-std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>> r_var;
 
 enum draw_mode { FULL, TEMP, NUM };
 constexpr draw_mode next(draw_mode m)
@@ -222,7 +217,7 @@ vector<POI> readPOI(string path)
     for (pt::ptree::value_type &p : root.get_child("POI"))
         poi.push_back({ p.second.get<string>("name"),
                         { p.second.get<float>("x"), p.second.get<float>("y") },
-                        p.second.get<double>("temp"), 0, 0});
+                        p.second.get<double>("temp")});
     return poi;
 }
 
@@ -254,8 +249,9 @@ void updatePOICoords(im_status &s, const im_status &ref)
 
         // Variance of sum of 2 random variables the same as sum of variances
         // So we only need to track 1 variance per point
-        r_var[i](s.poi[i].p.x + s.poi[i].p.y);
-        s.poi[i].rolling_std = sqrt(acc::rolling_variance(r_var[i]));
+        s.poi[i].r_var(s.poi[i].p.x + s.poi[i].p.y);
+	namespace acc = boost::accumulators;
+	s.poi[i].rolling_std = sqrt(acc::rolling_variance(s.poi[i].r_var));
     }
 
     if (ref.heat_sources_border.size() > 0)
@@ -350,8 +346,6 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
     if (tracking_on) {
         s.updateKpDesc();
         trainMatcher(s.desc); // train once on reference image
-        // Calculate point position rolling variance from last 20 images
-        r_var = std::vector<acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>>(s.poi.size(),acc::accumulator_set<double, acc::stats<acc::tag::rolling_variance>>(acc::tag::rolling_window::window_size = 20));
     }
 
     if (!hs_border.empty()) {
