@@ -4,4 +4,4 @@
 
 double getTemp(cv::Point p, img_stream &is, im_status &s);
 
-std::vector<POI> heatSources(im_status &s, img_stream &is, cv::Mat &laplacian, cv::Mat &hsImg, cv::Mat &detail);
+std::vector<POI> heatSources(im_status &s, cv::Mat &laplacian, cv::Mat &hsImg, cv::Mat &detail);

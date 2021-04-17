@@ -37,7 +37,7 @@ static void normalize_and_convert_to_uchar(Mat &mat){
     mat.convertTo(mat, CV_8UC1);
 }
 
-vector<POI> heatSources(im_status &s, img_stream &is, Mat &laplacian, Mat &hsImg, Mat &detail)
+vector<POI> heatSources(im_status &s, Mat &laplacian, Mat &hsImg, Mat &detail)
 {
     for (auto &p : s.heat_sources_border) {
         if (p.x < 0 || p.x > s.width || p.y < 0 || p.y > s.height) {

@@ -361,7 +361,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     Mat laplacian, hsImg, detail;
     if (curr.heat_sources_border.size() > 0) {
         curr.border_frame = ref.border_frame;
-        hs = heatSources(curr, is, laplacian, hsImg, detail);
+        hs = heatSources(curr, laplacian, hsImg, detail);
     }
 
     Mat img = drawPOI(curr.gray, curr.poi, curr_draw_mode);
