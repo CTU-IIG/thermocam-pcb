@@ -28,6 +28,10 @@ struct im_status {
 
     void update(img_stream &is);
     void updateKpDesc();
+
+    double get_temperature(cv::Point p);
+private:
+    img_stream *is = nullptr;
 };
 
 #endif // THERMO_IMG_HPP

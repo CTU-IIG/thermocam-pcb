@@ -86,7 +86,7 @@ vector<POI> heatSources(im_status &s, img_stream &is, Mat &laplacian, Mat &hsImg
     vector<POI> hs(lm.size());
     for (unsigned i=0; i<lm.size(); i++) {
         hs[i].p = lm[i] + Point(x_min,y_min);
-        hs[i].temp = getTemp(hs[i].p,is,s);
+        hs[i].temp = s.get_temperature(hs[i].p);
         hs[i].neg_laplacian = I.at<double>(lm[i]);
 
         hs[i].p = apply_transformation_on_point(transform, hs[i].p);
@@ -113,15 +113,4 @@ void display_mat(Mat mat){
 
     namedWindow( "Display window", WINDOW_AUTOSIZE );// Create a window for display.
     imshow( "Display window", mat);
-}
-
-double getTemp(Point p, img_stream &is, im_status &s)
-{
-    if (p.y < 0 || p.y > s.height || p.x < 0 || p.x > s.width) {
-        cerr << "Point at (" << p.x << "," << p.y << ") out of image!" << endl;
-        return nan("");
-    }
-    uint16_t pixel = s.rawtemp(p);
-
-    return is.get_temperature(pixel);
 }

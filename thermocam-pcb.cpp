@@ -278,7 +278,7 @@ void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tra
 
 
     for (POI& point : s.poi)
-        point.temp = getTemp((Point)point.p, is, s);
+        point.temp = s.get_temperature((Point)point.p);
 
 }
 
