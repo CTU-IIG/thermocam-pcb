@@ -243,15 +243,15 @@ vector<string> split(const string str, const char *delimiters)
     return words;
 }
 
-void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracking_on, string heat_sources_border_points)
+void setRefStatus(im_status &ref, img_stream &is, string poi_filename, bool tracking_on, string heat_sources_border_points)
 {
     if (poi_filename.empty()) {
-        s.update(is);
+        ref.update(is);
     } else {
-        s.gray = readJsonImg(poi_filename);
-        s.poi = readPOI(poi_filename);
-        s.width = s.gray.cols;
-        s.height = s.gray.rows;
+        ref.gray = readJsonImg(poi_filename);
+        ref.poi = readPOI(poi_filename);
+        ref.width = ref.gray.cols;
+        ref.height = ref.gray.rows;
     }
 
     if (!heat_sources_border_points.empty()) {
@@ -261,7 +261,7 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
                                 " as in: " + heat_sources_border_points);
         for (auto &name: pt_names) {
             POI *p = nullptr;
-            for (auto &poi : s.poi) {
+            for (auto &poi : ref.poi) {
                 if (poi.name == name) {
                     p = &poi;
                     break;
@@ -269,15 +269,15 @@ void setRefStatus(im_status &s, img_stream &is, string poi_filename, bool tracki
             }
             if (!p)
                 throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
-            s.heat_sources_border.push_back(p->p);
-            remove_if(s.poi.begin(), s.poi.end(), [p](POI &pp){return &pp == p;});
+            ref.heat_sources_border.push_back(p->p);
+            remove_if(ref.poi.begin(), ref.poi.end(), [p](POI &pp){return &pp == p;});
         }
-        s.setFixedFrame();
+        ref.setFixedFrame();
     }
 
     if (tracking_on) {
-        s.updateKpDesc();
-        trainMatcher(s.desc); // train once on reference image
+        ref.updateKpDesc();
+        trainMatcher(ref.desc); // train once on reference image
     }
 }
 
