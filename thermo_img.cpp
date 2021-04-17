@@ -103,6 +103,31 @@ void im_status::read_from_poi_json(string poi_filename, string heat_sources_bord
     }
 }
 
+void im_status::write_poi_json(string path, bool verbose)
+{
+    pt::ptree root, poi_pt, poi_img;
+    for (unsigned i = 0; i < poi.size(); i++) {
+        pt::ptree elem;
+        elem.put("name", poi[i].name);
+        elem.put("x", poi[i].p.x);
+        elem.put("y", poi[i].p.y);
+        elem.put("temp", poi[i].temp);
+        poi_pt.push_back(std::make_pair("", elem));
+    }
+    root.add_child("POI", poi_pt);
+
+    vector<uchar> img_v;
+    imencode(".jpg",gray,img_v);
+    string img_s(img_v.begin(),img_v.end());
+    poi_img.put("", macaron::Base64::Encode(img_s));
+    root.add_child("POI img", poi_img);
+
+    pt::write_json(path, root);
+
+    if (verbose)
+        cout << "Points saved to " << path << endl;
+}
+
 void im_status::updateKpDesc()
 {
     Mat pre = preprocess(gray);

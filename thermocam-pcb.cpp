@@ -7,9 +7,7 @@
 #include <err.h>
 #include <unistd.h>
 #include <time.h>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
-#include "Base64.h"
+#include <fstream>
 #include <systemd/sd-daemon.h>
 
 #include "point-tracking.hpp"
@@ -23,7 +21,6 @@
 #include <opencv2/calib3d.hpp>
 
 using namespace cv;
-namespace pt = boost::property_tree;
 
 #define CAM_FPS 9 // The camera is 9Hz
 
@@ -153,31 +150,6 @@ void highlight_core(im_status &s, Mat &image){
     }
     vector<Mat> v = {BG,BG,R};
     merge(v, image);
-}
-
-void writePOI(vector<POI> poi, Mat last_img, string path, bool verbose = false)
-{
-    pt::ptree root, poi_pt, poi_img;
-    for (unsigned i = 0; i < poi.size(); i++) {
-        pt::ptree elem;
-        elem.put("name", poi[i].name);
-        elem.put("x", poi[i].p.x);
-        elem.put("y", poi[i].p.y);
-        elem.put("temp", poi[i].temp);
-        poi_pt.push_back(std::make_pair("", elem));
-    }
-    root.add_child("POI", poi_pt);
-
-    vector<uchar> img_v;
-    imencode(".jpg",last_img,img_v);
-    string img_s(img_v.begin(),img_v.end());
-    poi_img.put("", macaron::Base64::Encode(img_s));
-    root.add_child("POI img", poi_img);
-
-    pt::write_json(path, root);
-
-    if (verbose)
-        cout << "Points saved to " << path << endl;
 }
 
 void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tracking_on)
@@ -426,7 +398,7 @@ int main(int argc, char **argv)
     processStream(is, ref, curr, args);
 
     if (!args.poi_export_path.empty())
-        writePOI(curr.poi, curr.gray, args.poi_export_path, true);
+        curr.write_poi_json(args.poi_export_path, true);
 
     if (webserver)
         webserver->terminate();

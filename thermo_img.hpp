@@ -33,6 +33,8 @@ struct im_status {
     void update(img_stream &is);
     void read_from_poi_json(std::string poi_filename, std::string heat_sources_border_points = "");
 
+    void write_poi_json(std::string path, bool verbose = false);
+
     void updateKpDesc();
     void trainMatcher();
 
