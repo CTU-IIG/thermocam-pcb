@@ -31,6 +31,8 @@ struct im_status {
     std::vector<cv::Point2f> heat_sources_border;
 
     void update(img_stream &is);
+    void read_from_poi_json(std::string poi_filename, std::string heat_sources_border_points = "");
+
     void updateKpDesc();
     void trainMatcher();
 

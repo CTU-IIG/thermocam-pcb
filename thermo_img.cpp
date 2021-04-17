@@ -2,9 +2,13 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <err.h>
 #include "point-tracking.hpp"
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include "Base64.h"
 
 using namespace std;
 using namespace cv;
+namespace pt = boost::property_tree;
 
 string POI::to_string(bool print_name)
 {
@@ -26,6 +30,77 @@ void im_status::update(img_stream &is)
                       255.0 / (1.0 - double(is.max_rawtemp) / double(is.min_rawtemp)));
 
     this->is = &is;
+}
+
+static vector<POI> readPOI(string path)
+{
+    vector<POI> poi;
+    pt::ptree root;
+    pt::read_json(path, root);
+    for (pt::ptree::value_type &p : root.get_child("POI"))
+        poi.push_back({ p.second.get<string>("name"),
+                        { p.second.get<float>("x"), p.second.get<float>("y") },
+                        p.second.get<double>("temp")});
+    return poi;
+}
+
+static Mat readJsonImg(string path)
+{
+    pt::ptree root;
+    pt::read_json(path, root);
+    pt::ptree img_ptree = root.get_child("POI img");
+    string img_encoded =  img_ptree.get_value<string>();
+    string decoded;
+    if(macaron::Base64::Decode(img_encoded,decoded) != "")
+        err(1,"Base64 decoding: input data size is not a multiple of 4.");
+    vector<uchar> decoded_v(decoded.begin(), decoded.end());
+    return imdecode(decoded_v,0);
+}
+
+vector<string> split(const string str, const char *delimiters)
+{
+    vector<string> words;
+
+    for (size_t start = 0, end = 0;;) {
+        start = str.find_first_not_of(delimiters, end);
+        if (start == string::npos)
+            break;
+
+        end = str.find_first_of(delimiters, start);
+        if (end == string::npos)
+            end = str.size();
+
+        words.push_back(str.substr(start, end - start));
+    }
+    return words;
+}
+
+void im_status::read_from_poi_json(string poi_filename, string heat_sources_border_points)
+{
+    gray = readJsonImg(poi_filename);
+    poi = readPOI(poi_filename);
+    width = gray.cols;
+    height = gray.rows;
+
+    if (!heat_sources_border_points.empty()) {
+        vector<string> pt_names = split(heat_sources_border_points, ",");
+        if (pt_names.size() != 4)
+            throw runtime_error("Four heat source point names are required, not " + to_string(pt_names.size()) +
+                                " as in: " + heat_sources_border_points);
+        for (auto &name: pt_names) {
+            POI *p = nullptr;
+            for (auto &poi : this->poi) {
+                if (poi.name == name) {
+                    p = &poi;
+                    break;
+                }
+            }
+            if (!p)
+                throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
+            heat_sources_border.push_back(p->p);
+            remove_if(poi.begin(), poi.end(), [p](POI &pp){return &pp == p;});
+        }
+    }
 }
 
 void im_status::updateKpDesc()

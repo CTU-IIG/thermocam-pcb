@@ -180,31 +180,6 @@ void writePOI(vector<POI> poi, Mat last_img, string path, bool verbose = false)
         cout << "Points saved to " << path << endl;
 }
 
-vector<POI> readPOI(string path)
-{
-    vector<POI> poi;
-    pt::ptree root;
-    pt::read_json(path, root);
-    for (pt::ptree::value_type &p : root.get_child("POI"))
-        poi.push_back({ p.second.get<string>("name"),
-                        { p.second.get<float>("x"), p.second.get<float>("y") },
-                        p.second.get<double>("temp")});
-    return poi;
-}
-
-Mat readJsonImg(string path)
-{
-    pt::ptree root;
-    pt::read_json(path, root);
-    pt::ptree img_ptree = root.get_child("POI img");
-    string img_encoded =  img_ptree.get_value<string>();
-    string decoded;
-    if(macaron::Base64::Decode(img_encoded,decoded) != "")
-        err(1,"Base64 decoding: input data size is not a multiple of 4.");
-    vector<uchar> decoded_v(decoded.begin(), decoded.end());
-    return imdecode(decoded_v,0);
-}
-
 void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tracking_on)
 {
     s.update(is);
@@ -225,55 +200,13 @@ void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tra
 
 }
 
-vector<string> split(const string str, const char *delimiters)
-{
-    vector<string> words;
-
-    for (size_t start = 0, end = 0;;) {
-        start = str.find_first_not_of(delimiters, end);
-        if (start == string::npos)
-            break;
-
-        end = str.find_first_of(delimiters, start);
-        if (end == string::npos)
-            end = str.size();
-
-        words.push_back(str.substr(start, end - start));
-    }
-    return words;
-}
-
 void setRefStatus(im_status &ref, img_stream &is, string poi_filename, bool tracking_on, string heat_sources_border_points)
 {
     if (poi_filename.empty()) {
         ref.update(is);
     } else {
-        ref.gray = readJsonImg(poi_filename);
-        ref.poi = readPOI(poi_filename);
-        ref.width = ref.gray.cols;
-        ref.height = ref.gray.rows;
+        ref.read_from_poi_json(poi_filename, heat_sources_border_points);
     }
-
-    if (!heat_sources_border_points.empty()) {
-        vector<string> pt_names = split(heat_sources_border_points, ",");
-        if (pt_names.size() != 4)
-            throw runtime_error("Four heat source point names are required, not " + to_string(pt_names.size()) +
-                                " as in: " + heat_sources_border_points);
-        for (auto &name: pt_names) {
-            POI *p = nullptr;
-            for (auto &poi : ref.poi) {
-                if (poi.name == name) {
-                    p = &poi;
-                    break;
-                }
-            }
-            if (!p)
-                throw runtime_error("Heat source point '" + name + "' not found in " + poi_filename);
-            ref.heat_sources_border.push_back(p->p);
-            remove_if(ref.poi.begin(), ref.poi.end(), [p](POI &pp){return &pp == p;});
-        }
-    }
-
     if (tracking_on) {
         ref.updateKpDesc();
         ref.trainMatcher(); // train once on reference image
@@ -340,9 +273,9 @@ void printPOITemp(vector<POI> poi, string file)
 }
 
 void showPOIImg(string path){
-    vector<POI> poi =  readPOI(path);
-    Mat img = readJsonImg(path);
-    Mat imdraw = drawPOI(img, poi, draw_mode::NUM);
+    im_status img;
+    img.read_from_poi_json(path);
+    Mat imdraw = drawPOI(img.gray, img.poi, draw_mode::NUM);
     string title = "POI from " + path;
     imshow(title,imdraw);
     waitKey(0);
