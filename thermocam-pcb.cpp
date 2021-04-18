@@ -261,9 +261,9 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     printPOITemp(curr.poi, poi_csv_file);
 
     vector<HeatSource> hs;
-    Mat laplacian, hsImg, detail;
+    Mat laplacian, hsImg, detail, hsAvg;
     if (curr.heat_sources_border.size() > 0) {
-        hs = heatSources(curr, laplacian, hsImg, detail);
+        hs = heatSources(curr, laplacian, hsImg, detail, hsAvg);
     }
 
     Mat img = drawPOI(curr.gray, curr.poi, curr_draw_mode);
@@ -287,7 +287,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
 
     if (gui_available) {
         if (!detail.empty()) {
-            vector<Mat*> mats({ &detail, &laplacian, &hsImg });
+            vector<Mat*> mats({ &detail, &laplacian, &hsImg, &hsAvg });
             int h = img.rows, w = img.cols;
             int hh = accumulate(begin(mats), end(mats), 0, [](int a, Mat *m){return max(a, m->rows + 1);});
             int ww = accumulate(begin(mats), end(mats), 0, [](int a, Mat *m){return a + m->cols + 1;});

@@ -33,7 +33,8 @@ static void normalize_and_convert_to_uchar(Mat &mat){
     mat.convertTo(mat, CV_8UC1);
 }
 
-vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out, Mat &detail_out)
+vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out, Mat &detail_out,
+                               Mat &hsAvg_out)
 {
     for (auto &p : s.heat_sources_border) {
         if (p.x < 0 || p.x > s.width || p.y < 0 || p.y > s.height) {
@@ -58,6 +59,12 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
 
     vector<Point> lm = localMaxima(laplacian, hsImg);
 
+    static Mat hsAvg;
+    if (hsAvg.empty())
+        hsAvg = hsImg * 0.0; // black image of the same type and size
+    double alpha = 0.90;
+    hsAvg = alpha * hsAvg + (1-alpha) * hsImg;
+
     vector<HeatSource> hs(lm.size());
     for (unsigned i=0; i<lm.size(); i++) {
         hs[i].location = lm[i];
@@ -65,20 +72,16 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
         hs[i].neg_laplacian = laplacian.at<double>(lm[i]);
     }
 
-    normalize_and_convert_to_uchar(laplacian);
-    normalize_and_convert_to_uchar(detail);
-    normalize_and_convert_to_uchar(hsImg);
-    applyColorMap(laplacian, laplacian, cv::COLORMAP_INFERNO);
-    applyColorMap(detail, detail, cv::COLORMAP_INFERNO);
-    applyColorMap(hsImg, hsImg, cv::COLORMAP_INFERNO);
-    //equalizeHist(detail, detail);   //for display purpose only, nothing is visible otherwise.
+    hsAvg_out = hsAvg.clone();
+    // Make the dark colors more visible
+    cv::log(0.001+hsAvg_out, hsAvg_out);
+    //cv::sqrt(hsAvg_out, hsAvg_out);
 
-    if(!laplacian.empty())
-        resize(laplacian, laplacian, Size(), 2, 2);
-    if(!hsImg.empty())
-        resize(hsImg, hsImg, Size(), 2, 2);
-    if(!detail.empty())
-        resize(detail, detail, Size(), 2, 2);
+    for (Mat *m : {&detail, &laplacian, &hsImg, &hsAvg_out}) {
+        normalize_and_convert_to_uchar(*m);
+        applyColorMap(*m, *m, cv::COLORMAP_INFERNO);
+        resize(*m, *m, Size(), 2, 2);
+    }
 
     detail_out = detail;
     laplacian_out = laplacian;

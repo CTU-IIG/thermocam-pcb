@@ -12,4 +12,5 @@ struct HeatSource {
     double neg_laplacian;
 };
 
-std::vector<HeatSource> heatSources(im_status &s, cv::Mat &laplacian, cv::Mat &hsImg, cv::Mat &detail);
+std::vector<HeatSource> heatSources(im_status &s, cv::Mat &laplacian, cv::Mat &hsImg, cv::Mat &detail,
+                                    cv::Mat &hsAvg);
