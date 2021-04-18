@@ -21,6 +21,8 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/freetype.hpp>
 
+#include <numeric>
+
 #include "config.h"
 
 using namespace cv;
@@ -284,6 +286,22 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     }
 
     if (gui_available) {
+        if (!detail.empty()) {
+            vector<Mat*> mats({ &detail, &laplacian, &hsImg });
+            int h = img.rows, w = img.cols;
+            int hh = accumulate(begin(mats), end(mats), 0, [](int a, Mat *m){return max(a, m->rows + 1);});
+            int ww = accumulate(begin(mats), end(mats), 0, [](int a, Mat *m){return a + m->cols + 1;});
+
+            copyMakeBorder(img, img, 0, hh, 0, max(0, ww - w), cv::BORDER_CONSTANT,
+                           Scalar(255,255,255));
+            int x = 0;
+            for (Mat *m : mats) {
+                if (m->channels() == 1)
+                    cvtColor(*m, *m, COLOR_GRAY2BGR);
+                m->copyTo(img(Rect(Point(x, h + 1), m->size())));
+                x += m->cols + 1;
+            }
+        }
         imshow(window_name, img);
     }
 }
