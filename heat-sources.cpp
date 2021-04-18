@@ -5,6 +5,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 using namespace cv;
+using namespace std;
 
 static vector<Point> localMaxima(Mat I, Mat &hs)
 {
@@ -13,8 +14,10 @@ static vector<Point> localMaxima(Mat I, Mat &hs)
     Mat imageLM, localMaxima;
     dilate(I, imageLM, getStructuringElement(MORPH_RECT, cv::Size (3, 3)));
 
-    localMaxima = I >= imageLM;
-    hs = localMaxima;
+    localMaxima = ((I == imageLM) & (I > 0));
+
+    // mask non-maximum points
+    I.copyTo(hs, localMaxima);
 
     vector<Point> locations;
     findNonZero(localMaxima, locations);
@@ -64,8 +67,10 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
 
     normalize_and_convert_to_uchar(laplacian);
     normalize_and_convert_to_uchar(detail);
+    normalize_and_convert_to_uchar(hsImg);
     applyColorMap(laplacian, laplacian, cv::COLORMAP_INFERNO);
     applyColorMap(detail, detail, cv::COLORMAP_INFERNO);
+    applyColorMap(hsImg, hsImg, cv::COLORMAP_INFERNO);
     //equalizeHist(detail, detail);   //for display purpose only, nothing is visible otherwise.
 
     if(!laplacian.empty())
