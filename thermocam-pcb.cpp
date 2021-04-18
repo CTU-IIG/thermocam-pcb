@@ -155,7 +155,7 @@ void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tra
 {
     s.update(is);
 
-    if(s.poi.size() == 0  || !tracking_on) {
+    if(s.poi.size() == 0) {
         s.poi = ref.poi;
         s.heat_sources_border = ref.heat_sources_border;
     }
@@ -338,8 +338,8 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
     if (gui_available && args.enter_poi)
         setMouseCallback(window_name, onMouse, &ref.poi);
     if (!args.vid_out_path.empty()) {
-        int scale = args.tracking_on ? 2 : 1;
-        bool isColor = args.tracking_on;
+        int scale = args.tracking != cmd_arguments::tracking::off ? 2 : 1;
+        bool isColor = args.tracking != cmd_arguments::tracking::off;
         string cc = args.fourcc;
         vw = new VideoWriter(args.vid_out_path,
                              cv::VideoWriter::fourcc(cc[0], cc[1], cc[2], cc[3]),
@@ -356,14 +356,19 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
     if (args.save_img)
         save_img_clk = chrono::system_clock::now();
 
+    bool tracking_on = args.tracking != cmd_arguments::tracking::off;
+
     while (!exit) {
         if (watchdog_enabled)
             sd_notify(false, "WATCHDOG=1");
 
         auto begin = chrono::system_clock::now();
         processNextFrame(is, ref, curr, window_name, vw,
-                         args.poi_csv_file, args.tracking_on);
+                         args.poi_csv_file, tracking_on);
         auto end = chrono::system_clock::now();
+
+        if (args.tracking == cmd_arguments::tracking::once)
+            tracking_on = false;
 
         exit = handle_input(args.enter_poi, ref);
 
@@ -413,7 +418,7 @@ int main(int argc, char **argv)
 
     argp_parse(&argp, argc, argv, 0, 0, &args);
 
-    if (args.enter_poi && args.tracking_on)
+    if (args.enter_poi && args.tracking != cmd_arguments::tracking::off)
         err(1,"Can't enter points and have tracking enabled at the same time!");
 
     signal(SIGINT, signalHandler);
@@ -430,7 +435,8 @@ int main(int argc, char **argv)
 
     img_stream is(args.vid_in_path, args.license_dir);
     im_status ref, curr;
-    setRefStatus(ref, is, args.poi_import_path, args.tracking_on, args.heat_sources_border_points);
+    setRefStatus(ref, is, args.poi_import_path, args.tracking != cmd_arguments::tracking::off,
+                 args.heat_sources_border_points);
 
     if (args.webserver_active)
         webserver = new Webserver();

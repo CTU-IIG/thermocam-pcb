@@ -278,10 +278,13 @@ temperature. Writes the temperatures of entered POIs to stdout.
       --save-img-period=SECS Period for saving an image with POIs to
                              "save-img-dir".
                              1s by default.
-  -t, --track-points         Turn on tracking of points.
+  -t, --track-points[=once]  Turn on tracking of points. If "once" is
+                             specified, tacking happens only for the first
+                             image. This allows faster processing if the board
+                             doesn't move.
   -v, --load-video=FILE      Load and process video instead of camera feed
-  -w, --webserver            Start webserver to display image and
-                             temperatures.
+  -w, --webserver            Start webserver to display image and temperatures.
+                            
   -?, --help                 Give this help list
       --usage                Give a short usage message
   -V, --version              Print program version

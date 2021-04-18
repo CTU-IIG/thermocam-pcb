@@ -2,6 +2,8 @@
 #include "version.h"
 #include <string.h>
 
+using namespace std;
+
 static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
 {
     cmd_arguments &args = *reinterpret_cast<cmd_arguments*>(argp_state->input);
@@ -41,10 +43,18 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         args.display_delay_us = atof(arg) * 1000000;
         break;
     case 't':
-        args.tracking_on = true;
+        if (!arg) {
+            args.tracking = cmd_arguments::tracking::on;
+        } else if (string(arg) == "once") {
+            args.tracking = cmd_arguments::tracking::once;
+        } else {
+            argp_error(argp_state, "Unknown tracking mode: %s", arg);
+            return EINVAL;
+        }
         break;
     case 'h':
-        args.tracking_on = true;
+        if (args.tracking == cmd_arguments::tracking::off)
+            args.tracking = cmd_arguments::tracking::on;
         args.heat_sources_border_points = arg;
         break;
     case OPT_SAVE_IMG_DIR:
@@ -84,7 +94,7 @@ static struct argp_option options[] = {
     { "csv-log",         'c', "FILE",        0, "Log temperature of POIs to a csv file instead of printing them to stdout."},
     { "save-img-dir",    OPT_SAVE_IMG_DIR, "DIR",  0, "Target directory for saving an image with POIs every \"save-img-period\" seconds.\n\".\" by default."},
     { "save-img-period", OPT_SAVE_IMG_PER, "SECS", 0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
-    { "track-points",    't', 0,             0, "Turn on tracking of points."},
+    { "track-points",    't', "once",        OPTION_ARG_OPTIONAL, "Turn on tracking of points. If \"once\" is specified, tacking happens only for the first image. This allows faster processing if the board doesn't move."},
     { "heat-sources",    'h', "PT_LIST",     0, "Enables heat sources detection. PT_LIST is a comma separated list of names of 4 points (specified with -p) that define detection area. Implies -t."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { "webserver",       'w', 0,             0, "Start webserver to display image and temperatures."},
