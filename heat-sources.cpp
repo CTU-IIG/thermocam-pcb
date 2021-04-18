@@ -51,7 +51,7 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
     warpPerspective(raw_float, detail, transform, sz);
 
     Mat blur, laplacian, hsImg;
-    const double blur_sigma = 5;
+    const double blur_sigma = 7;
     GaussianBlur(detail, blur, Size(0, 0), blur_sigma, blur_sigma);
     Laplacian(blur, laplacian, blur.depth());
     laplacian *= -1;
