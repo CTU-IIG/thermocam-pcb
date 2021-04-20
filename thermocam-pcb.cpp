@@ -198,7 +198,7 @@ void onMouse(int event, int x, int y, int flags, void *param)
 string clkDateTimeString(chrono::time_point<chrono::system_clock> clk){
     time_t t = chrono::system_clock::to_time_t(clk);
     char buf[64];
-    if (!strftime(buf, 64, "%F %T", localtime(&t)))
+    if (!strftime(buf, 64, "%F_%T", localtime(&t)))
         err(1, "strftime");
     string s(buf);
     return s;
@@ -378,6 +378,7 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
             string img_path = args.save_img_dir + "/"
                               + clkDateTimeString(save_img_clk) + ".png";
             imwrite(img_path, curr.gray);
+            imwrite(args.save_img_dir + "/raw_" + clkDateTimeString(save_img_clk) + ".png", curr.rawtemp);
         }
         double process_time_us = duration_us(begin, end);
         if (args.display_delay_us > process_time_us)
