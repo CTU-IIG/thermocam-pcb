@@ -25,12 +25,12 @@ static vector<Point> localMaxima(Mat I, Mat &hs)
 }
 
 
-static void normalize_and_convert_to_uchar(Mat &mat){
+static void normalize_and_convert_to_uchar(Mat &mat_in, Mat &mat_out){
     double min, max;
-    minMaxLoc(mat, &min, &max);
-    mat -= min;
-    mat *= 255.0 / (max - min);
-    mat.convertTo(mat, CV_8UC1);
+    minMaxLoc(mat_in, &min, &max);
+    mat_in.convertTo(mat_out, CV_8UC1,
+                     255.0 / (max - min),
+                     255.0 / (1.0 - max / min));
 }
 
 vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out, Mat &detail_out,
@@ -77,15 +77,16 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
     cv::log(0.001+hsAvg_out, hsAvg_out);
     //cv::sqrt(hsAvg_out, hsAvg_out);
 
-    for (Mat *m : {&detail, &laplacian, &hsImg, &hsAvg_out}) {
-        normalize_and_convert_to_uchar(*m);
-        applyColorMap(*m, *m, cv::COLORMAP_INFERNO);
-        resize(*m, *m, Size(), 2, 2);
+    for (auto [in, out] : {
+            make_pair(&detail, &detail_out),
+            make_pair(&laplacian, &laplacian_out),
+            make_pair(&hsImg, &hsImg_out),
+            make_pair(&hsAvg_out, &hsAvg_out),
+        }) {
+        normalize_and_convert_to_uchar(*in, *out);
+        applyColorMap(*out, *out, cv::COLORMAP_INFERNO);
+        resize(*out, *out, Size(), 2, 2);
     }
-
-    detail_out = detail;
-    laplacian_out = laplacian;
-    hsImg_out = hsImg;
 
     return hs;
 }
