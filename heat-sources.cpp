@@ -34,7 +34,7 @@ static void normalize_and_convert_to_uchar(Mat &mat_in, Mat &mat_out){
 }
 
 vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out, Mat &detail_out,
-                               Mat &hsAvg_out)
+                               Mat &hsAvg_out, cv::Ptr<cv::freetype::FreeType2> ft2)
 {
     for (auto &p : s.heat_sources_border) {
         if (p.x < 0 || p.x > s.width || p.y < 0 || p.y > s.height) {
@@ -66,10 +66,13 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
     hsAvg = alpha * hsAvg + (1-alpha) * hsImg;
 
     vector<HeatSource> hs(lm.size());
+    size_t max_hs = 0;
     for (unsigned i=0; i<lm.size(); i++) {
         hs[i].location = lm[i];
         hs[i].temperature = s.get_temperature(detail.at<double>(lm[i]));
         hs[i].neg_laplacian = laplacian.at<double>(lm[i]);
+        if (hs[i].neg_laplacian > hs[max_hs].neg_laplacian)
+            max_hs = i;
     }
 
     hsAvg_out = hsAvg.clone();
@@ -87,6 +90,10 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
         applyColorMap(*out, *out, cv::COLORMAP_INFERNO);
         resize(*out, *out, Size(), 2, 2);
     }
+
+    copyMakeBorder(laplacian_out, laplacian_out, 0, 15, 0, 0, BORDER_CONSTANT, Scalar(255, 255, 255));
+    ft2->putText(laplacian_out, "max: " + to_string(hs[max_hs].neg_laplacian),
+                 Point(5,200), 15, Scalar(0, 0, 0), -1, cv::LINE_AA, false);
 
     return hs;
 }

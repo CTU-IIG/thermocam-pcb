@@ -3,6 +3,7 @@
 #include "img_stream.hpp"
 #include "thermo_img.hpp"
 #include <opencv2/core/mat.hpp>
+#include <opencv2/freetype.hpp>
 
 double getTemp(cv::Point p, img_stream &is, im_status &s);
 
@@ -13,4 +14,4 @@ struct HeatSource {
 };
 
 std::vector<HeatSource> heatSources(im_status &s, cv::Mat &laplacian, cv::Mat &hsImg, cv::Mat &detail,
-                                    cv::Mat &hsAvg);
+                                    cv::Mat &hsAvg, cv::Ptr<cv::freetype::FreeType2> ft2);

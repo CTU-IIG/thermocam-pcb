@@ -263,7 +263,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     vector<HeatSource> hs;
     Mat laplacian, hsImg, detail, hsAvg;
     if (curr.heat_sources_border.size() > 0) {
-        hs = heatSources(curr, laplacian, hsImg, detail, hsAvg);
+        hs = heatSources(curr, laplacian, hsImg, detail, hsAvg, ft2);
     }
 
     Mat img = drawPOI(curr.gray, curr.poi, curr_draw_mode);
