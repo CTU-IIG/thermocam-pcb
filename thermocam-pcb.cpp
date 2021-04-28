@@ -266,7 +266,11 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
         hs = heatSources(curr, laplacian, hsImg, detail, hsAvg, ft2);
     }
 
-    Mat img = drawPOI(curr.gray, curr.poi, curr_draw_mode);
+    Mat img;
+    curr.gray.copyTo(img);
+    applyColorMap(img, img, cv::COLORMAP_INFERNO);
+    img = drawPOI(img, curr.poi, curr_draw_mode);
+
     highlight_core(curr, img);
 
     if (vw)
