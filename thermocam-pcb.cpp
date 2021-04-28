@@ -284,6 +284,9 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
             webserver->setHSImg(hsImg);
         if (!detail.empty())
             webserver->setDetail(detail);
+        if (!hsAvg.empty()){
+            webserver->setHsAvg(hsAvg);
+        }
         webserver->setPOI(curr.poi);
         webserver->setHeatSources(hs);
         webserver->setCameraComponentTemps(is.getCameraComponentTemps());
