@@ -11,7 +11,7 @@ R"(
         <meta charset="utf-8" />
         <title>Thermocam-PCB</title>
     </head>
-    <body onload="setInterval(reloadImg, 330); setInterval(reloadImgDetail, 330); setInterval(reloadImgHs, 330); setInterval(reloadLaplacian, 330);">
+    <body onload="setInterval(reloadAllImages, 330);">
       <div>
         <h2>Thermocam-PCB</h2>
         <img src="thermocam-current.jpg" id=camera />
@@ -44,7 +44,7 @@ R"(
             }
           </script>
 	</div>
-	<div>
+	<div style="margin-right: 1em;">
           <h2>Heat-sources</h2>
           <img src="heat_sources-current.jpg" id=hs />
           <script>
@@ -54,7 +54,21 @@ R"(
             }
           </script>
 	</div>
+	<div>
+          <h2>Heat-source-average</h2>
+          <img src="hs-avg.jpg" id=avg />
+          <script>
+            var counter = 0;
+            function reloadImgHsAvg() {
+            document.getElementById('avg').src='hs-avg.jpg?c=' + counter++;
+            }
+          </script>
+	</div>
       </div>
+
+        <script>
+            function reloadAllImages() {reloadImg(); reloadImgDetail(); reloadImgHs(); reloadLaplacian(); reloadImgHsAvg();}
+        </script>
     </body>
 </html>
 )";
@@ -160,6 +174,15 @@ void Webserver::start()
             ([this](const crow::request& req, crow::response& res){
                 this->lock.lock();
                 cv::Mat curr_img = this->detail_img;
+                this->lock.unlock();
+                sendImg(res,curr_img);
+                res.end();
+            });
+
+    CROW_ROUTE(app, "/hs-avg.jpg")
+            ([this](const crow::request& req, crow::response& res){
+                this->lock.lock();
+                cv::Mat curr_img = this->hs_avg;
                 this->lock.unlock();
                 sendImg(res,curr_img);
                 res.end();
