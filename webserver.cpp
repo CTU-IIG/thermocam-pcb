@@ -67,8 +67,8 @@ R"(
         <script>
             function reloadAllImages() {reloadImg(); reloadImgDetail(); reloadImgHs(); reloadLaplacian(); reloadImgHsAvg();};
 
-            let server = location.hostname;
-            let socket = new WebSocket("ws://" + server + ":8080/ws");
+            let server = location.host;
+            let socket = new WebSocket("ws://" + server + "/ws");
 
             socket.onopen = ()=>{
                 console.log('open');

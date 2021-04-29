@@ -82,7 +82,7 @@ public:
     void noticeClients(){
         std::lock_guard<std::mutex> _(this->usr_mtx);
         for(crow::websocket::connection* u : this->users){
-            u->send_text("Test");
+            u->send_text("Actualize!");
         }
     }
 
