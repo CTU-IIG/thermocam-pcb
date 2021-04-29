@@ -4,6 +4,7 @@
 #include <opencv2/core/mat.hpp>
 #include <vector>
 #include "img_stream.hpp"
+#include "arg-parse.hpp"
 #include <boost/accumulators/statistics/rolling_variance.hpp>
 
 // Point of interrest
@@ -35,6 +36,7 @@ struct im_status {
 
     void write_poi_json(std::string path, bool verbose = false);
 
+    cmd_arguments::tracking tracking;
     void updateKpDesc();
     void trainMatcher();
 

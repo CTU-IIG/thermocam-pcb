@@ -9,6 +9,7 @@
 #include <time.h>
 #include <fstream>
 #include <systemd/sd-daemon.h>
+#include <future>
 
 #include "point-tracking.hpp"
 
@@ -28,6 +29,7 @@
 using namespace cv;
 
 #define CAM_FPS 9 // The camera is 9Hz
+#define BACKGROUND_CALC_FREQ 9
 
 /* Global switches */
 bool gui_available;
@@ -151,7 +153,7 @@ void highlight_core(im_status &s, Mat &image){
     }
 }
 
-void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tracking_on)
+void updateImStatus(im_status &s, img_stream &is, const im_status &ref)
 {
     s.update(is);
 
@@ -160,7 +162,8 @@ void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tra
         s.heat_sources_border = ref.heat_sources_border;
     }
 
-    if (tracking_on) {
+    if (s.tracking == cmd_arguments::tracking::on || s.tracking == cmd_arguments::tracking::once
+    || s.tracking == cmd_arguments::tracking::background_first_iter) {
         s.updateKpDesc();
         s.updatePOICoords(ref);
     }
@@ -253,11 +256,24 @@ void showPOIImg(string path){
     destroyAllWindows();
 }
 
+im_status getUpdatedImStatus(const im_status &s, const im_status &ref){
+    im_status is_copy(s);
+
+    if(is_copy.poi.size() == 0) {
+        is_copy.poi = ref.poi;
+        is_copy.heat_sources_border = ref.heat_sources_border;
+    }
+
+    is_copy.updateKpDesc();
+    is_copy.updatePOICoords(ref);
+    return is_copy;
+}
+
 void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
                       string window_name, VideoWriter *vw,
-                      string poi_csv_file, bool tracking_on)
+                      string poi_csv_file)
 {
-    updateImStatus(curr, is, ref, tracking_on);
+    updateImStatus(curr, is, ref);
     printPOITemp(curr.poi, poi_csv_file);
 
     vector<HeatSource> hs;
@@ -274,7 +290,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     highlight_core(curr, img);
 
     if (vw)
-        vw->write(tracking_on ? img : curr.gray);
+        vw->write(curr.tracking != cmd_arguments::tracking::off ? img : curr.gray);
 
     if (webserver) {
         webserver->setImg(img);
@@ -340,14 +356,15 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
     VideoWriter *vw = nullptr;
     string window_name = "Thermocam-PCB";
     chrono::time_point<chrono::system_clock> save_img_clk;
+    curr.tracking = args.track;
 
     if (gui_available)
         namedWindow(window_name, WINDOW_NORMAL);
     if (gui_available && args.enter_poi)
         setMouseCallback(window_name, onMouse, &ref.poi);
     if (!args.vid_out_path.empty()) {
-        int scale = args.tracking != cmd_arguments::tracking::off ? 2 : 1;
-        bool isColor = args.tracking != cmd_arguments::tracking::off;
+        int scale = args.track != cmd_arguments::tracking::off ? 2 : 1;
+        bool isColor = args.track != cmd_arguments::tracking::off;
         string cc = args.fourcc;
         vw = new VideoWriter(args.vid_out_path,
                              cv::VideoWriter::fourcc(cc[0], cc[1], cc[2], cc[3]),
@@ -364,19 +381,32 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
     if (args.save_img)
         save_img_clk = chrono::system_clock::now();
 
-    bool tracking_on = args.tracking != cmd_arguments::tracking::off;
-
+    int background_counter = 0;
+    std::future<im_status> new_im_status;
     while (!exit) {
         if (watchdog_enabled)
             sd_notify(false, "WATCHDOG=1");
-
         auto begin = chrono::system_clock::now();
+
+        if(curr.tracking == cmd_arguments::tracking::background && background_counter % BACKGROUND_CALC_FREQ == 1){
+            new_im_status = std::async(getUpdatedImStatus, curr, ref);
+        }
         processNextFrame(is, ref, curr, window_name, vw,
-                         args.poi_csv_file, tracking_on);
+                         args.poi_csv_file);
+
+        if(curr.tracking == cmd_arguments::tracking::background && background_counter % BACKGROUND_CALC_FREQ == 0){
+            auto tmp = new_im_status.get();
+            curr.poi = tmp.poi;
+            curr.heat_sources_border = tmp.heat_sources_border;
+        }
+        background_counter++;
+
         auto end = chrono::system_clock::now();
 
-        if (args.tracking == cmd_arguments::tracking::once)
-            tracking_on = false;
+        /* We always want to calculate tracking on first frame. */
+        curr.tracking = curr.tracking == cmd_arguments::tracking::once ? cmd_arguments::tracking::off : curr.tracking;
+        curr.tracking = curr.tracking == cmd_arguments::tracking::background_first_iter
+                ? cmd_arguments::tracking::background : curr.tracking;
 
         exit = handle_input(args.enter_poi, ref);
 
@@ -427,7 +457,7 @@ int main(int argc, char **argv)
 
     argp_parse(&argp, argc, argv, 0, 0, &args);
 
-    if (args.enter_poi && args.tracking != cmd_arguments::tracking::off)
+    if (args.enter_poi && args.track != cmd_arguments::tracking::off)
         err(1,"Can't enter points and have tracking enabled at the same time!");
 
     signal(SIGINT, signalHandler);
@@ -444,7 +474,7 @@ int main(int argc, char **argv)
 
     img_stream is(args.vid_in_path, args.license_dir);
     im_status ref, curr;
-    setRefStatus(ref, is, args.poi_import_path, args.tracking != cmd_arguments::tracking::off,
+    setRefStatus(ref, is, args.poi_import_path, args.track != cmd_arguments::tracking::off,
                  args.heat_sources_border_points);
 
     if (args.webserver_active)

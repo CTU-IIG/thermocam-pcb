@@ -27,7 +27,8 @@ struct cmd_arguments{
     std::string save_img_dir;
     double save_img_period = 0;
     bool webserver_active = false;
-    enum class tracking { on, off, once } tracking = tracking::off;
+    enum tracking {on, off, once, background, background_first_iter};
+    tracking track = tracking::off;
     std::string heat_sources_border_points;
 };
 
