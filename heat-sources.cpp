@@ -91,6 +91,17 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
         resize(*out, *out, Size(), 2, 2);
     }
 
+    {
+        double min, max;
+        stringstream ss;
+
+        minMaxLoc(detail, &min, &max);
+        ss << fixed << setprecision(2) << s.get_temperature(max) << "–" << s.get_temperature(min) << "=" <<
+            s.get_temperature(max) - s.get_temperature(min) << "°C";
+        copyMakeBorder(detail_out, detail_out, 0, 15, 0, 0, BORDER_CONSTANT, Scalar(255, 255, 255));
+        ft2->putText(detail_out, ss.str(), Point(5,200), 15, Scalar(0, 0, 0), -1, cv::LINE_AA, false);
+    }
+
     copyMakeBorder(laplacian_out, laplacian_out, 0, 15, 0, 0, BORDER_CONSTANT, Scalar(255, 255, 255));
     ft2->putText(laplacian_out, "max: " + to_string(hs[max_hs].neg_laplacian),
                  Point(5,200), 15, Scalar(0, 0, 0), -1, cv::LINE_AA, false);
