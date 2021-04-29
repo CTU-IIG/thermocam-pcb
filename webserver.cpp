@@ -1,5 +1,4 @@
 #include "webserver.hpp"
-#include "crow_all.h"
 #include <opencv2/highgui/highgui.hpp>
 #include <err.h>
 
@@ -11,7 +10,7 @@ R"(
         <meta charset="utf-8" />
         <title>Thermocam-PCB</title>
     </head>
-    <body onload="setInterval(reloadAllImages, 330);">
+    <body>
       <div>
         <h2>Thermocam-PCB</h2>
         <img src="thermocam-current.jpg" id=camera />
@@ -55,7 +54,7 @@ R"(
           </script>
 	</div>
 	<div>
-          <h2>Heat-source-average</h2>
+          <h2>Average</h2>
           <img src="hs-avg.jpg" id=avg />
           <script>
             var counter = 0;
@@ -65,9 +64,24 @@ R"(
           </script>
 	</div>
       </div>
-
         <script>
-            function reloadAllImages() {reloadImg(); reloadImgDetail(); reloadImgHs(); reloadLaplacian(); reloadImgHsAvg();}
+            function reloadAllImages() {reloadImg(); reloadImgDetail(); reloadImgHs(); reloadLaplacian(); reloadImgHsAvg();};
+
+            let server = location.hostname;
+            let socket = new WebSocket("ws://" + server + ":8080/ws");
+
+            socket.onopen = ()=>{
+                console.log('open');
+            }
+
+            socket.onclose = ()=>{
+                console.log('close');
+            }
+
+            socket.onmessage = (e) => {
+                console.log('e');
+                reloadAllImages();
+            }
         </script>
     </body>
 </html>
@@ -116,6 +130,7 @@ void sendPOIPosStd(crow::response &res, std::vector<POI> poi)
 
 void sendImg(crow::response &res, cv::Mat img)
 {
+    res.add_header("Cache-Control", "no-store");        // Images should always be fresh.
     std::vector<uchar> img_v;
     cv::imencode(".jpg", img, img_v);
     std::string img_s(img_v.begin(), img_v.end());
@@ -229,6 +244,20 @@ void Webserver::start()
         sendPOIPosStd(res, curr_poi);
         res.end();
     });
+
+
+    CROW_ROUTE(app, "/ws")
+            .websocket()
+            .onopen([&](crow::websocket::connection& conn){
+                std::cout << "New websocket connection." << std::endl;
+                std::lock_guard<std::mutex> _(this->usr_mtx);
+                this->users.insert(&conn);
+            })
+            .onclose([&](crow::websocket::connection& conn, const std::string& reason){
+                std::cout << "Websocket connection closed." << std::endl;
+                std::lock_guard<std::mutex> _(this->usr_mtx);
+                this->users.erase(&conn);
+            });
 
     app.port(8080)
         .multithreaded()
