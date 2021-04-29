@@ -168,6 +168,9 @@ void im_status::updatePOICoords(const im_status &ref)
     if (H.empty()) // Couldn't find homography - points stay the same
         return; // FIXME: Let the caller (or at least user) know that this happened
 
+    if (poi.size() != ref.poi.size())
+        poi = ref.poi;
+
     for (unsigned i=0; i < poi.size(); i++) {
         vector<Point2f> v = { ref.poi[i].p };
         perspectiveTransform(v, v, H); // only takes vector of points as input

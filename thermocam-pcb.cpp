@@ -9,6 +9,7 @@
 #include <time.h>
 #include <fstream>
 #include <systemd/sd-daemon.h>
+#include <future>
 
 #include "point-tracking.hpp"
 
@@ -151,26 +152,6 @@ void highlight_core(im_status &s, Mat &image){
     }
 }
 
-void updateImStatus(im_status &s, img_stream &is, const im_status &ref, bool tracking_on)
-{
-    s.update(is);
-
-    if(s.poi.size() == 0) {
-        s.poi = ref.poi;
-        s.heat_sources_border = ref.heat_sources_border;
-    }
-
-    if (tracking_on) {
-        s.updateKpDesc();
-        s.updatePOICoords(ref);
-    }
-
-
-    for (POI& point : s.poi)
-        point.temp = s.get_temperature((Point)point.p);
-
-}
-
 void setRefStatus(im_status &ref, img_stream &is, string poi_filename, bool tracking_on, string heat_sources_border_points)
 {
     if (poi_filename.empty()) {
@@ -253,11 +234,47 @@ void showPOIImg(string path){
     destroyAllWindows();
 }
 
+enum class track { off, sync, async, finish };
+
 void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
                       string window_name, VideoWriter *vw,
-                      string poi_csv_file, bool tracking_on)
+                      string poi_csv_file, track track)
 {
-    updateImStatus(curr, is, ref, tracking_on);
+    curr.update(is);
+
+    switch (track) {
+    case track::off:
+        break;
+    case track::sync:
+        curr.updateKpDesc();
+        curr.updatePOICoords(ref);
+        break;
+    case track::async:
+        static future<im_status> future;
+
+        if (!future.valid() ||
+            future.wait_for(chrono::seconds::zero()) == future_status::ready) {
+            if (future.valid()) {
+                im_status tracked = future.get();
+                curr.poi = tracked.poi;
+                curr.heat_sources_border = tracked.heat_sources_border;
+            }
+
+            future = async([&](im_status copy) {
+                copy.updateKpDesc();
+                copy.updatePOICoords(ref);
+                return copy;
+            }, curr);
+        }
+        break;
+    case track::finish:
+        future.wait();
+        break;
+    }
+
+    for (POI& point : curr.poi)
+        point.temp = curr.get_temperature((Point)point.p);
+
     printPOITemp(curr.poi, poi_csv_file);
 
     vector<HeatSource> hs;
@@ -274,7 +291,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     highlight_core(curr, img);
 
     if (vw)
-        vw->write(tracking_on ? img : curr.gray);
+        vw->write(track != track::off ? img : curr.gray);
 
     if (webserver) {
         webserver->setImg(img);
@@ -364,21 +381,43 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
     if (args.save_img)
         save_img_clk = chrono::system_clock::now();
 
-    bool tracking_on = args.tracking != cmd_arguments::tracking::off;
+    track track = track::off;
 
-    while (!exit) {
+    switch (args.tracking) {
+    case cmd_arguments::tracking::off:
+        track = track::off;
+        break;
+    case cmd_arguments::tracking::on:
+        track = track::sync;
+        break;
+    case cmd_arguments::tracking::once:
+        track = track::sync;
+        break;
+    case cmd_arguments::tracking::background:
+        track = track::async;
+        break;
+    }
+
+    while (!exit || track == track::finish) {
         if (watchdog_enabled)
             sd_notify(false, "WATCHDOG=1");
-
         auto begin = chrono::system_clock::now();
+
         processNextFrame(is, ref, curr, window_name, vw,
-                         args.poi_csv_file, tracking_on);
+                         args.poi_csv_file, track);
+
         auto end = chrono::system_clock::now();
 
         if (args.tracking == cmd_arguments::tracking::once)
-            tracking_on = false;
+            track = track::off;
+
+        if (track == track::finish)
+            break;
 
         exit = handle_input(args.enter_poi, ref);
+
+        if (exit && track == track::async)
+            track = track::finish; // Wait until async computation finishes
 
         if (args.save_img &&
                 duration_us(save_img_clk, end) > args.save_img_period * 1000000) {
