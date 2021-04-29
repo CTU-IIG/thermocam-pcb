@@ -68,7 +68,11 @@ R"(
             function reloadAllImages() {reloadImg(); reloadImgDetail(); reloadImgHs(); reloadLaplacian(); reloadImgHsAvg();};
 
             let server = location.host;
-            let socket = new WebSocket("ws://" + server + "/ws");
+            var wsProtocol = 'ws://';
+            if (window.location.protocol === 'https:') {
+                wsProtocol = 'wss://';
+            }
+            let socket = new WebSocket(wsProtocol + server + "/ws");
 
             socket.onopen = ()=>{
                 console.log('open');
