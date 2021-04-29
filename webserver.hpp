@@ -7,6 +7,8 @@
 #include <opencv2/core/core.hpp>
 #include <thread>
 #include "heat-sources.hpp"
+#include <unordered_set>
+#include "crow_all.h"
 
 class Webserver
 {
@@ -20,6 +22,8 @@ private:
     std::vector<POI> poi;
     std::vector<HeatSource> heat_sources;
     std::vector<std::pair<std::string,double>> cameraComponentTemps;
+    std::unordered_set<crow::websocket::connection*> users;
+    std::mutex usr_mtx;
 
 public:
     std::atomic<bool> finished{ false };
@@ -73,6 +77,13 @@ public:
     {
         std::lock_guard<std::mutex> lk(lock);
         this->cameraComponentTemps = cct;
+    }
+
+    void noticeClients(){
+        std::lock_guard<std::mutex> _(this->usr_mtx);
+        for(crow::websocket::connection* u : this->users){
+            u->send_text("Actualize!");
+        }
     }
 
 private:

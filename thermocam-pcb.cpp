@@ -290,6 +290,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
         webserver->setPOI(curr.poi);
         webserver->setHeatSources(hs);
         webserver->setCameraComponentTemps(is.getCameraComponentTemps());
+        webserver->noticeClients();
     }
 
     if (gui_available) {
