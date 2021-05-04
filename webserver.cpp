@@ -130,7 +130,14 @@ void Webserver::terminate()
     web_thread.join();
 }
 
-void Webserver::update(cv::Mat img, cv::Mat detail, cv::Mat laplacian, cv::Mat hs_img, cv::Mat hs_avg, std::vector<POI> poi, std::vector<HeatSource> hs, std::vector<std::pair<string, double> > cct)
+void Webserver::update(const cv::Mat &img,
+                       const cv::Mat &detail,
+                       const cv::Mat &laplacian,
+                       const cv::Mat &hs_img,
+                       const cv::Mat &hs_avg,
+                       const std::vector<POI> &poi,
+                       const std::vector<HeatSource> &hs,
+                       const std::vector<std::pair<string, double> > &cct)
 {
     {
         std::lock_guard<std::mutex> lk(lock);
