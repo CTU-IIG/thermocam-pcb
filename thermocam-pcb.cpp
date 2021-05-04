@@ -441,7 +441,7 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
 void init_font()
 {
     bool success = false;
-    const char *font;
+    const char *font = nullptr;
     ft2 = cv::freetype::createFreeType2();
     for (const char* f : {
 	    PREFIX "/" DATADIR "/thermocam-pcb/DejaVuSans.ttf",
