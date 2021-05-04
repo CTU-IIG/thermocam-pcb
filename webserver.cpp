@@ -170,6 +170,7 @@ void Webserver::start()
 {
     crow::SimpleApp app;
     crow::mustache::set_base(".");
+    app.loglevel(crow::LogLevel::Warning);
 
     CROW_ROUTE(app, "/")
             ([]{
