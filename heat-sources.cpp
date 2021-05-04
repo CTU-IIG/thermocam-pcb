@@ -34,7 +34,7 @@ static void normalize_and_convert_to_uchar(Mat &mat_in, Mat &mat_out){
 }
 
 vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out, Mat &detail_out,
-                               Mat &hsAvg_out, cv::Ptr<cv::freetype::FreeType2> ft2)
+                               array<Mat, 3> &hsAvg_out, cv::Ptr<cv::freetype::FreeType2> ft2)
 {
     for (auto &p : s.heat_sources_border) {
         if (p.x < 0 || p.x > s.width || p.y < 0 || p.y > s.height) {
@@ -59,11 +59,17 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
 
     vector<Point> lm = localMaxima(laplacian, hsImg);
 
-    static Mat hsAvg;
-    if (hsAvg.empty())
-        hsAvg = hsImg * 0.0; // black image of the same type and size
-    double alpha = 0.90;
-    hsAvg = alpha * hsAvg + (1-alpha) * hsImg;
+    static array<Mat, 3> hsAvg;
+    for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.999} }) {
+        if (hsAvg[i].empty())
+            hsAvg[i] = hsImg * 0.0; // black image of the same type and size
+        hsAvg[i] = alpha * hsAvg[i] + (1-alpha) * hsImg;
+
+        hsAvg_out[i] = hsAvg[i].clone();
+        // Make the dark colors more visible
+        cv::log(0.001+hsAvg_out[i], hsAvg_out[i]);
+        //cv::sqrt(hsAvg_out, hsAvg_out);
+    }
 
     vector<HeatSource> hs(lm.size());
     size_t max_hs = 0;
@@ -75,16 +81,12 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
             max_hs = i;
     }
 
-    hsAvg_out = hsAvg.clone();
-    // Make the dark colors more visible
-    cv::log(0.001+hsAvg_out, hsAvg_out);
-    //cv::sqrt(hsAvg_out, hsAvg_out);
-
-    for (auto [in, out] : {
-            make_pair(&detail, &detail_out),
-            make_pair(&laplacian, &laplacian_out),
-            make_pair(&hsImg, &hsImg_out),
-            make_pair(&hsAvg_out, &hsAvg_out),
+    for (auto [in, out] : {make_pair(&detail, &detail_out),
+                           {&laplacian, &laplacian_out},
+                           {&hsImg, &hsImg_out},
+                           {&hsAvg_out[0], &hsAvg_out[0]},
+                           {&hsAvg_out[1], &hsAvg_out[1]},
+                           {&hsAvg_out[2], &hsAvg_out[2]},
         }) {
         normalize_and_convert_to_uchar(*in, *out);
         applyColorMap(*out, *out, cv::COLORMAP_INFERNO);

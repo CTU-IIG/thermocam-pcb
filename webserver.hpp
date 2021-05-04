@@ -18,7 +18,7 @@ private:
     cv::Mat laplacian_img = {cv::Size(1, 1), CV_8U, 255};
     cv::Mat hs_img = {cv::Size(1, 1), CV_8U, 255};
     cv::Mat detail_img = {cv::Size(1, 1), CV_8U, 255};
-    cv::Mat hs_avg = {cv::Size(1, 1), CV_8U, 255};
+    std::array<cv::Mat, 3> hs_avg;
     std::vector<POI> poi;
     std::vector<HeatSource> heat_sources;
     std::vector<std::pair<std::string,double>> cameraComponentTemps;
@@ -31,12 +31,11 @@ public:
     Webserver();
     void terminate();
 
-    void update(
-        const cv::Mat &img,
+    void update(const cv::Mat &img,
         const cv::Mat &detail,
         const cv::Mat &laplacian,
         const cv::Mat &hs_img,
-        const cv::Mat &hs_avg,
+        const std::array<cv::Mat, 3> &hs_avg,
         const std::vector<POI> &poi,
         const std::vector<HeatSource> &hs
         );

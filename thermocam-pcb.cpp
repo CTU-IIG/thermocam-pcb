@@ -23,6 +23,7 @@
 #include <opencv2/freetype.hpp>
 
 #include <numeric>
+#include <array>
 
 #include "config.h"
 
@@ -278,7 +279,8 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     printPOITemp(curr.poi, poi_csv_file);
 
     vector<HeatSource> hs;
-    Mat laplacian, hsImg, detail, hsAvg;
+    Mat laplacian, hsImg, detail;
+    array<Mat, 3> hsAvg;
     if (curr.heat_sources_border.size() > 0) {
         hs = heatSources(curr, laplacian, hsImg, detail, hsAvg, ft2);
     }
@@ -300,7 +302,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
 
     if (gui_available) {
         if (!detail.empty()) {
-            vector<Mat*> mats({ &detail, &laplacian, &hsImg, &hsAvg });
+            vector<Mat*> mats({ &detail, &laplacian, &hsImg, &hsAvg[0] });
             int h = img.rows, w = img.cols;
             int hh = accumulate(begin(mats), end(mats), 0, [](int a, Mat *m){return max(a, m->rows + 1);});
             int ww = accumulate(begin(mats), end(mats), 0, [](int a, Mat *m){return a + m->cols + 1;});

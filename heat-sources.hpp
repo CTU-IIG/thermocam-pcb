@@ -14,4 +14,4 @@ struct HeatSource {
 };
 
 std::vector<HeatSource> heatSources(im_status &s, cv::Mat &laplacian, cv::Mat &hsImg, cv::Mat &detail,
-                                    cv::Mat &hsAvg, cv::Ptr<cv::freetype::FreeType2> ft2);
+                                    array<cv::Mat, 3> &hsAvg_out, cv::Ptr<cv::freetype::FreeType2> ft2);

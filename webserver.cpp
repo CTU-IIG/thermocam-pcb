@@ -29,10 +29,9 @@ R"(
           <h2>Heat-sources</h2>
           <img src="heat_sources-current.jpg" id=hs />
 	</div>
-	<div>
-          <h2>Average</h2>
-          <img src="hs-avg.jpg" id=avg />
-	</div>
+	<div style="margin-right: 1em;"><h2>Trace α=0.9  </h2><img src="hs-avg0.jpg" id=avg0 /></div>
+	<div style="margin-right: 1em;"><h2>Trace α=0.99 </h2><img src="hs-avg1.jpg" id=avg1 /></div>
+	<div style="margin-right: 1em;"><h2>Trace α=0.999</h2><img src="hs-avg2.jpg" id=avg2 /></div>
       </div>
         <script>
             var counter = 0;
@@ -42,7 +41,9 @@ R"(
               document.getElementById('detail').src='detail-current.jpg?c=' + counter;
               document.getElementById('laplacian').src='laplacian-current.jpg?c=' + counter;
               document.getElementById('hs').src='heat_sources-current.jpg?c=' + counter;
-              document.getElementById('avg').src='hs-avg.jpg?c=' + counter;
+              document.getElementById('avg0').src='hs-avg0.jpg?c=' + counter;
+              document.getElementById('avg1').src='hs-avg1.jpg?c=' + counter;
+              document.getElementById('avg2').src='hs-avg2.jpg?c=' + counter;
             };
 
             let server = location.host;
@@ -134,7 +135,7 @@ void Webserver::update(const cv::Mat &img,
                        const cv::Mat &detail,
                        const cv::Mat &laplacian,
                        const cv::Mat &hs_img,
-                       const cv::Mat &hs_avg,
+                       const std::array<cv::Mat, 3> &hs_avg,
                        const std::vector<POI> &poi,
                        const std::vector<HeatSource> &hs)
 {
@@ -211,10 +212,14 @@ void Webserver::start()
                 res.end();
             });
 
-    CROW_ROUTE(app, "/hs-avg.jpg")
-            ([this](const crow::request& req, crow::response& res){
+    CROW_ROUTE(app, "/hs-avg<uint>.jpg")
+            ([this](const crow::request& req, crow::response& res, unsigned idx){
+                if (idx >= hs_avg.size()) {
+                    res = crow::response(404);
+                    return;
+                }
                 this->lock.lock();
-                cv::Mat curr_img = this->hs_avg;
+                cv::Mat curr_img = this->hs_avg[idx];
                 this->lock.unlock();
                 sendImg(res,curr_img);
                 res.end();
