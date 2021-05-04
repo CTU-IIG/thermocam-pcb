@@ -294,20 +294,8 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
         vw->write(track != track::off ? img : curr.gray);
 
     if (webserver) {
-        webserver->setImg(img);
-        if (!laplacian.empty())
-            webserver->setLaplacian(laplacian);
-        if (!hsImg.empty())
-            webserver->setHSImg(hsImg);
-        if (!detail.empty())
-            webserver->setDetail(detail);
-        if (!hsAvg.empty()){
-            webserver->setHsAvg(hsAvg);
-        }
-        webserver->setPOI(curr.poi);
-        webserver->setHeatSources(hs);
-        webserver->setCameraComponentTemps(is.getCameraComponentTemps());
-        webserver->noticeClients();
+        webserver->update(img, detail, laplacian, hsImg, hsAvg,
+                          curr.poi, hs, is.getCameraComponentTemps());
     }
 
     if (gui_available) {

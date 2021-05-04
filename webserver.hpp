@@ -31,54 +31,33 @@ public:
     Webserver();
     void terminate();
 
-    void setImg(cv::Mat img)
+    void update(
+        cv::Mat img,
+        cv::Mat detail,
+        cv::Mat laplacian,
+        cv::Mat hs_img,
+        cv::Mat hs_avg,
+        std::vector<POI> poi,
+        std::vector<HeatSource> hs,
+        std::vector<std::pair<std::string, double>> cct
+        )
     {
-        std::lock_guard<std::mutex> lk(lock);
-        this->img = img;
+        {
+            std::lock_guard<std::mutex> lk(lock);
+            this->img = img;
+            this->detail_img = detail;
+            this->laplacian_img = laplacian;
+            this->hs_img = hs_img;
+            this->hs_avg = hs_avg;
+
+            this->poi = poi;
+            this->heat_sources = hs;
+            this->cameraComponentTemps = cct;
+        }
+        noticeClients();
     }
 
-    void setHSImg(cv::Mat img)
-    {
-        std::lock_guard<std::mutex> lk(lock);
-        this->hs_img = img;
-    }
-
-    void setDetail(cv::Mat img)
-    {
-        std::lock_guard<std::mutex> lk(lock);
-        this->detail_img = img;
-    }
-
-    void setLaplacian(cv::Mat img)
-    {
-        std::lock_guard<std::mutex> lk(lock);
-        this->laplacian_img = img;
-    }
-
-    void setHsAvg(cv::Mat img)
-    {
-        std::lock_guard<std::mutex> lk(lock);
-        this->hs_avg = img;
-    }
-
-    void setPOI(std::vector<POI> poi)
-    {
-        std::lock_guard<std::mutex> lk(lock);
-        this->poi = poi;
-    }
-
-    void setHeatSources(std::vector<HeatSource> hs)
-    {
-        std::lock_guard<std::mutex> lk(lock);
-        this->heat_sources = hs;
-    }
-
-    void setCameraComponentTemps(std::vector<std::pair<std::string,double>> cct)
-    {
-        std::lock_guard<std::mutex> lk(lock);
-        this->cameraComponentTemps = cct;
-    }
-
+private:
     void noticeClients(){
         std::lock_guard<std::mutex> _(this->usr_mtx);
         for(crow::websocket::connection* u : this->users){
@@ -86,7 +65,6 @@ public:
         }
     }
 
-private:
     std::thread web_thread;
 
     void start();
