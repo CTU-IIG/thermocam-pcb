@@ -136,8 +136,7 @@ void Webserver::update(const cv::Mat &img,
                        const cv::Mat &hs_img,
                        const cv::Mat &hs_avg,
                        const std::vector<POI> &poi,
-                       const std::vector<HeatSource> &hs,
-                       const std::vector<std::pair<string, double> > &cct)
+                       const std::vector<HeatSource> &hs)
 {
     {
         std::lock_guard<std::mutex> lk(lock);
@@ -149,9 +148,14 @@ void Webserver::update(const cv::Mat &img,
 
         this->poi = poi;
         this->heat_sources = hs;
-        this->cameraComponentTemps = cct;
     }
     noticeClients();
+}
+
+void Webserver::update_temps(const std::vector<std::pair<string, double> > &cct)
+{
+    std::lock_guard<std::mutex> lk(lock);
+    this->cameraComponentTemps = cct;
 }
 
 void Webserver::noticeClients(){

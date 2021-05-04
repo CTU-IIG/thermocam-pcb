@@ -38,9 +38,10 @@ public:
         const cv::Mat &hs_img,
         const cv::Mat &hs_avg,
         const std::vector<POI> &poi,
-        const std::vector<HeatSource> &hs,
-        const std::vector<std::pair<std::string, double>> &cct
+        const std::vector<HeatSource> &hs
         );
+
+    void update_temps(const std::vector<std::pair<std::string, double>> &cct);
 
 private:
     std::thread web_thread;

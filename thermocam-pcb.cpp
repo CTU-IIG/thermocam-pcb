@@ -295,7 +295,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
 
     if (webserver) {
         webserver->update(img, detail, laplacian, hsImg, hsAvg,
-                          curr.poi, hs, is.getCameraComponentTemps());
+                          curr.poi, hs);
     }
 
     if (gui_available) {
@@ -345,6 +345,7 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
     VideoWriter *vw = nullptr;
     string window_name = "Thermocam-PCB";
     chrono::time_point<chrono::system_clock> save_img_clk;
+    chrono::time_point<chrono::system_clock> cam_temp_update_time;
 
     if (gui_available)
         namedWindow(window_name, WINDOW_NORMAL);
@@ -415,6 +416,14 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
             imwrite(img_path, curr.gray);
             imwrite(args.save_img_dir + "/raw_" + clkDateTimeString(save_img_clk) + ".png", curr.rawtemp);
         }
+
+        // Update camera internal temperatures. Since it takes
+        // about 120 ms, we do it only once per minute.
+        if (webserver && end - cam_temp_update_time > 1min) {
+            webserver->update_temps(is.getCameraComponentTemps());
+            cam_temp_update_time = end;
+        }
+
         double process_time_us = duration_us(begin, end);
         if (args.display_delay_us > process_time_us)
             usleep(args.display_delay_us - process_time_us);
