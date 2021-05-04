@@ -130,18 +130,42 @@ void Webserver::terminate()
     web_thread.join();
 }
 
+void Webserver::update(cv::Mat img, cv::Mat detail, cv::Mat laplacian, cv::Mat hs_img, cv::Mat hs_avg, std::vector<POI> poi, std::vector<HeatSource> hs, std::vector<std::pair<string, double> > cct)
+{
+    {
+        std::lock_guard<std::mutex> lk(lock);
+        this->img = img;
+        this->detail_img = detail;
+        this->laplacian_img = laplacian;
+        this->hs_img = hs_img;
+        this->hs_avg = hs_avg;
+
+        this->poi = poi;
+        this->heat_sources = hs;
+        this->cameraComponentTemps = cct;
+    }
+    noticeClients();
+}
+
+void Webserver::noticeClients(){
+    std::lock_guard<std::mutex> _(this->usr_mtx);
+    for(crow::websocket::connection* u : this->users){
+        u->send_text("Actualize!");
+    }
+}
+
 void Webserver::start()
 {
     crow::SimpleApp app;
     crow::mustache::set_base(".");
 
     CROW_ROUTE(app, "/")
-    ([]{
+            ([]{
         return html_code;
     });
 
     CROW_ROUTE(app, "/thermocam-current.jpg")
-    ([this](const crow::request& req, crow::response& res){
+            ([this](const crow::request& req, crow::response& res){
         this->lock.lock();
         cv::Mat curr_img = this->img;
         this->lock.unlock();
@@ -150,7 +174,7 @@ void Webserver::start()
     });
 
     CROW_ROUTE(app, "/heat_sources-current.jpg")
-    ([this](const crow::request& req, crow::response& res){
+            ([this](const crow::request& req, crow::response& res){
         this->lock.lock();
         cv::Mat curr_img = this->hs_img;
         this->lock.unlock();

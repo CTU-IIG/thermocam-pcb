@@ -40,34 +40,14 @@ public:
         std::vector<POI> poi,
         std::vector<HeatSource> hs,
         std::vector<std::pair<std::string, double>> cct
-        )
-    {
-        {
-            std::lock_guard<std::mutex> lk(lock);
-            this->img = img;
-            this->detail_img = detail;
-            this->laplacian_img = laplacian;
-            this->hs_img = hs_img;
-            this->hs_avg = hs_avg;
-
-            this->poi = poi;
-            this->heat_sources = hs;
-            this->cameraComponentTemps = cct;
-        }
-        noticeClients();
-    }
+        );
 
 private:
-    void noticeClients(){
-        std::lock_guard<std::mutex> _(this->usr_mtx);
-        for(crow::websocket::connection* u : this->users){
-            u->send_text("Actualize!");
-        }
-    }
-
     std::thread web_thread;
 
     void start();
+    void noticeClients();
+
 };
 
 #endif
