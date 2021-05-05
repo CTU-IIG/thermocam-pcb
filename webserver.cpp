@@ -159,10 +159,31 @@ void Webserver::update_temps(const std::vector<std::pair<string, double> > &cct)
     this->cameraComponentTemps = cct;
 }
 
-void Webserver::noticeClients(){
+std::string Webserver::getHeatSourcesJsonArray()
+{
+    stringstream ss;
+    ss << "[";
+    {
+        ss << std::fixed << std::setprecision(3);
+        std::lock_guard<std::mutex> lk(lock);
+        for (auto p : heat_sources)
+            ss << "[" << p.location.x << "," << p.location.y << "," << p.neg_laplacian << "],";
+    }
+    std::string hs = ss.str();
+    hs.pop_back();
+    hs += "]";
+
+    return hs;
+}
+
+void Webserver::noticeClients() {
+    std::string hs = getHeatSourcesJsonArray();
+    string msg = "{\"type\":\"update\",\"heat_sources\":"s + hs + "}";
+
     std::lock_guard<std::mutex> _(this->usr_mtx);
-    for(crow::websocket::connection* u : this->users){
-        u->send_text("Actualize!");
+
+    for(crow::websocket::connection* u : this->users) {
+        u->send_text(msg);
     }
 }
 

@@ -48,6 +48,7 @@ private:
     void start();
     void noticeClients();
 
+    std::string getHeatSourcesJsonArray();
 };
 
 #endif
