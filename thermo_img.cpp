@@ -186,6 +186,7 @@ void im_status::updateKpDesc()
 
 void im_status::trainMatcher()
 {
+    updateKpDesc();
     ::trainMatcher(desc);
 }
 

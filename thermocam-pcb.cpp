@@ -160,7 +160,6 @@ void setRefStatus(im_status &ref, img_stream &is, string poi_filename, bool trac
         ref.read_from_poi_json(poi_filename, heat_sources_border_points);
     }
     if (tracking_on) {
-        ref.updateKpDesc();
         ref.trainMatcher(); // train once on reference image
     }
 }

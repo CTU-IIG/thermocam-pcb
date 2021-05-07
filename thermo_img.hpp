@@ -37,9 +37,8 @@ public:
     void add_poi(POI &&p);
     void pop_poi();
 
-    void track(const im_status &ref, tracking track);
-    void updateKpDesc();
     void trainMatcher();
+    void track(const im_status &ref, tracking track);
 
     double get_temperature(uint16_t pixel);
     double get_temperature(cv::Point p);
@@ -56,6 +55,8 @@ private:
 
     std::vector<POI> poi; // Points of interest
     std::vector<cv::Point2f> heat_sources_border;
+
+    void updateKpDesc();
 };
 
 #endif // THERMO_IMG_HPP
