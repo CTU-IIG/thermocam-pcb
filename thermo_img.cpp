@@ -5,6 +5,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include "Base64.h"
+#include <future>
 
 using namespace std;
 using namespace cv;
@@ -129,6 +130,53 @@ void im_status::write_poi_json(string path, bool verbose)
         cout << "Points saved to " << path << endl;
 }
 
+void im_status::add_poi(POI &&p)
+{
+    poi.push_back(p);
+}
+
+void im_status::pop_poi()
+{
+    poi.pop_back();
+}
+
+void im_status::track(const im_status &ref, tracking track)
+{
+    switch (track) {
+    case tracking::off:
+        break;
+    case tracking::sync:
+        updateKpDesc();
+        updatePOICoords(ref);
+        break;
+    case tracking::async:
+        // TODO: Remove static - make it a member variable
+        static future<im_status> future;
+
+        if (!future.valid() ||
+            future.wait_for(chrono::seconds::zero()) == future_status::ready) {
+            if (future.valid()) {
+                im_status tracked = future.get();
+                poi = tracked.poi;
+                heat_sources_border = tracked.heat_sources_border;
+            }
+
+            future = async([&](im_status copy) {
+                copy.updateKpDesc();
+                copy.updatePOICoords(ref);
+                return copy;
+            }, *this);
+        }
+        break;
+    case tracking::finish:
+        future.wait();
+        break;
+    }
+
+    for (POI& point : poi)
+        point.temp = get_temperature((Point)point.p);
+}
+
 void im_status::updateKpDesc()
 {
     Mat pre = preprocess(gray);
@@ -185,4 +233,14 @@ void im_status::updatePOICoords(const im_status &ref)
 
     if (ref.heat_sources_border.size() > 0)
         perspectiveTransform(ref.heat_sources_border, heat_sources_border, H);
+}
+
+const std::vector<cv::Point2f> &im_status::get_heat_sources_border() const
+{
+    return heat_sources_border;
+}
+
+const std::vector<POI> &im_status::get_poi() const
+{
+    return poi;
 }

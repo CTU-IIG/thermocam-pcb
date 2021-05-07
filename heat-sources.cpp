@@ -36,7 +36,7 @@ static void normalize_and_convert_to_uchar(Mat &mat_in, Mat &mat_out){
 vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out, Mat &detail_out,
                                array<Mat, 3> &hsAvg_out, cv::Ptr<cv::freetype::FreeType2> ft2)
 {
-    for (auto &p : s.heat_sources_border) {
+    for (auto &p : s.get_heat_sources_border()) {
         if (p.x < 0 || p.x > s.width || p.y < 0 || p.y > s.height) {
             cerr << "Heat source border out of the image!" << endl;
             return {};
@@ -46,7 +46,7 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
     const Size sz(100, 100); // Size of heat sources image
     vector<Point2f> detail_rect = { {0, 0}, {float(sz.width), 0}, {float(sz.width), float(sz.height)}, {0, float(sz.height)} };
 
-    Mat transform = getPerspectiveTransform(s.heat_sources_border, detail_rect);
+    Mat transform = getPerspectiveTransform(s.get_heat_sources_border(), detail_rect);
     Mat raw_float, detail;
     s.rawtemp.convertTo(raw_float, CV_64F);
     warpPerspective(raw_float, detail, transform, sz);

@@ -9,7 +9,6 @@
 #include <time.h>
 #include <fstream>
 #include <systemd/sd-daemon.h>
-#include <future>
 
 #include "point-tracking.hpp"
 
@@ -147,8 +146,8 @@ Mat drawPOI(Mat in, vector<POI> poi, draw_mode mode)
 }
 
 void highlight_core(im_status &s, Mat &image){
-    for(unsigned i = 0; i < s.heat_sources_border.size(); i++){
-        line(image, s.heat_sources_border[i] * 2, s.heat_sources_border[(i + 1) % s.heat_sources_border.size()] * 2,
+    for(unsigned i = 0; i < s.get_heat_sources_border().size(); i++){
+        line(image, s.get_heat_sources_border()[i] * 2, s.get_heat_sources_border()[(i + 1) % s.get_heat_sources_border().size()] * 2,
                 Scalar(0,0,255));
     }
 }
@@ -169,11 +168,11 @@ void setRefStatus(im_status &ref, img_stream &is, string poi_filename, bool trac
 void onMouse(int event, int x, int y, int flags, void *param)
 {
     if (event == EVENT_LBUTTONDOWN) {
-        vector<POI> &poi = *((vector<POI> *)(param));
-        string name = "Point " + to_string(poi.size());
+        im_status &ref = *reinterpret_cast<im_status*>(param);
+        string name = "Point " + to_string(ref.get_poi().size());
         // The image is upscaled 2x when displaying POI
         // Thus we need to divide coords by 2 when getting mouse input
-        poi.push_back({ name, { (float)x/2, (float)y/2 } });
+        ref.add_poi({ name, { (float)x/2, (float)y/2 } });
     }
 }
 
@@ -228,76 +227,43 @@ void printPOITemp(vector<POI> poi, string file)
 void showPOIImg(string path){
     im_status img;
     img.read_from_poi_json(path);
-    Mat imdraw = drawPOI(img.gray, img.poi, draw_mode::NUM);
+    Mat imdraw = drawPOI(img.gray, img.get_poi(), draw_mode::NUM);
     string title = "POI from " + path;
     imshow(title,imdraw);
     waitKey(0);
     destroyAllWindows();
 }
 
-enum class track { off, sync, async, finish };
-
 void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
                       string window_name, VideoWriter *vw,
-                      string poi_csv_file, track track)
+                      string poi_csv_file, im_status::tracking track)
 {
     curr.update(is);
 
-    switch (track) {
-    case track::off:
-        break;
-    case track::sync:
-        curr.updateKpDesc();
-        curr.updatePOICoords(ref);
-        break;
-    case track::async:
-        static future<im_status> future;
+    curr.track(ref, track);
 
-        if (!future.valid() ||
-            future.wait_for(chrono::seconds::zero()) == future_status::ready) {
-            if (future.valid()) {
-                im_status tracked = future.get();
-                curr.poi = tracked.poi;
-                curr.heat_sources_border = tracked.heat_sources_border;
-            }
-
-            future = async([&](im_status copy) {
-                copy.updateKpDesc();
-                copy.updatePOICoords(ref);
-                return copy;
-            }, curr);
-        }
-        break;
-    case track::finish:
-        future.wait();
-        break;
-    }
-
-    for (POI& point : curr.poi)
-        point.temp = curr.get_temperature((Point)point.p);
-
-    printPOITemp(curr.poi, poi_csv_file);
+    printPOITemp(curr.get_poi(), poi_csv_file);
 
     vector<HeatSource> hs;
     Mat laplacian, hsImg, detail;
     array<Mat, 3> hsAvg;
-    if (curr.heat_sources_border.size() > 0) {
+    if (curr.get_heat_sources_border().size() > 0) {
         hs = heatSources(curr, laplacian, hsImg, detail, hsAvg, ft2);
     }
 
     Mat img;
     curr.gray.copyTo(img);
     applyColorMap(img, img, cv::COLORMAP_INFERNO);
-    img = drawPOI(img, curr.poi, curr_draw_mode);
+    img = drawPOI(img, curr.get_poi(), curr_draw_mode);
 
     highlight_core(curr, img);
 
     if (vw)
-        vw->write(track != track::off ? img : curr.gray);
+        vw->write(track != im_status::tracking::off ? img : curr.gray);
 
     if (webserver) {
         webserver->update(img, detail, laplacian, hsImg, hsAvg,
-                          curr.poi, hs);
+                          curr.get_poi(), hs);
     }
 
     if (gui_available) {
@@ -327,8 +293,8 @@ bool handle_input(bool enter_poi, im_status &ref)
 
     if (gui_available) {
         char key = waitKey(1) & 0xEFFFFF;
-        if (key == 8 && enter_poi && ref.poi.size() > 0) // Backspace
-            ref.poi.pop_back();
+        if (key == 8 && enter_poi && ref.get_poi().size() > 0) // Backspace
+            ref.pop_poi();
         if (key == 9) // Tab
             curr_draw_mode = next(curr_draw_mode);
         if (key == 27) // Esc
@@ -352,7 +318,7 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
     if (gui_available)
         namedWindow(window_name, WINDOW_NORMAL);
     if (gui_available && args.enter_poi)
-        setMouseCallback(window_name, onMouse, &ref.poi);
+        setMouseCallback(window_name, onMouse, &ref);
     if (!args.vid_out_path.empty()) {
         int scale = args.tracking != cmd_arguments::tracking::off ? 2 : 1;
         bool isColor = args.tracking != cmd_arguments::tracking::off;
@@ -372,24 +338,24 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
     if (args.save_img)
         save_img_clk = chrono::system_clock::now();
 
-    track track = track::off;
+    im_status::tracking track = im_status::tracking::off;
 
     switch (args.tracking) {
     case cmd_arguments::tracking::off:
-        track = track::off;
+        track = im_status::tracking::off;
         break;
     case cmd_arguments::tracking::on:
-        track = track::sync;
+        track = im_status::tracking::sync;
         break;
     case cmd_arguments::tracking::once:
-        track = track::sync;
+        track = im_status::tracking::sync;
         break;
     case cmd_arguments::tracking::background:
-        track = track::async;
+        track = im_status::tracking::async;
         break;
     }
 
-    while (!exit || track == track::finish) {
+    while (!exit || track == im_status::tracking::finish) {
         if (watchdog_enabled)
             sd_notify(false, "WATCHDOG=1");
         auto begin = chrono::system_clock::now();
@@ -400,15 +366,15 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
         auto end = chrono::system_clock::now();
 
         if (args.tracking == cmd_arguments::tracking::once)
-            track = track::off;
+            track = im_status::tracking::off;
 
-        if (track == track::finish)
+        if (track == im_status::tracking::finish)
             break;
 
         exit = handle_input(args.enter_poi, ref);
 
-        if (exit && track == track::async)
-            track = track::finish; // Wait until async computation finishes
+        if (exit && track == im_status::tracking::async)
+            track = im_status::tracking::finish; // Wait until async computation finishes
 
         if (args.save_img &&
                 duration_us(save_img_clk, end) > args.save_img_period * 1000000) {
