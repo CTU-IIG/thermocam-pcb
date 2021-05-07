@@ -259,12 +259,12 @@ static void normalize_and_convert_to_uchar(Mat &mat_in, Mat &mat_out){
                      255.0 / (1.0 - max / min));
 }
 
-vector<HeatSource> thermo_img::heatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
+void thermo_img::calcHeatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
 {
     for (auto &p : heat_sources_border) {
         if (p.x < 0 || p.x > width() || p.y < 0 || p.y > height()) {
             cerr << "Heat source border out of the image!" << endl;
-            return {};
+            return;
         }
     }
 
@@ -296,7 +296,7 @@ vector<HeatSource> thermo_img::heatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
         //cv::sqrt(hsAvg_out, hsAvg_out);
     }
 
-    vector<HeatSource> hs(lm.size());
+    hs.resize(lm.size());
     size_t max_hs = 0;
     for (unsigned i=0; i<lm.size(); i++) {
         hs[i].location = lm[i];
@@ -332,8 +332,6 @@ vector<HeatSource> thermo_img::heatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
     copyMakeBorder(laplacian_rgb, laplacian_rgb, 0, 15, 0, 0, BORDER_CONSTANT, Scalar(255, 255, 255));
     ft2->putText(laplacian_rgb, "max: " + to_string(hs[max_hs].neg_laplacian),
                  Point(5,200), 15, Scalar(0, 0, 0), -1, cv::LINE_AA, false);
-
-    return hs;
 }
 
 const std::vector<cv::Point2f> &thermo_img::get_heat_sources_border() const
@@ -379,6 +377,11 @@ const cv::Mat &thermo_img::get_hs_img() const
 const std::array<cv::Mat, 3> &thermo_img::get_hs_avg() const
 {
     return hsAvg_rgb;
+}
+
+const std::vector<HeatSource> &thermo_img::get_heat_sources() const
+{
+    return hs;
 }
 
 cv::Mat_<uint16_t> thermo_img::get_rawtemp() const

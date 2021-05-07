@@ -242,10 +242,8 @@ void processNextFrame(img_stream &is, const thermo_img &ref, thermo_img &curr,
 
     printPOITemp(curr.get_poi(), poi_csv_file);
 
-    vector<HeatSource> hs;
-    array<Mat, 3> hsAvg;
     if (curr.get_heat_sources_border().size() > 0) {
-        hs = curr.heatSources(ft2);
+        curr.calcHeatSources(ft2);
     }
 
     Mat img;
@@ -260,7 +258,7 @@ void processNextFrame(img_stream &is, const thermo_img &ref, thermo_img &curr,
 
     if (webserver) {
         webserver->update(img, curr.get_detail(), curr.get_laplacian(),
-                          curr.get_hs_img(), curr.get_hs_avg(), curr.get_poi(), hs);
+                          curr.get_hs_img(), curr.get_hs_avg(), curr.get_poi(), curr.get_heat_sources());
     }
 
     if (gui_available) {

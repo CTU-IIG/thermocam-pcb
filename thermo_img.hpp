@@ -58,11 +58,12 @@ public:
     int height() const;
     int width() const;
 
-    std::vector<HeatSource> heatSources(cv::Ptr<cv::freetype::FreeType2> ft2);
+    void calcHeatSources(cv::Ptr<cv::freetype::FreeType2> ft2);
     const cv::Mat &get_detail() const;
     const cv::Mat &get_laplacian() const;
     const cv::Mat &get_hs_img() const;
     const std::array<cv::Mat, 3> &get_hs_avg() const;
+    const std::vector<HeatSource> &get_heat_sources() const;
 
 private:
     img_stream *is = nullptr;
@@ -73,6 +74,8 @@ private:
     cv::Mat laplacian_rgb;
     cv::Mat hsImg_rgb;
     std::array<cv::Mat, 3> hsAvg_rgb;
+
+    std::vector<HeatSource> hs;
 
     std::vector<cv::KeyPoint> kp;
     cv::Mat desc;
