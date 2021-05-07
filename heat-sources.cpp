@@ -63,9 +63,9 @@ vector<HeatSource> im_status::heatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
             hsAvg[i] = hsImg * 0.0; // black image of the same type and size
         hsAvg[i] = alpha * hsAvg[i] + (1-alpha) * hsImg;
 
-        hsAvg_out[i] = hsAvg[i].clone();
+        hsAvg_rgb[i] = hsAvg[i].clone();
         // Make the dark colors more visible
-        cv::log(0.001+hsAvg_out[i], hsAvg_out[i]);
+        cv::log(0.001+hsAvg_rgb[i], hsAvg_rgb[i]);
         //cv::sqrt(hsAvg_out, hsAvg_out);
     }
 
@@ -79,12 +79,12 @@ vector<HeatSource> im_status::heatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
             max_hs = i;
     }
 
-    for (auto [in, out] : {make_pair(&detail, &detail_out),
-                           {&laplacian, &laplacian_out},
-                           {&hsImg, &hsImg_out},
-                           {&hsAvg_out[0], &hsAvg_out[0]},
-                           {&hsAvg_out[1], &hsAvg_out[1]},
-                           {&hsAvg_out[2], &hsAvg_out[2]},
+    for (auto [in, out] : {make_pair(&detail, &detail_rgb),
+                           {&laplacian, &laplacian_rgb},
+                           {&hsImg, &hsImg_rgb},
+                           {&hsAvg_rgb[0], &hsAvg_rgb[0]},
+                           {&hsAvg_rgb[1], &hsAvg_rgb[1]},
+                           {&hsAvg_rgb[2], &hsAvg_rgb[2]},
         }) {
         normalize_and_convert_to_uchar(*in, *out);
         applyColorMap(*out, *out, cv::COLORMAP_INFERNO);
@@ -98,12 +98,12 @@ vector<HeatSource> im_status::heatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
         minMaxLoc(detail, &min, &max);
         ss << fixed << setprecision(2) << get_temperature(max) << "–" << get_temperature(min) << "=" <<
             get_temperature(max) - get_temperature(min) << "°C";
-        copyMakeBorder(detail_out, detail_out, 0, 15, 0, 0, BORDER_CONSTANT, Scalar(255, 255, 255));
-        ft2->putText(detail_out, ss.str(), Point(5,200), 15, Scalar(0, 0, 0), -1, cv::LINE_AA, false);
+        copyMakeBorder(detail_rgb, detail_rgb, 0, 15, 0, 0, BORDER_CONSTANT, Scalar(255, 255, 255));
+        ft2->putText(detail_rgb, ss.str(), Point(5,200), 15, Scalar(0, 0, 0), -1, cv::LINE_AA, false);
     }
 
-    copyMakeBorder(laplacian_out, laplacian_out, 0, 15, 0, 0, BORDER_CONSTANT, Scalar(255, 255, 255));
-    ft2->putText(laplacian_out, "max: " + to_string(hs[max_hs].neg_laplacian),
+    copyMakeBorder(laplacian_rgb, laplacian_rgb, 0, 15, 0, 0, BORDER_CONSTANT, Scalar(255, 255, 255));
+    ft2->putText(laplacian_rgb, "max: " + to_string(hs[max_hs].neg_laplacian),
                  Point(5,200), 15, Scalar(0, 0, 0), -1, cv::LINE_AA, false);
 
     return hs;

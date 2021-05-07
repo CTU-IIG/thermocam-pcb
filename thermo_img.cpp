@@ -260,22 +260,22 @@ int im_status::width() const
 
 const cv::Mat &im_status::get_detail() const
 {
-    return detail_out;
+    return detail_rgb;
 }
 
 const cv::Mat &im_status::get_laplacian() const
 {
-    return laplacian_out;
+    return laplacian_rgb;
 }
 
 const cv::Mat &im_status::get_hs_img() const
 {
-    return hsImg_out;
+    return hsImg_rgb;
 }
 
 const std::array<cv::Mat, 3> &im_status::get_hs_avg() const
 {
-    return hsAvg_out;
+    return hsAvg_rgb;
 }
 
 cv::Mat_<uint16_t> im_status::get_rawtemp() const

@@ -69,10 +69,10 @@ private:
 
     cv::Mat_<uint16_t> rawtemp;
     cv::Mat gray;
-    cv::Mat detail_out;
-    cv::Mat laplacian_out;
-    cv::Mat hsImg_out;
-    std::array<cv::Mat, 3> hsAvg_out;
+    cv::Mat detail_rgb;
+    cv::Mat laplacian_rgb;
+    cv::Mat hsImg_rgb;
+    std::array<cv::Mat, 3> hsAvg_rgb;
 
     std::vector<cv::KeyPoint> kp;
     cv::Mat desc;
