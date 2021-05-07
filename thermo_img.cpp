@@ -20,7 +20,7 @@ string POI::to_string(bool print_name)
     return ss.str();
 }
 
-void im_status::update(img_stream &is)
+void thermo_img::update(img_stream &is)
 {
     is.get_image(rawtemp);
 
@@ -74,7 +74,7 @@ vector<string> split(const string str, const char *delimiters)
     return words;
 }
 
-void im_status::read_from_poi_json(string poi_filename, string heat_sources_border_points)
+void thermo_img::read_from_poi_json(string poi_filename, string heat_sources_border_points)
 {
     gray = readJsonImg(poi_filename);
     poi = readPOI(poi_filename);
@@ -102,7 +102,7 @@ void im_status::read_from_poi_json(string poi_filename, string heat_sources_bord
     }
 }
 
-void im_status::write_poi_json(string path, bool verbose)
+void thermo_img::write_poi_json(string path, bool verbose)
 {
     pt::ptree root, poi_pt, poi_img;
     for (unsigned i = 0; i < poi.size(); i++) {
@@ -127,17 +127,17 @@ void im_status::write_poi_json(string path, bool verbose)
         cout << "Points saved to " << path << endl;
 }
 
-void im_status::add_poi(POI &&p)
+void thermo_img::add_poi(POI &&p)
 {
     poi.push_back(p);
 }
 
-void im_status::pop_poi()
+void thermo_img::pop_poi()
 {
     poi.pop_back();
 }
 
-void im_status::track(const im_status &ref, tracking track)
+void thermo_img::track(const thermo_img &ref, tracking track)
 {
     switch (track) {
     case tracking::off:
@@ -148,17 +148,17 @@ void im_status::track(const im_status &ref, tracking track)
         break;
     case tracking::async:
         // TODO: Remove static - make it a member variable
-        static future<im_status> future;
+        static future<thermo_img> future;
 
         if (!future.valid() ||
             future.wait_for(chrono::seconds::zero()) == future_status::ready) {
             if (future.valid()) {
-                im_status tracked = future.get();
+                thermo_img tracked = future.get();
                 poi = tracked.poi;
                 heat_sources_border = tracked.heat_sources_border;
             }
 
-            future = async([&](im_status copy) {
+            future = async([&](thermo_img copy) {
                 copy.updateKpDesc();
                 copy.updatePOICoords(ref);
                 return copy;
@@ -174,26 +174,26 @@ void im_status::track(const im_status &ref, tracking track)
         point.temp = get_temperature((Point)point.p);
 }
 
-void im_status::updateKpDesc()
+void thermo_img::updateKpDesc()
 {
     Mat pre = preprocess(gray);
     kp = getKeyPoints(pre);
     desc = getDescriptors(pre, kp);
 }
 
-void im_status::trainMatcher()
+void thermo_img::trainMatcher()
 {
     updateKpDesc();
     ::trainMatcher(desc);
 }
 
-double im_status::get_temperature(uint16_t pixel)
+double thermo_img::get_temperature(uint16_t pixel)
 {
     return is->get_temperature(pixel);
 }
 
 
-double im_status::get_temperature(Point p)
+double thermo_img::get_temperature(Point p)
 {
     if (p.y < 0 || p.y > height() || p.x < 0 || p.x > width()) {
         cerr << "Point at (" << p.x << "," << p.y << ") out of image!" << endl;
@@ -206,7 +206,7 @@ double im_status::get_temperature(Point p)
     return is->get_temperature(pixel);
 }
 
-void im_status::updatePOICoords(const im_status &ref)
+void thermo_img::updatePOICoords(const thermo_img &ref)
 {
     std::vector<cv::DMatch> matches = matchToReference(desc);
     Mat H = findH(ref.kp, kp, matches);
@@ -259,7 +259,7 @@ static void normalize_and_convert_to_uchar(Mat &mat_in, Mat &mat_out){
                      255.0 / (1.0 - max / min));
 }
 
-vector<HeatSource> im_status::heatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
+vector<HeatSource> thermo_img::heatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
 {
     for (auto &p : heat_sources_border) {
         if (p.x < 0 || p.x > width() || p.y < 0 || p.y > height()) {
@@ -336,52 +336,52 @@ vector<HeatSource> im_status::heatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
     return hs;
 }
 
-const std::vector<cv::Point2f> &im_status::get_heat_sources_border() const
+const std::vector<cv::Point2f> &thermo_img::get_heat_sources_border() const
 {
     return heat_sources_border;
 }
 
-const std::vector<POI> &im_status::get_poi() const
+const std::vector<POI> &thermo_img::get_poi() const
 {
     return poi;
 }
 
-cv::Mat im_status::get_gray() const
+cv::Mat thermo_img::get_gray() const
 {
     return gray;
 }
 
-int im_status::height() const
+int thermo_img::height() const
 {
     return rawtemp.rows;
 }
 
-int im_status::width() const
+int thermo_img::width() const
 {
     return rawtemp.cols;
 }
 
-const cv::Mat &im_status::get_detail() const
+const cv::Mat &thermo_img::get_detail() const
 {
     return detail_rgb;
 }
 
-const cv::Mat &im_status::get_laplacian() const
+const cv::Mat &thermo_img::get_laplacian() const
 {
     return laplacian_rgb;
 }
 
-const cv::Mat &im_status::get_hs_img() const
+const cv::Mat &thermo_img::get_hs_img() const
 {
     return hsImg_rgb;
 }
 
-const std::array<cv::Mat, 3> &im_status::get_hs_avg() const
+const std::array<cv::Mat, 3> &thermo_img::get_hs_avg() const
 {
     return hsAvg_rgb;
 }
 
-cv::Mat_<uint16_t> im_status::get_rawtemp() const
+cv::Mat_<uint16_t> thermo_img::get_rawtemp() const
 {
     return rawtemp;
 }

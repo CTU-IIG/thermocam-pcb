@@ -144,14 +144,14 @@ Mat drawPOI(Mat in, vector<POI> poi, draw_mode mode)
     return R;
 }
 
-void highlight_core(im_status &s, Mat &image){
+void highlight_core(thermo_img &s, Mat &image){
     for(unsigned i = 0; i < s.get_heat_sources_border().size(); i++){
         line(image, s.get_heat_sources_border()[i] * 2, s.get_heat_sources_border()[(i + 1) % s.get_heat_sources_border().size()] * 2,
                 Scalar(0,0,255));
     }
 }
 
-void setRefStatus(im_status &ref, img_stream &is, string poi_filename, bool tracking_on, string heat_sources_border_points)
+void setRefStatus(thermo_img &ref, img_stream &is, string poi_filename, bool tracking_on, string heat_sources_border_points)
 {
     if (poi_filename.empty()) {
         ref.update(is);
@@ -166,7 +166,7 @@ void setRefStatus(im_status &ref, img_stream &is, string poi_filename, bool trac
 void onMouse(int event, int x, int y, int flags, void *param)
 {
     if (event == EVENT_LBUTTONDOWN) {
-        im_status &ref = *reinterpret_cast<im_status*>(param);
+        thermo_img &ref = *reinterpret_cast<thermo_img*>(param);
         string name = "Point " + to_string(ref.get_poi().size());
         // The image is upscaled 2x when displaying POI
         // Thus we need to divide coords by 2 when getting mouse input
@@ -223,7 +223,7 @@ void printPOITemp(vector<POI> poi, string file)
 }
 
 void showPOIImg(string path){
-    im_status img;
+    thermo_img img;
     img.read_from_poi_json(path);
     Mat imdraw = drawPOI(img.get_gray(), img.get_poi(), draw_mode::NUM);
     string title = "POI from " + path;
@@ -232,9 +232,9 @@ void showPOIImg(string path){
     destroyAllWindows();
 }
 
-void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
+void processNextFrame(img_stream &is, const thermo_img &ref, thermo_img &curr,
                       string window_name, VideoWriter *vw,
-                      string poi_csv_file, im_status::tracking track)
+                      string poi_csv_file, thermo_img::tracking track)
 {
     curr.update(is);
 
@@ -256,7 +256,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     highlight_core(curr, img);
 
     if (vw)
-        vw->write(track != im_status::tracking::off ? img : curr.get_gray());
+        vw->write(track != thermo_img::tracking::off ? img : curr.get_gray());
 
     if (webserver) {
         webserver->update(img, curr.get_detail(), curr.get_laplacian(),
@@ -284,7 +284,7 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     }
 }
 
-bool handle_input(bool enter_poi, im_status &ref)
+bool handle_input(bool enter_poi, thermo_img &ref)
 {
     bool is_exit = false;
 
@@ -304,7 +304,7 @@ bool handle_input(bool enter_poi, im_status &ref)
     return is_exit;
 }
 
-void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_arguments &args)
+void processStream(img_stream &is, thermo_img &ref, thermo_img &curr, cmd_arguments &args)
 {
     int exit = 0;
     VideoWriter *vw = nullptr;
@@ -335,24 +335,24 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
     if (args.save_img)
         save_img_clk = chrono::system_clock::now();
 
-    im_status::tracking track = im_status::tracking::off;
+    thermo_img::tracking track = thermo_img::tracking::off;
 
     switch (args.tracking) {
     case cmd_arguments::tracking::off:
-        track = im_status::tracking::off;
+        track = thermo_img::tracking::off;
         break;
     case cmd_arguments::tracking::on:
-        track = im_status::tracking::sync;
+        track = thermo_img::tracking::sync;
         break;
     case cmd_arguments::tracking::once:
-        track = im_status::tracking::sync;
+        track = thermo_img::tracking::sync;
         break;
     case cmd_arguments::tracking::background:
-        track = im_status::tracking::async;
+        track = thermo_img::tracking::async;
         break;
     }
 
-    while (!exit || track == im_status::tracking::finish) {
+    while (!exit || track == thermo_img::tracking::finish) {
         if (watchdog_enabled)
             sd_notify(false, "WATCHDOG=1");
         auto begin = chrono::system_clock::now();
@@ -363,15 +363,15 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
         auto end = chrono::system_clock::now();
 
         if (args.tracking == cmd_arguments::tracking::once)
-            track = im_status::tracking::off;
+            track = thermo_img::tracking::off;
 
-        if (track == im_status::tracking::finish)
+        if (track == thermo_img::tracking::finish)
             break;
 
         exit = handle_input(args.enter_poi, ref);
 
-        if (exit && track == im_status::tracking::async)
-            track = im_status::tracking::finish; // Wait until async computation finishes
+        if (exit && track == thermo_img::tracking::async)
+            track = thermo_img::tracking::finish; // Wait until async computation finishes
 
         if (args.save_img &&
                 duration_us(save_img_clk, end) > args.save_img_period * 1000000) {
@@ -444,7 +444,7 @@ int main(int argc, char **argv)
     }
 
     img_stream is(args.vid_in_path, args.license_dir);
-    im_status ref, curr;
+    thermo_img ref, curr;
     setRefStatus(ref, is, args.poi_import_path, args.tracking != cmd_arguments::tracking::off,
                  args.heat_sources_border_points);
 

@@ -31,7 +31,7 @@ struct POI {
     std::string to_string(bool print_name = true);
 };
 
-struct im_status {
+struct thermo_img {
 public:
     enum class tracking { off, sync, async, finish };
 
@@ -42,11 +42,11 @@ public:
     void pop_poi();
 
     void trainMatcher();
-    void track(const im_status &ref, tracking track);
+    void track(const thermo_img &ref, tracking track);
 
     double get_temperature(uint16_t pixel);
     double get_temperature(cv::Point p);
-    void updatePOICoords(const im_status &ref);
+    void updatePOICoords(const thermo_img &ref);
 
     const std::vector<cv::Point2f> &get_heat_sources_border() const;
 
