@@ -23,8 +23,6 @@ string POI::to_string(bool print_name)
 void im_status::update(img_stream &is)
 {
     is.get_image(rawtemp);
-    width = rawtemp.cols;
-    height = rawtemp.rows;
 
     rawtemp.convertTo(gray, CV_8U,
                       255.0 / (is.max_rawtemp - is.min_rawtemp),
@@ -80,8 +78,7 @@ void im_status::read_from_poi_json(string poi_filename, string heat_sources_bord
 {
     gray = readJsonImg(poi_filename);
     poi = readPOI(poi_filename);
-    width = gray.cols;
-    height = gray.rows;
+    rawtemp.create(gray.size()); // to make width() and height() return expected values
 
     if (!heat_sources_border_points.empty()) {
         vector<string> pt_names = split(heat_sources_border_points, ",");
@@ -198,7 +195,7 @@ double im_status::get_temperature(uint16_t pixel)
 
 double im_status::get_temperature(Point p)
 {
-    if (p.y < 0 || p.y > height || p.x < 0 || p.x > width) {
+    if (p.y < 0 || p.y > height() || p.x < 0 || p.x > width()) {
         cerr << "Point at (" << p.x << "," << p.y << ") out of image!" << endl;
         return nan("");
     }
@@ -244,4 +241,24 @@ const std::vector<cv::Point2f> &im_status::get_heat_sources_border() const
 const std::vector<POI> &im_status::get_poi() const
 {
     return poi;
+}
+
+cv::Mat im_status::get_gray() const
+{
+    return gray;
+}
+
+int im_status::height() const
+{
+    return rawtemp.rows;
+}
+
+int im_status::width() const
+{
+    return rawtemp.cols;
+}
+
+cv::Mat_<uint16_t> im_status::get_rawtemp() const
+{
+    return rawtemp;
 }

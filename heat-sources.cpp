@@ -37,7 +37,7 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
                                array<Mat, 3> &hsAvg_out, cv::Ptr<cv::freetype::FreeType2> ft2)
 {
     for (auto &p : s.get_heat_sources_border()) {
-        if (p.x < 0 || p.x > s.width || p.y < 0 || p.y > s.height) {
+        if (p.x < 0 || p.x > s.width() || p.y < 0 || p.y > s.height()) {
             cerr << "Heat source border out of the image!" << endl;
             return {};
         }
@@ -48,7 +48,7 @@ vector<HeatSource> heatSources(im_status &s, Mat &laplacian_out, Mat &hsImg_out,
 
     Mat transform = getPerspectiveTransform(s.get_heat_sources_border(), detail_rect);
     Mat raw_float, detail;
-    s.rawtemp.convertTo(raw_float, CV_64F);
+    s.get_rawtemp().convertTo(raw_float, CV_64F);
     warpPerspective(raw_float, detail, transform, sz);
 
     Mat blur, laplacian, hsImg;

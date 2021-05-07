@@ -226,7 +226,7 @@ void printPOITemp(vector<POI> poi, string file)
 void showPOIImg(string path){
     im_status img;
     img.read_from_poi_json(path);
-    Mat imdraw = drawPOI(img.gray, img.get_poi(), draw_mode::NUM);
+    Mat imdraw = drawPOI(img.get_gray(), img.get_poi(), draw_mode::NUM);
     string title = "POI from " + path;
     imshow(title,imdraw);
     waitKey(0);
@@ -251,14 +251,14 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     }
 
     Mat img;
-    curr.gray.copyTo(img);
+    curr.get_gray().copyTo(img);
     applyColorMap(img, img, cv::COLORMAP_INFERNO);
     img = drawPOI(img, curr.get_poi(), curr_draw_mode);
 
     highlight_core(curr, img);
 
     if (vw)
-        vw->write(track != im_status::tracking::off ? img : curr.gray);
+        vw->write(track != im_status::tracking::off ? img : curr.get_gray());
 
     if (webserver) {
         webserver->update(img, detail, laplacian, hsImg, hsAvg,
@@ -324,7 +324,7 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
         string cc = args.fourcc;
         vw = new VideoWriter(args.vid_out_path,
                              cv::VideoWriter::fourcc(cc[0], cc[1], cc[2], cc[3]),
-                CAM_FPS, Size(ref.width*scale, ref.height*scale),
+                CAM_FPS, Size(ref.width()*scale, ref.height()*scale),
                 isColor);
         if (!vw->isOpened()) {
             warnx("VideoWriter for %s not available", args.vid_out_path.c_str());
@@ -380,8 +380,8 @@ void processStream(img_stream &is, im_status &ref, im_status &curr, cmd_argument
             save_img_clk = chrono::system_clock::now();
             string img_path = args.save_img_dir + "/"
                               + clkDateTimeString(save_img_clk) + ".png";
-            imwrite(img_path, curr.gray);
-            imwrite(args.save_img_dir + "/raw_" + clkDateTimeString(save_img_clk) + ".png", curr.rawtemp);
+            imwrite(img_path, curr.get_gray());
+            imwrite(args.save_img_dir + "/raw_" + clkDateTimeString(save_img_clk) + ".png", curr.get_rawtemp());
         }
 
         // Update camera internal temperatures. Since it takes

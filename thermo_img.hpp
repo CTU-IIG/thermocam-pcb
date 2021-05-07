@@ -27,10 +27,6 @@ struct im_status {
 public:
     enum class tracking { off, sync, async, finish };
 
-    int height=0,width=0;
-    cv::Mat_<uint16_t> rawtemp;
-    cv::Mat gray;
-
     void update(img_stream &is);
     void read_from_poi_json(std::string poi_filename, std::string heat_sources_border_points = "");
     void write_poi_json(std::string path, bool verbose = false);
@@ -48,8 +44,18 @@ public:
 
     const std::vector<POI> &get_poi() const;
 
+    cv::Mat_<uint16_t> get_rawtemp() const;
+    cv::Mat get_gray() const;
+
+    int height() const;
+    int width() const;
+
 private:
     img_stream *is = nullptr;
+
+    cv::Mat_<uint16_t> rawtemp;
+    cv::Mat gray;
+
     std::vector<cv::KeyPoint> kp;
     cv::Mat desc;
 
