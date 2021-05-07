@@ -1,5 +1,4 @@
 #include "thermo_img.hpp"
-#include "heat-sources.hpp"
 #include "webserver.hpp"
 #include "CameraCenter.h"
 

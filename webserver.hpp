@@ -6,7 +6,6 @@
 #include "thermo_img.hpp"
 #include <opencv2/core/core.hpp>
 #include <thread>
-#include "heat-sources.hpp"
 #include <unordered_set>
 #include "crow_all.h"
 

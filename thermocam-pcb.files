@@ -3,7 +3,6 @@ arg-parse.cpp
 arg-parse.hpp
 crow_all.h
 heat-sources.cpp
-heat-sources.hpp
 img_stream.cpp
 img_stream.hpp
 point-tracking.cpp
