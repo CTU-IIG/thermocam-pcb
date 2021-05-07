@@ -258,6 +258,26 @@ int im_status::width() const
     return rawtemp.cols;
 }
 
+const cv::Mat &im_status::get_detail() const
+{
+    return detail_out;
+}
+
+const cv::Mat &im_status::get_laplacian() const
+{
+    return laplacian_out;
+}
+
+const cv::Mat &im_status::get_hs_img() const
+{
+    return hsImg_out;
+}
+
+const std::array<cv::Mat, 3> &im_status::get_hs_avg() const
+{
+    return hsAvg_out;
+}
+
 cv::Mat_<uint16_t> im_status::get_rawtemp() const
 {
     return rawtemp;

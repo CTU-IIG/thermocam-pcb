@@ -244,10 +244,9 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
     printPOITemp(curr.get_poi(), poi_csv_file);
 
     vector<HeatSource> hs;
-    Mat laplacian, hsImg, detail;
     array<Mat, 3> hsAvg;
     if (curr.get_heat_sources_border().size() > 0) {
-        hs = heatSources(curr, laplacian, hsImg, detail, hsAvg, ft2);
+        hs = curr.heatSources(ft2);
     }
 
     Mat img;
@@ -261,25 +260,25 @@ void processNextFrame(img_stream &is, const im_status &ref, im_status &curr,
         vw->write(track != im_status::tracking::off ? img : curr.get_gray());
 
     if (webserver) {
-        webserver->update(img, detail, laplacian, hsImg, hsAvg,
-                          curr.get_poi(), hs);
+        webserver->update(img, curr.get_detail(), curr.get_laplacian(),
+                          curr.get_hs_img(), curr.get_hs_avg(), curr.get_poi(), hs);
     }
 
     if (gui_available) {
-        if (!detail.empty()) {
-            vector<Mat*> mats({ &detail, &laplacian, &hsImg, &hsAvg[0] });
+        if (!curr.get_detail().empty()) {
+            vector<Mat> mats({ curr.get_detail(), curr.get_laplacian(), curr.get_hs_img(), curr.get_hs_avg()[0] });
             int h = img.rows, w = img.cols;
-            int hh = accumulate(begin(mats), end(mats), 0, [](int a, Mat *m){return max(a, m->rows + 1);});
-            int ww = accumulate(begin(mats), end(mats), 0, [](int a, Mat *m){return a + m->cols + 1;});
+            int hh = accumulate(begin(mats), end(mats), 0, [](int a, Mat &m){return max(a, m.rows + 1);});
+            int ww = accumulate(begin(mats), end(mats), 0, [](int a, Mat &m){return a + m.cols + 1;});
 
             copyMakeBorder(img, img, 0, hh, 0, max(0, ww - w), cv::BORDER_CONSTANT,
                            Scalar(255,255,255));
             int x = 0;
-            for (Mat *m : mats) {
-                if (m->channels() == 1)
-                    cvtColor(*m, *m, COLOR_GRAY2BGR);
-                m->copyTo(img(Rect(Point(x, h + 1), m->size())));
-                x += m->cols + 1;
+            for (Mat &m : mats) {
+                if (m.channels() == 1)
+                    cvtColor(m, m, COLOR_GRAY2BGR);
+                m.copyTo(img(Rect(Point(x, h + 1), m.size())));
+                x += m.cols + 1;
             }
         }
         imshow(window_name, img);

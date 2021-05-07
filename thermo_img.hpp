@@ -3,8 +3,16 @@
 
 #include <opencv2/core/mat.hpp>
 #include <vector>
+#include <array>
 #include "img_stream.hpp"
 #include <boost/accumulators/statistics/rolling_variance.hpp>
+#include <opencv2/freetype.hpp>
+
+struct HeatSource {
+    cv::Point location;
+    double temperature;
+    double neg_laplacian;
+};
 
 // Point of interrest
 struct POI {
@@ -50,11 +58,21 @@ public:
     int height() const;
     int width() const;
 
+    std::vector<HeatSource> heatSources(cv::Ptr<cv::freetype::FreeType2> ft2);
+    const cv::Mat &get_detail() const;
+    const cv::Mat &get_laplacian() const;
+    const cv::Mat &get_hs_img() const;
+    const std::array<cv::Mat, 3> &get_hs_avg() const;
+
 private:
     img_stream *is = nullptr;
 
     cv::Mat_<uint16_t> rawtemp;
     cv::Mat gray;
+    cv::Mat detail_out;
+    cv::Mat laplacian_out;
+    cv::Mat hsImg_out;
+    std::array<cv::Mat, 3> hsAvg_out;
 
     std::vector<cv::KeyPoint> kp;
     cv::Mat desc;
