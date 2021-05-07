@@ -58,7 +58,6 @@ executable('thermocam-pcb',
 	     'point-tracking.cpp',
 	     'img_stream.cpp',
 	     'thermo_img.cpp',
-	     'heat-sources.cpp',
 	     'arg-parse.cpp',
 	     version_h
 	   ],
