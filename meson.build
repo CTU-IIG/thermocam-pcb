@@ -43,7 +43,17 @@ version_h = vcs_tag(input : 'version.h.in', output : 'version.h',
 		              ? ['echo', get_option('version')]
                               : ['git', 'describe', '--always'])
 
-webserver = static_library('webserver', ['webserver.cpp'],
+file2cpp = generator(find_program('file2cpp'),
+		     arguments : [ '@INPUT@' ],
+                     output : '@PLAINNAME@.hpp',
+		     capture : true,
+		    )
+
+webserver = static_library('webserver',
+        [
+	  'webserver.cpp',
+	  file2cpp.process('index.html'),
+	],
         dependencies: [
           opencv_dep,
 	  ebus_dep,

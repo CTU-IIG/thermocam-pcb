@@ -1,74 +1,7 @@
 #include "webserver.hpp"
 #include <opencv2/highgui/highgui.hpp>
 #include <err.h>
-
-const std::string html_code =
-R"(
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8" />
-        <title>Thermocam-PCB</title>
-    </head>
-    <body>
-      <div>
-        <h2>Thermocam-PCB</h2>
-        <img src="thermocam-current.jpg" id=camera />
-      </div>
-
-      <div style="display: flex;">
-	<div style="margin-right: 1em;">
-          <h2>Detail</h2>
-          <img src="detail-current.jpg" id=detail />
-	</div>
-	<div style="margin-right: 1em;">
-          <h2>Laplacian</h2>
-          <img src="laplacian-current.jpg" id=laplacian />
-	</div>
-	<div style="margin-right: 1em;">
-          <h2>Heat-sources</h2>
-          <img src="heat_sources-current.jpg" id=hs />
-	</div>
-	<div style="margin-right: 1em;"><h2>Trace α=0.9  </h2><img src="hs-avg0.jpg" id=avg0 /></div>
-	<div style="margin-right: 1em;"><h2>Trace α=0.99 </h2><img src="hs-avg1.jpg" id=avg1 /></div>
-	<div style="margin-right: 1em;"><h2>Trace α=0.999</h2><img src="hs-avg2.jpg" id=avg2 /></div>
-      </div>
-        <script>
-            var counter = 0;
-            function reloadAllImages() {
-              counter++;
-              document.getElementById('camera').src='thermocam-current.jpg?c=' + counter;
-              document.getElementById('detail').src='detail-current.jpg?c=' + counter;
-              document.getElementById('laplacian').src='laplacian-current.jpg?c=' + counter;
-              document.getElementById('hs').src='heat_sources-current.jpg?c=' + counter;
-              document.getElementById('avg0').src='hs-avg0.jpg?c=' + counter;
-              document.getElementById('avg1').src='hs-avg1.jpg?c=' + counter;
-              document.getElementById('avg2').src='hs-avg2.jpg?c=' + counter;
-            };
-
-            let server = location.host;
-            var wsProtocol = 'ws://';
-            if (window.location.protocol === 'https:') {
-                wsProtocol = 'wss://';
-            }
-            let socket = new WebSocket(wsProtocol + server + "/ws");
-
-            socket.onopen = ()=>{
-                console.log('open');
-            }
-
-            socket.onclose = ()=>{
-                console.log('close');
-            }
-
-            socket.onmessage = (e) => {
-                console.log('e');
-                reloadAllImages();
-            }
-        </script>
-    </body>
-</html>
-)";
+#include "index.html.hpp"
 
 void sendPOITemp(crow::response &res, std::vector<POI> poi)
 {
@@ -195,7 +128,7 @@ void Webserver::start()
 
     CROW_ROUTE(app, "/")
             ([]{
-        return html_code;
+        return index_html;
     });
 
     CROW_ROUTE(app, "/thermocam-current.jpg")

@@ -18,6 +18,9 @@ stdenv.mkDerivation {
     usbutils
     systemd
   ];
+  preConfigure = ''
+    patchShebangs file2cpp
+  '';
   mesonFlags = [
     "-Dwic_home=${wic_sdk}"
     "-Debus_home=${ebus_sdk}"
