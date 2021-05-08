@@ -390,7 +390,8 @@ void thermo_img::calcHeatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
     }
 
     Mat lapgz;
-    laplacian.copyTo(lapgz, laplacian > 0);
+    Mat lapx = laplacian - 0.025;
+    lapx.copyTo(lapgz, lapx > 0.0);
 
     static array<Mat, 2> lapgz_avg;
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99} }) {
