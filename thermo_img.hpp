@@ -85,8 +85,14 @@ private:
 
     std::vector<HeatSource> hs;
 
-    std::vector<cv::KeyPoint> kp;
-    cv::Mat desc;
+    // these values are not copied to webserver
+    struct nocopy {
+        nocopy() = default;
+        nocopy(const nocopy &nc) {} // noop copy constructor
+
+        std::vector<cv::KeyPoint> kp;
+        cv::Mat desc;
+    } nc;
 
     std::vector<POI> poi; // Points of interest
     std::vector<cv::Point2f> heat_sources_border;

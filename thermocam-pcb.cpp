@@ -164,8 +164,7 @@ void processNextFrame(img_stream &is, const thermo_img &ref, thermo_img &curr,
         vw->write(track != thermo_img::tracking::off ? curr.get_preview() : curr.get_gray());
 
     if (webserver) {
-        webserver->update(curr.get_preview(), curr.get_detail(), curr.get_laplacian(),
-                          curr.get_hs_img(), curr.get_hs_avg(), curr.get_poi(), curr.get_heat_sources());
+        webserver->update(curr);
     }
 
     if (gui_available) {

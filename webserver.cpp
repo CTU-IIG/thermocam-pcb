@@ -55,24 +55,11 @@ void Webserver::terminate()
     web_thread.join();
 }
 
-void Webserver::update(const cv::Mat &img,
-                       const cv::Mat &detail,
-                       const cv::Mat &laplacian,
-                       const cv::Mat &hs_img,
-                       const std::array<cv::Mat, 3> &hs_avg,
-                       const std::vector<POI> &poi,
-                       const std::vector<HeatSource> &hs)
+void Webserver::update(const thermo_img &ti)
 {
     {
         std::lock_guard<std::mutex> lk(lock);
-        this->img = img;
-        this->detail_img = detail;
-        this->laplacian_img = laplacian;
-        this->hs_img = hs_img;
-        this->hs_avg = hs_avg;
-
-        this->poi = poi;
-        this->heat_sources = hs;
+        this->ti = ti;
     }
     noticeClients();
 }
@@ -90,7 +77,7 @@ std::string Webserver::getHeatSourcesJsonArray()
     {
         ss << std::fixed << std::setprecision(3);
         std::lock_guard<std::mutex> lk(lock);
-        for (auto p : heat_sources)
+        for (auto p : ti.get_heat_sources())
             ss << "[" << p.location.x << "," << p.location.y << "," << p.neg_laplacian << "],";
     }
     std::string hs = ss.str();
@@ -138,28 +125,28 @@ void Webserver::start()
     });
 
     CROW_ROUTE(app, "/thermocam-current.jpg")
-            ([this](){return send_jpeg(img);});
+            ([this](){return send_jpeg(ti.get_preview());});
 
     CROW_ROUTE(app, "/heat_sources-current.jpg")
-            ([this](){return send_jpeg(hs_img);});
+            ([this](){return send_jpeg(ti.get_hs_img());});
 
     CROW_ROUTE(app, "/laplacian-current.jpg")
-            ([this](){return send_jpeg(laplacian_img);});
+            ([this](){return send_jpeg(ti.get_laplacian());});
 
     CROW_ROUTE(app, "/detail-current.jpg")
-            ([this](){return send_jpeg(detail_img);});
+            ([this](){return send_jpeg(ti.get_detail());});
 
     CROW_ROUTE(app, "/hs-avg<uint>.jpg")
             ([this](unsigned idx){
-                if (idx >= hs_avg.size())
+                if (idx >= ti.get_hs_avg().size())
                     return crow::response(404);
-                return send_jpeg(hs_avg[idx]);
+                return send_jpeg(ti.get_hs_avg()[idx]);
             });
 
     CROW_ROUTE(app, "/temperatures.txt")
     ([this](const crow::request& req, crow::response& res){
         this->lock.lock();
-        std::vector<POI> curr_poi = this->poi;
+        std::vector<POI> curr_poi = ti.get_poi();
         std::vector<std::pair<std::string,double>> curr_cct = this->cameraComponentTemps;
         this->lock.unlock();
         sendPOITemp(res, curr_poi);
@@ -170,7 +157,7 @@ void Webserver::start()
     CROW_ROUTE(app, "/heat-sources.txt")
     ([this](const crow::request& req, crow::response& res){
         this->lock.lock();
-        std::vector<HeatSource> curr_heat_sources = this->heat_sources;
+        std::vector<HeatSource> curr_heat_sources = ti.get_heat_sources();
         this->lock.unlock();
         sendHeatSources(res, curr_heat_sources);
         res.end();
@@ -179,9 +166,9 @@ void Webserver::start()
     CROW_ROUTE(app, "/points.txt")
     ([this](const crow::request& req, crow::response& res){
         this->lock.lock();
-        std::vector<POI> curr_poi = this->poi;
+        std::vector<POI> curr_poi = ti.get_poi();
         std::vector<std::pair<std::string,double>> curr_cct = this->cameraComponentTemps;
-        std::vector<HeatSource> curr_heat_sources = this->heat_sources;
+        std::vector<HeatSource> curr_heat_sources = ti.get_heat_sources();
         this->lock.unlock();
         sendPOITemp(res, curr_poi);
         sendCameraComponentTemps(res, curr_cct);
@@ -192,7 +179,7 @@ void Webserver::start()
     CROW_ROUTE(app, "/position-std.txt")
     ([this](const crow::request& req, crow::response& res){
         this->lock.lock();
-        std::vector<POI> curr_poi = this->poi;
+        std::vector<POI> curr_poi = ti.get_poi();
         this->lock.unlock();
         sendPOIPosStd(res, curr_poi);
         res.end();

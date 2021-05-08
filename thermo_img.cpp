@@ -270,14 +270,14 @@ void thermo_img::track(const thermo_img &ref, tracking track)
 void thermo_img::updateKpDesc()
 {
     Mat pre = preprocess(gray);
-    kp = getKeyPoints(pre);
-    desc = getDescriptors(pre, kp);
+    nc.kp = getKeyPoints(pre);
+    nc.desc = getDescriptors(pre, nc.kp);
 }
 
 void thermo_img::trainMatcher()
 {
     updateKpDesc();
-    ::trainMatcher(desc);
+    ::trainMatcher(nc.desc);
 }
 
 double thermo_img::get_temperature(uint16_t pixel)
@@ -301,8 +301,8 @@ double thermo_img::get_temperature(Point p)
 
 void thermo_img::updatePOICoords(const thermo_img &ref)
 {
-    std::vector<cv::DMatch> matches = matchToReference(desc);
-    Mat H = findH(ref.kp, kp, matches);
+    std::vector<cv::DMatch> matches = matchToReference(nc.desc);
+    Mat H = findH(ref.nc.kp, nc.kp, matches);
 
     if (H.empty()) // Couldn't find homography - points stay the same
         return; // FIXME: Let the caller (or at least user) know that this happened
