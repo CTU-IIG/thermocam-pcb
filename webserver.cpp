@@ -44,15 +44,6 @@ void sendPOIPosStd(crow::response &res, std::vector<POI> poi)
     res.write(ss.str());
 }
 
-void sendImg(crow::response &res, cv::Mat img)
-{
-    res.add_header("Cache-Control", "no-store");        // Images should always be fresh.
-    std::vector<uchar> img_v;
-    cv::imencode(".jpg", img, img_v);
-    std::string img_s(img_v.begin(), img_v.end());
-    res.write(img_s);
-}
-
 Webserver::Webserver()
     : web_thread(&Webserver::start, this)
 {}
@@ -120,6 +111,21 @@ void Webserver::noticeClients() {
     }
 }
 
+crow::response Webserver::send_jpeg(const cv::Mat &img)
+{
+    lock.lock();
+    cv::Mat curr_img = img;
+    lock.unlock();
+
+    crow::response res;
+    res.add_header("Cache-Control", "no-store");        // Images should always be fresh.
+    std::vector<uchar> img_v;
+    cv::imencode(".jpg", img, img_v);
+    std::string img_s(img_v.begin(), img_v.end());
+    res.write(img_s);
+    return res;
+}
+
 void Webserver::start()
 {
     crow::SimpleApp app;
@@ -132,52 +138,22 @@ void Webserver::start()
     });
 
     CROW_ROUTE(app, "/thermocam-current.jpg")
-            ([this](const crow::request& req, crow::response& res){
-        this->lock.lock();
-        cv::Mat curr_img = this->img;
-        this->lock.unlock();
-        sendImg(res,curr_img);
-        res.end();
-    });
+            ([this](){return send_jpeg(img);});
 
     CROW_ROUTE(app, "/heat_sources-current.jpg")
-            ([this](const crow::request& req, crow::response& res){
-        this->lock.lock();
-        cv::Mat curr_img = this->hs_img;
-        this->lock.unlock();
-        sendImg(res,curr_img);
-        res.end();
-    });
+            ([this](){return send_jpeg(hs_img);});
 
     CROW_ROUTE(app, "/laplacian-current.jpg")
-            ([this](const crow::request& req, crow::response& res){
-                this->lock.lock();
-                cv::Mat curr_img = this->laplacian_img;
-                this->lock.unlock();
-                sendImg(res,curr_img);
-                res.end();
-            });
+            ([this](){return send_jpeg(laplacian_img);});
 
     CROW_ROUTE(app, "/detail-current.jpg")
-            ([this](const crow::request& req, crow::response& res){
-                this->lock.lock();
-                cv::Mat curr_img = this->detail_img;
-                this->lock.unlock();
-                sendImg(res,curr_img);
-                res.end();
-            });
+            ([this](){return send_jpeg(detail_img);});
 
     CROW_ROUTE(app, "/hs-avg<uint>.jpg")
-            ([this](const crow::request& req, crow::response& res, unsigned idx){
-                if (idx >= hs_avg.size()) {
-                    res = crow::response(404);
-                    return;
-                }
-                this->lock.lock();
-                cv::Mat curr_img = this->hs_avg[idx];
-                this->lock.unlock();
-                sendImg(res,curr_img);
-                res.end();
+            ([this](unsigned idx){
+                if (idx >= hs_avg.size())
+                    return crow::response(404);
+                return send_jpeg(hs_avg[idx]);
             });
 
     CROW_ROUTE(app, "/temperatures.txt")
