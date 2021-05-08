@@ -143,6 +143,16 @@ void Webserver::start()
                 return send_jpeg(ti.get_hs_avg()[idx]);
             });
 
+    CROW_ROUTE(app, "/lapgz.jpg")
+            ([this](){return send_jpeg(ti.getLapgz_rgb());});
+
+    CROW_ROUTE(app, "/lapgz-avg<uint>.jpg")
+            ([this](unsigned idx){
+                if (idx >= ti.getLapgz_avg_rgb().size())
+                    return crow::response(404);
+                return send_jpeg(ti.getLapgz_avg_rgb()[idx]);
+            });
+
     CROW_ROUTE(app, "/temperatures.txt")
     ([this](const crow::request& req, crow::response& res){
         this->lock.lock();

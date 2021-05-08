@@ -72,6 +72,10 @@ public:
 
     const cv::Mat &get_preview() const;
 
+    cv::Mat getLapgz_rgb() const;
+
+    const std::array<cv::Mat, 2> &getLapgz_avg_rgb() const;
+
 private:
     img_stream *is = nullptr;
 
@@ -82,6 +86,8 @@ private:
     cv::Mat laplacian_rgb;
     cv::Mat hsImg_rgb;
     std::array<cv::Mat, 3> hsAvg_rgb;
+    cv::Mat lapgz_rgb; // laplacian greater than zero
+    std::array<cv::Mat, 2> lapgz_avg_rgb;
 
     std::vector<HeatSource> hs;
 

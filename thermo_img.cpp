@@ -389,6 +389,16 @@ void thermo_img::calcHeatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
         //cv::sqrt(hsAvg_out, hsAvg_out);
     }
 
+    Mat lapgz;
+    laplacian.copyTo(lapgz, laplacian > 0);
+
+    static array<Mat, 2> lapgz_avg;
+    for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99} }) {
+        if (lapgz_avg[i].empty())
+            lapgz_avg[i] = lapgz * 0.0; // black image of the same type and size
+        lapgz_avg[i] = alpha * lapgz_avg[i] + (1-alpha) * lapgz;
+    }
+
     hs.resize(lm.size());
     size_t max_hs = 0;
     for (unsigned i=0; i<lm.size(); i++) {
@@ -405,6 +415,9 @@ void thermo_img::calcHeatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
                            {&hsAvg_rgb[0], &hsAvg_rgb[0]},
                            {&hsAvg_rgb[1], &hsAvg_rgb[1]},
                            {&hsAvg_rgb[2], &hsAvg_rgb[2]},
+                           {&lapgz, &lapgz_rgb},
+                           {&lapgz_avg[0], &lapgz_avg_rgb[0]},
+                           {&lapgz_avg[1], &lapgz_avg_rgb[1]},
         }) {
         normalize_and_convert_to_uchar(*in, *out);
         applyColorMap(*out, *out, cv::COLORMAP_INFERNO);
@@ -480,6 +493,16 @@ const std::vector<HeatSource> &thermo_img::get_heat_sources() const
 const cv::Mat &thermo_img::get_preview() const
 {
     return preview;
+}
+
+cv::Mat thermo_img::getLapgz_rgb() const
+{
+    return lapgz_rgb;
+}
+
+const std::array<cv::Mat, 2> &thermo_img::getLapgz_avg_rgb() const
+{
+    return lapgz_avg_rgb;
 }
 
 cv::Mat_<uint16_t> thermo_img::get_rawtemp() const

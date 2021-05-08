@@ -17,6 +17,9 @@
       <div style="margin-right: 1em;"><h2>HS avg. α=0.9  </h2><img src="hs-avg0.jpg" id=avg0 /></div>
       <div style="margin-right: 1em;"><h2>HS avg. α=0.99 </h2><img src="hs-avg1.jpg" id=avg1 /></div>
       <div style="margin-right: 1em;"><h2>HS avg. α=0.999</h2><img src="hs-avg2.jpg" id=avg2 /></div>
+      <div style="margin-right: 1em;"><h2>Lapl. > 0</h2><img src="lapgz.jpg" id=lapgz /></div>
+      <div style="margin-right: 1em;"><h2>L>0 avg. α=0.9  </h2><img src="lapgz-avg0.jpg" id=lapgz0 /></div>
+      <div style="margin-right: 1em;"><h2>L>0 avg. α=0.99 </h2><img src="lapgz-avg1.jpg" id=lapgz1 /></div>
     </div>
     <script>
       var counter = 0;
@@ -29,6 +32,9 @@
           document.getElementById('avg0').src='hs-avg0.jpg?c=' + counter;
           document.getElementById('avg1').src='hs-avg1.jpg?c=' + counter;
           document.getElementById('avg2').src='hs-avg2.jpg?c=' + counter;
+          document.getElementById('lapgz').src='lapgz.jpg?c=' + counter;
+          document.getElementById('lapgz0').src='lapgz-avg0.jpg?c=' + counter;
+          document.getElementById('lapgz1').src='lapgz-avg1.jpg?c=' + counter;
       };
 
       let server = location.host;
