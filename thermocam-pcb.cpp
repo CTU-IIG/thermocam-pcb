@@ -36,7 +36,6 @@ bool signal_received = false;
 /* Webserver globals */
 Webserver *webserver = nullptr;
 
-enum draw_mode { FULL, TEMP, NUM };
 constexpr draw_mode next(draw_mode m)
 {
     return (draw_mode)((underlying_type<draw_mode>::type(m) + 1) % 3);
@@ -63,93 +62,6 @@ void signalHandler(int signal_num)
 }
 
 cv::Ptr<cv::freetype::FreeType2> ft2;
-
-// Prints vector of strings at given point in a column
-// Workaround for the missing support of linebreaks from OpenCV
-void imgPrintStrings(Mat& img, vector<string> strings, Point2f p, Scalar color)
-{
-    int fontHeight = 15;
-    int thickness = -1;
-    int linestyle = cv::LINE_AA;
-
-    int bl = 0;
-    Size sz = ft2->getTextSize("A", fontHeight, thickness, &bl);
-    for (string s : strings) {
-        ft2->putText(img, s, p, fontHeight, color, thickness, linestyle, false);
-        p.y += sz.height * 15 / 10;
-    }
-}
-
-int getSidebarWidth(vector<POI> poi)
-{
-    int max = 0; // max text width
-    int bl = 0; // baseline
-    for (unsigned i = 0; i < poi.size(); i++) {
-        string s = "00: " + poi[i].name + " 000.00 C";
-        Size sz = getTextSize(s, FONT_HERSHEY_COMPLEX_SMALL, 1, 2, &bl);
-        max = (sz.width > max) ? sz.width : max;
-    }
-    return max;
-}
-
-void drawSidebar(Mat& img, vector<POI> poi)
-{
-    // Draw sidebar
-    int sbw = getSidebarWidth(poi);
-    copyMakeBorder(img, img, 0, 0, 0, sbw, BORDER_CONSTANT, Scalar(255, 255, 255));
-
-    // Print point names and temperatures
-    vector<string> s(poi.size());
-    for (unsigned i = 0; i < poi.size(); i++)
-        s[i] = to_string(i) + ": " + poi[i].to_string() + "°C";
-    Point2f print_coords = { (float)(img.cols - sbw + 5), 0 };
-    imgPrintStrings(img, s, print_coords, Scalar(0, 0, 0));
-}
-
-// Only draw points into red channel, so original image can be retrieved
-Mat drawPOI(Mat in, vector<POI> poi, draw_mode mode)
-{
-
-    Mat R;
-
-    R = in.clone();
-    if (R.channels() == 1)
-        cvtColor(R, R, COLOR_GRAY2BGR);
-
-    resize(R, R, Size(), 2, 2); // Enlarge image 2x for better looking fonts
-    if (mode == NUM)
-        drawSidebar(R, poi);
-
-    for (unsigned i = 0; i < poi.size(); i++) {
-        poi[i].p *= 2; // Rescale points with image
-        circle(R, poi[i].p, 3, Scalar(0,255,0), -1); // Dot at POI position
-
-        // Print point labels
-        vector<string> label;
-        switch (mode) {
-        case FULL:
-            label = { poi[i].name, poi[i].to_string(false).append("°C") };
-            break;
-        case TEMP:
-            label = { poi[i].to_string(false).append("°C") };
-            break;
-        case NUM:
-            label = { to_string(i) };
-            break;
-        }
-        imgPrintStrings(R, label, poi[i].p + Point2f(3, 6), Scalar(0,0,0));
-        imgPrintStrings(R, label, poi[i].p + Point2f(2, 5), Scalar(0,255,0));
-    }
-
-    return R;
-}
-
-void highlight_core(thermo_img &s, Mat &image){
-    for(unsigned i = 0; i < s.get_heat_sources_border().size(); i++){
-        line(image, s.get_heat_sources_border()[i] * 2, s.get_heat_sources_border()[(i + 1) % s.get_heat_sources_border().size()] * 2,
-                Scalar(0,0,255));
-    }
-}
 
 void setRefStatus(thermo_img &ref, img_stream &is, string poi_filename, bool tracking_on, string heat_sources_border_points)
 {
@@ -225,7 +137,7 @@ void printPOITemp(vector<POI> poi, string file)
 void showPOIImg(string path){
     thermo_img img;
     img.read_from_poi_json(path);
-    Mat imdraw = drawPOI(img.get_gray(), img.get_poi(), draw_mode::NUM);
+    Mat imdraw = drawPOI(img.get_gray(), ft2, img.get_poi(), draw_mode::NUM);
     string title = "POI from " + path;
     imshow(title,imdraw);
     waitKey(0);
@@ -246,22 +158,18 @@ void processNextFrame(img_stream &is, const thermo_img &ref, thermo_img &curr,
         curr.calcHeatSources(ft2);
     }
 
-    Mat img;
-    curr.get_gray().copyTo(img);
-    applyColorMap(img, img, cv::COLORMAP_INFERNO);
-    img = drawPOI(img, curr.get_poi(), curr_draw_mode);
-
-    highlight_core(curr, img);
+    curr.draw_preview(curr_draw_mode, ft2);
 
     if (vw)
-        vw->write(track != thermo_img::tracking::off ? img : curr.get_gray());
+        vw->write(track != thermo_img::tracking::off ? curr.get_preview() : curr.get_gray());
 
     if (webserver) {
-        webserver->update(img, curr.get_detail(), curr.get_laplacian(),
+        webserver->update(curr.get_preview(), curr.get_detail(), curr.get_laplacian(),
                           curr.get_hs_img(), curr.get_hs_avg(), curr.get_poi(), curr.get_heat_sources());
     }
 
     if (gui_available) {
+        Mat img = curr.get_preview();
         if (!curr.get_detail().empty()) {
             vector<Mat> mats({ curr.get_detail(), curr.get_laplacian(), curr.get_hs_img(), curr.get_hs_avg()[0] });
             int h = img.rows, w = img.cols;

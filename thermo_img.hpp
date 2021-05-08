@@ -31,11 +31,16 @@ struct POI {
     std::string to_string(bool print_name = true);
 };
 
+enum draw_mode { FULL, TEMP, NUM };
+
 struct thermo_img {
 public:
     enum class tracking { off, sync, async, finish };
 
     void update(img_stream &is);
+
+    void draw_preview(draw_mode mode, cv::Ptr<cv::freetype::FreeType2> ft2);
+
     void read_from_poi_json(std::string poi_filename, std::string heat_sources_border_points = "");
     void write_poi_json(std::string path, bool verbose = false);
     void add_poi(POI &&p);
@@ -65,10 +70,13 @@ public:
     const std::array<cv::Mat, 3> &get_hs_avg() const;
     const std::vector<HeatSource> &get_heat_sources() const;
 
+    const cv::Mat &get_preview() const;
+
 private:
     img_stream *is = nullptr;
 
     cv::Mat_<uint16_t> rawtemp;
+    cv::Mat preview;
     cv::Mat gray;
     cv::Mat detail_rgb;
     cv::Mat laplacian_rgb;
@@ -85,5 +93,7 @@ private:
 
     void updateKpDesc();
 };
+
+cv::Mat drawPOI(cv::Mat in, cv::Ptr<cv::freetype::FreeType2> ft2, std::vector<POI> poi, draw_mode mode);
 
 #endif // THERMO_IMG_HPP

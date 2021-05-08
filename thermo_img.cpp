@@ -31,6 +31,99 @@ void thermo_img::update(img_stream &is)
     this->is = &is;
 }
 
+// Prints vector of strings at given point in a column
+// Workaround for the missing support of linebreaks from OpenCV
+static void imgPrintStrings(Mat& img, cv::Ptr<cv::freetype::FreeType2> ft2,
+                            vector<string> strings, Point2f p, Scalar color)
+{
+    int fontHeight = 15;
+    int thickness = -1;
+    int linestyle = cv::LINE_AA;
+
+    int bl = 0;
+    Size sz = ft2->getTextSize("A", fontHeight, thickness, &bl);
+    for (string s : strings) {
+        ft2->putText(img, s, p, fontHeight, color, thickness, linestyle, false);
+        p.y += sz.height * 15 / 10;
+    }
+}
+
+static int getSidebarWidth(vector<POI> poi)
+{
+    int max = 0; // max text width
+    int bl = 0; // baseline
+    for (unsigned i = 0; i < poi.size(); i++) {
+        string s = "00: " + poi[i].name + " 000.00 C";
+        Size sz = getTextSize(s, FONT_HERSHEY_COMPLEX_SMALL, 1, 2, &bl);
+        max = (sz.width > max) ? sz.width : max;
+    }
+    return max;
+}
+
+static void drawSidebar(Mat& img, cv::Ptr<cv::freetype::FreeType2> ft2, vector<POI> poi)
+{
+    // Draw sidebar
+    int sbw = getSidebarWidth(poi);
+    copyMakeBorder(img, img, 0, 0, 0, sbw, BORDER_CONSTANT, Scalar(255, 255, 255));
+
+    // Print point names and temperatures
+    vector<string> s(poi.size());
+    for (unsigned i = 0; i < poi.size(); i++)
+        s[i] = to_string(i) + ": " + poi[i].to_string() + "°C";
+    Point2f print_coords = { (float)(img.cols - sbw + 5), 0 };
+    imgPrintStrings(img, ft2, s, print_coords, Scalar(0, 0, 0));
+}
+
+Mat drawPOI(Mat in, cv::Ptr<cv::freetype::FreeType2> ft2, vector<POI> poi, draw_mode mode)
+{
+    Mat R;
+
+    R = in.clone();
+    if (R.channels() == 1)
+        cvtColor(R, R, COLOR_GRAY2BGR);
+
+    resize(R, R, Size(), 2, 2); // Enlarge image 2x for better looking fonts
+    if (mode == NUM)
+        drawSidebar(R, ft2, poi);
+
+    for (unsigned i = 0; i < poi.size(); i++) {
+        poi[i].p *= 2; // Rescale points with image
+        circle(R, poi[i].p, 3, Scalar(0,255,0), -1); // Dot at POI position
+
+        // Print point labels
+        vector<string> label;
+        switch (mode) {
+        case FULL:
+            label = { poi[i].name, poi[i].to_string(false).append("°C") };
+            break;
+        case TEMP:
+            label = { poi[i].to_string(false).append("°C") };
+            break;
+        case NUM:
+            label = { to_string(i) };
+            break;
+        }
+        imgPrintStrings(R, ft2, label, poi[i].p + Point2f(3, 6), Scalar(0,0,0));
+        imgPrintStrings(R, ft2, label, poi[i].p + Point2f(2, 5), Scalar(0,255,0));
+    }
+
+    return R;
+}
+
+void thermo_img::draw_preview(draw_mode mode, cv::Ptr<cv::freetype::FreeType2> ft2)
+{
+    Mat img;
+    gray.copyTo(img);
+    applyColorMap(img, img, cv::COLORMAP_INFERNO);
+    img = drawPOI(img, ft2, poi, mode);
+
+    for(unsigned i = 0; i < heat_sources_border.size(); i++){
+        line(img, heat_sources_border[i] * 2, heat_sources_border[(i + 1) % heat_sources_border.size()] * 2,
+                Scalar(0,0,255));
+    }
+    preview = img;
+}
+
 static vector<POI> readPOI(string path)
 {
     vector<POI> poi;
@@ -382,6 +475,11 @@ const std::array<cv::Mat, 3> &thermo_img::get_hs_avg() const
 const std::vector<HeatSource> &thermo_img::get_heat_sources() const
 {
     return hs;
+}
+
+const cv::Mat &thermo_img::get_preview() const
+{
+    return preview;
 }
 
 cv::Mat_<uint16_t> thermo_img::get_rawtemp() const
