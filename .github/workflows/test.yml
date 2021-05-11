@@ -18,7 +18,7 @@ jobs:
       with:
         name: thermac
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-    - name: Register gcc problem matcher # After subprojects to not see their warings
+    - name: Register gcc problem matcher
       run: echo "::add-matcher::.github/problem-matchers/gcc.json"
     - name: Build with nix-build
       run: nix-build
