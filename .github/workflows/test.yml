@@ -22,3 +22,5 @@ jobs:
       run: echo "::add-matcher::.github/problem-matchers/gcc.json"
     - name: Build with nix-build
       run: nix-build
+    - name: Build without WIC SDK
+      run: nix-build --arg with_wic false

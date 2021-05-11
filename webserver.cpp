@@ -3,6 +3,8 @@
 #include <err.h>
 #include "index.html.hpp"
 
+using namespace std;
+
 void sendPOITemp(crow::response &res, std::vector<POI> poi)
 {
     std::stringstream ss; 

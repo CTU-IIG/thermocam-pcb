@@ -1,6 +1,7 @@
 { sources ? import ./nix/sources.nix
 , pkgs ? import sources.nixpkgs { }
 , debug ? false # enable with `nix-build --arg debug true`
+, with_wic ? true
 }:
 with pkgs;
 let
@@ -11,5 +12,5 @@ let
   opencv = callPackage ./opencv.nix {};
 in
 callPackage ./thermocam.nix {
-  inherit wic_sdk ebus_sdk debug opencv;
+  inherit wic_sdk ebus_sdk debug opencv with_wic;
 }

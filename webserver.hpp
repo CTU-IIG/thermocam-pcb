@@ -7,6 +7,7 @@
 #include <opencv2/core/core.hpp>
 #include <thread>
 #include <unordered_set>
+#include <string>
 #include "crow_all.h"
 
 class Webserver

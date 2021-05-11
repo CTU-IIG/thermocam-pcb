@@ -6,6 +6,7 @@
 #include <boost/property_tree/json_parser.hpp>
 #include "Base64.h"
 #include <future>
+#include <iostream>
 
 using namespace std;
 using namespace cv;

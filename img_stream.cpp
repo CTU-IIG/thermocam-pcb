@@ -1,13 +1,19 @@
 #include "img_stream.hpp"
 #include <err.h>
 #include <opencv2/imgproc.hpp>
+#include <unistd.h>
+#include <fcntl.h>
 
 using namespace cv;
+using namespace std;
 
 img_stream::img_stream(string vid_in_path, string license_dir)
-    : is_video(!vid_in_path.empty())
+    : tmp(0)
+#ifdef WITH_WIC_SDK
+    , is_video(!vid_in_path.empty())
     , cc(init_camera_center(license_dir))
     , camera(init_camera())
+#endif
     // In case of video, set the same values as those returned by our camera
     , min_rawtemp(is_video ? 7231 : findRawtempC(RECORD_MIN_C))
     , max_rawtemp(is_video ? 9799 : findRawtempC(RECORD_MAX_C))
@@ -17,19 +23,23 @@ img_stream::img_stream(string vid_in_path, string license_dir)
             throw runtime_error("Video open: " + vid_in_path);
         video = new VideoCapture(vid_in_path);
     } else {
+#ifdef WITH_WIC_SDK
         camera->startAcquisition();
+#endif
     }
 }
 
 img_stream::~img_stream()
 {
-    camera = nullptr;
     if (is_video) {
         delete video;
     } else {
+#ifdef WITH_WIC_SDK
         camera->stopAcquisition();
         camera->disconnect();
+        camera = nullptr;
         delete cc;
+#endif
     }
 }
 
@@ -39,9 +49,11 @@ std::vector<std::pair<string, double> > img_stream::getCameraComponentTemps()
                                                       { "camera_sensor",  0 },
                                                       { "camera_housing", 0 } };
     if (!is_video) {
+#ifdef WITH_WIC_SDK
         v[0].second = camera->getSettings()->getShutterTemperature();
         v[1].second = camera->getSettings()->getSensorTemperature();
         v[2].second = camera->getSettings()->getHousingTemperature();
+#endif
     }
     return v;
 }
@@ -61,6 +73,7 @@ void img_stream::get_image(Mat_<uint16_t> &result)
                        (max_rawtemp - min_rawtemp)/256.0,
                        min_rawtemp);
     } else {
+#ifdef WITH_WIC_SDK
         if (camera->getSettings()->doNothing() < 0) {
             camera->disconnect();
             err(1,"Lost connection to camera, exiting.");
@@ -85,6 +98,7 @@ void img_stream::get_image(Mat_<uint16_t> &result)
             last_buffer = tmp;
             same_buffer_cnt = 0;
         }
+#endif
     }
 }
 
@@ -94,10 +108,13 @@ double img_stream::get_temperature(uint16_t pixel_value)
         return RECORD_MIN_C +
                 (RECORD_MAX_C - RECORD_MIN_C) *
                 double(pixel_value - min_rawtemp) / (max_rawtemp - min_rawtemp);
+#ifdef WITH_WIC_SDK
     else
         return camera->calculateTemperatureC(pixel_value);
+#endif
 }
 
+#ifdef WITH_WIC_SDK
 CameraCenter *img_stream::init_camera_center(string license_dir)
 {
     return is_video ? nullptr : new CameraCenter(license_dir);
@@ -129,4 +146,6 @@ uint16_t img_stream::findRawtempC(double temp)
             return raw;
     return UINT16_MAX;
 }
-
+#else
+uint16_t img_stream::findRawtempC(double temp) { return 0; }
+#endif

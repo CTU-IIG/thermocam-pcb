@@ -8,32 +8,36 @@ cxx = meson.get_compiler('cpp')
 add_global_arguments('-Wno-unknown-pragmas', '-Wno-non-virtual-dtor', language : 'cpp')
 
 if cxx.has_header('CameraCenter.h', args : '-I@0@/include'.format(get_option('wic_home')))
+
+  if cxx.has_header('EbVersion.h', args : '-I@0@/include'.format(get_option('ebus_home')))
+    libs = []
+    foreach lib : 'PvBase PvDevice PvBuffer PvGenICam PvTransmitter PvVirtualDevice PvAppUtils PvPersistence PvSerial PvStream'.split()
+      libs += cxx.find_library(lib, dirs : '@0@/lib'.format(get_option('ebus_home')))
+    endforeach
+    ebus_dep = declare_dependency(
+      include_directories : include_directories(get_option('ebus_home') / 'include'),
+      compile_args : [ '-D_UNIX_', '-D_LINUX_' ],
+      dependencies : libs,
+      link_args : [
+	'-Wl,-rpath=@0@/lib/genicam/bin/Linux64_x64'.format(get_option('ebus_home')),
+      ]
+    )
+  else
+    error('eBUS SDK not found in @0@. Run meson -Debus_home=...'.format(get_option('ebus_home')))
+  endif
+
   wic_dep = declare_dependency(
     include_directories : include_directories(get_option('wic_home') / 'include'),
     dependencies : [
       cxx.find_library('WIC_SDK', dirs : '@0@/lib'.format(get_option('wic_home'))),
       cxx.find_library('WT-lib', dirs : '@0@/lib'.format(get_option('wic_home'))),
-    ]
+      ebus_dep,
+    ],
+    compile_args : [ '-DWITH_WIC_SDK' ],
   )
 else
-  error('WIC SDK not found in @0@. Run meson -Dwic_home='.format(get_option('wic_home')))
-endif
-
-if cxx.has_header('EbVersion.h', args : '-I@0@/include'.format(get_option('ebus_home')))
-  libs = []
-  foreach lib : 'PvBase PvDevice PvBuffer PvGenICam PvTransmitter PvVirtualDevice PvAppUtils PvPersistence PvSerial PvStream'.split()
-    libs += cxx.find_library(lib, dirs : '@0@/lib'.format(get_option('ebus_home')))
-  endforeach
-  ebus_dep = declare_dependency(
-    include_directories : include_directories(get_option('ebus_home') / 'include'),
-    compile_args : [ '-D_UNIX_', '-D_LINUX_' ],
-    dependencies : libs,
-    link_args : [
-      '-Wl,-rpath=@0@/lib/genicam/bin/Linux64_x64'.format(get_option('ebus_home')),
-    ]
-  )
-else
-  error('eBUS SDK not found in @0@. Run meson -Debus_home='.format(get_option('ebus_home')))
+  warning('WIC SDK not found in @0@. To compile with WIC camera support, run meson -Dwic_home=...'.format(get_option('wic_home')))
+  wic_dep = declare_dependency() # empty
 endif
 
 opencv_dep = dependency('opencv4', required : true)
@@ -56,7 +60,6 @@ webserver = static_library('webserver',
 	],
         dependencies: [
           opencv_dep,
-	  ebus_dep,
           dependency('boost', modules : ['system']),
           dependency('threads')
         ],
@@ -73,8 +76,7 @@ executable('thermocam-pcb',
 	   ],
 	   dependencies: [
 	     opencv_dep,
-	     wic_dep,
-	     ebus_dep,
+ 	     wic_dep,
 	     dependency('libsystemd'),
 	   ],
 	   link_with : webserver,

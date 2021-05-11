@@ -1,6 +1,5 @@
 #include "thermo_img.hpp"
 #include "webserver.hpp"
-#include "CameraCenter.h"
 
 #include "arg-parse.hpp"
 #include <err.h>
@@ -26,6 +25,7 @@
 #include "config.h"
 
 using namespace cv;
+using namespace std;
 
 #define CAM_FPS 9 // The camera is 9Hz
 

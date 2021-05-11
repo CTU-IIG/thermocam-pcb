@@ -1,27 +1,38 @@
-{ stdenv, lib, opencv, meson, ninja, pkg-config, boost, wic_sdk
-, ebus_sdk, usbutils, nix-gitignore, systemd
+{ stdenv
+, lib
+, opencv
+, meson
+, ninja
+, pkg-config
+, boost
+, with_wic ? true, wic_sdk, ebus_sdk
+, usbutils
+, nix-gitignore
+, systemd
 , debug ? false
 }:
 stdenv.mkDerivation {
   name = "thermocam-pcb";
-  src =  if builtins.pathExists ./.git then
-    builtins.fetchGit { url = ./.; }
-  else
-    nix-gitignore.gitignoreSource [] ./.;
+  src =
+    if builtins.pathExists ./.git then
+      builtins.fetchGit { url = ./.; }
+    else
+      nix-gitignore.gitignoreSource [ ] ./.;
   nativeBuildInputs = [ meson ninja pkg-config ];
   buildInputs = [
     boost
-    ebus_sdk
     opencv
-    wic_sdk
     # for usbreset in systemd .service file
     usbutils
     systemd
+  ] ++ lib.optionals with_wic [
+    ebus_sdk
+    wic_sdk
   ];
   preConfigure = ''
     patchShebangs file2cpp
   '';
-  mesonFlags = [
+  mesonFlags = lib.optionals with_wic [
     "-Dwic_home=${wic_sdk}"
     "-Debus_home=${ebus_sdk}"
   ] ++ lib.lists.optional debug [
@@ -35,7 +46,7 @@ stdenv.mkDerivation {
   BOOST_INCLUDEDIR = "${lib.getDev boost}/include";
   BOOST_LIBRARYDIR = "${lib.getLib boost}/lib";
 
-  shellHook = ''
+  shellHook = lib.optionalString with_wic ''
     export PUREGEV_ROOT="${ebus_sdk}";
     export GENICAM_ROOT=$PUREGEV_ROOT/lib/genicam
     export GENICAM_ROOT_V2_4=$GENICAM_ROOT
