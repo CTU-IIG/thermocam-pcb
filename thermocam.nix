@@ -55,7 +55,7 @@ stdenv.mkDerivation {
     export GENICAM_CACHE_V2_4=$HOME/.config/Pleora/genicam_cache_v2_4
     export GENICAM_CACHE=$GENICAM_CACHE_V2_4
     export GENICAM_LIB_DIR=$GENICAM_ROOT/bin/Linux64_x64
-    mkdir -p "$GENICAM_CACHE"
+    mkdir -p "$GENICAM_CACHE" || :
     export GENICAM_ROOT_V3_0=$GENICAM_ROOT
   '';
 }
