@@ -3,11 +3,20 @@
 plain_name=${1##*/}
 var_name=${plain_name/[.]/_}
 
-cat <<EOF
+cat <<EOF > "$2".tmp
 #pragma once
 #include <string>
+extern const std::string $var_name;
+EOF
+
+cmp --quiet "$2".tmp "$2" || cp "$2".tmp "$2"
+
+cat <<EOF > "$3".tmp
+#include "$plain_name.hpp"
 const std::string $var_name =
 R"foo(
 $(< "$1")
 )foo";
 EOF
+
+cmp --quiet "$3".tmp "$3" || cp "$3".tmp "$3"

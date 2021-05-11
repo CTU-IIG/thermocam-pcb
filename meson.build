@@ -48,9 +48,8 @@ version_h = vcs_tag(input : 'version.h.in', output : 'version.h',
                               : ['git', 'describe', '--always'])
 
 file2cpp = generator(find_program('file2cpp'),
-		     arguments : [ '@INPUT@' ],
-                     output : '@PLAINNAME@.hpp',
-		     capture : true,
+                     output : ['@PLAINNAME@.hpp', '@PLAINNAME@.cpp'],
+		     arguments : [ '@INPUT@', '@OUTPUT0@', '@OUTPUT1@' ],
 		    )
 
 webserver = static_library('webserver',
