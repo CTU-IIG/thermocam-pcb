@@ -32,6 +32,8 @@ public:
 
 private:
     std::thread web_thread;
+    crow::SimpleApp app;
+    bool img_routes_initialized = false;
 
     void start();
     void noticeClients();

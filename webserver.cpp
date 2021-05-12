@@ -1,9 +1,11 @@
 #include "webserver.hpp"
 #include <opencv2/highgui/highgui.hpp>
 #include <err.h>
+#include <nlohmann/json.hpp>
 #include "index.html.hpp"
 
 using namespace std;
+using json = nlohmann::json;
 
 void sendPOITemp(crow::response &res, std::vector<POI> poi)
 {
@@ -63,6 +65,18 @@ void Webserver::update(const thermo_img &ti)
         std::lock_guard<std::mutex> lk(lock);
         this->ti = ti;
     }
+    auto &webimgs = ti.get_webimgs();
+
+    // webimgs are set only after the first POI tracking is calculated
+    // (perhaps in background). Hence the check for size().
+    if (webimgs.size() > 0 && !img_routes_initialized) {
+        img_routes_initialized = true;
+        for (const auto &webimg : webimgs) {
+            string name = webimg.name;
+            app.route_dynamic("/" + name + ".jpg")
+                    ([this, name](){return send_jpeg(this->ti.get_webimg(name)->rgb);});
+        }
+    }
     noticeClients();
 }
 
@@ -70,6 +84,10 @@ void Webserver::update_temps(const std::vector<std::pair<string, double> > &cct)
 {
     std::lock_guard<std::mutex> lk(lock);
     this->cameraComponentTemps = cct;
+}
+
+void to_json(json& j, const HeatSource& p) {
+    j = json::array({p.location.x, p.location.y, int(p.neg_laplacian * 1000)/1000.0});
 }
 
 std::string Webserver::getHeatSourcesJsonArray()
@@ -90,13 +108,21 @@ std::string Webserver::getHeatSourcesJsonArray()
 }
 
 void Webserver::noticeClients() {
-    std::string hs = getHeatSourcesJsonArray();
-    string msg = "{\"type\":\"update\",\"heat_sources\":"s + hs + "}";
-
+    json msg;
+    json msg_wi = json::array();
+    msg["type"] = "update";
+    for (const auto& wi : ti.get_webimgs())
+        msg_wi.push_back({{"name", wi.name}, {"title", wi.title}, {"desc", wi.html_desc}});
+    msg["imgs"] = msg_wi;
+    json msg_hs = json::array();
+    for (const auto &p : ti.get_heat_sources())
+        msg_hs.push_back(json(p));
+    msg["heat_sources"] = msg_hs;
+    
     std::lock_guard<std::mutex> _(this->usr_mtx);
-
+    std::string msg_str = msg.dump();
     for(crow::websocket::connection* u : this->users) {
-        u->send_text(msg);
+        u->send_text(msg_str);
     }
 }
 
@@ -117,7 +143,6 @@ crow::response Webserver::send_jpeg(const cv::Mat &img)
 
 void Webserver::start()
 {
-    crow::SimpleApp app;
     crow::mustache::set_base(".");
     app.loglevel(crow::LogLevel::Warning);
 
@@ -128,32 +153,6 @@ void Webserver::start()
 
     CROW_ROUTE(app, "/thermocam-current.jpg")
             ([this](){return send_jpeg(ti.get_preview());});
-
-    CROW_ROUTE(app, "/heat_sources-current.jpg")
-            ([this](){return send_jpeg(ti.get_hs_img());});
-
-    CROW_ROUTE(app, "/laplacian-current.jpg")
-            ([this](){return send_jpeg(ti.get_laplacian());});
-
-    CROW_ROUTE(app, "/detail-current.jpg")
-            ([this](){return send_jpeg(ti.get_detail());});
-
-    CROW_ROUTE(app, "/hs-avg<uint>.jpg")
-            ([this](unsigned idx){
-                if (idx >= ti.get_hs_avg().size())
-                    return crow::response(404);
-                return send_jpeg(ti.get_hs_avg()[idx]);
-            });
-
-    CROW_ROUTE(app, "/lapgz.jpg")
-            ([this](){return send_jpeg(ti.getLapgz_rgb());});
-
-    CROW_ROUTE(app, "/lapgz-avg<uint>.jpg")
-            ([this](unsigned idx){
-                if (idx >= ti.getLapgz_avg_rgb().size())
-                    return crow::response(404);
-                return send_jpeg(ti.getLapgz_avg_rgb()[idx]);
-            });
 
     CROW_ROUTE(app, "/temperatures.txt")
     ([this](const crow::request& req, crow::response& res){

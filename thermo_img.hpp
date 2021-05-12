@@ -7,6 +7,7 @@
 #include "img_stream.hpp"
 #include <boost/accumulators/statistics/rolling_variance.hpp>
 #include <opencv2/freetype.hpp>
+#include <list>
 
 struct HeatSource {
     cv::Point location;
@@ -36,6 +37,17 @@ enum draw_mode { FULL, TEMP, NUM };
 struct thermo_img {
 public:
     enum class tracking { off, sync, async, finish };
+    struct webimg {
+        std::string name;
+        std::string title;
+        cv::Mat mat; // original (float) image (if any)
+        cv::Mat rgb; // rgb image
+        std::string html_desc;
+
+        webimg(std::string name, std::string title, const cv::Mat &mat, std::string desc = "");
+    private:
+        static cv::Mat normalize(cv::Mat mat);
+    };
 
     void update(img_stream &is);
 
@@ -63,18 +75,19 @@ public:
     int height() const;
     int width() const;
 
-    void calcHeatSources(cv::Ptr<cv::freetype::FreeType2> ft2);
-    const cv::Mat &get_detail() const;
-    const cv::Mat &get_laplacian() const;
-    const cv::Mat &get_hs_img() const;
-    const std::array<cv::Mat, 3> &get_hs_avg() const;
+    const std::list<webimg> &get_webimgs() const;
+    const webimg *get_webimg(std::string key) const;
+    const cv::Mat get_rgb(std::string key) const;
+
+    void calcHeatSources();
+    const cv::Mat get_detail() const;
+    const cv::Mat get_laplacian() const;
+    const cv::Mat get_hs_img() const;
+    const cv::Mat get_hs_avg() const;
+
     const std::vector<HeatSource> &get_heat_sources() const;
 
     const cv::Mat &get_preview() const;
-
-    cv::Mat getLapgz_rgb() const;
-
-    const std::array<cv::Mat, 2> &getLapgz_avg_rgb() const;
 
 private:
     img_stream *is = nullptr;
@@ -82,13 +95,8 @@ private:
     cv::Mat_<uint16_t> rawtemp;
     cv::Mat preview;
     cv::Mat gray;
-    cv::Mat detail_rgb;
-    cv::Mat laplacian_rgb;
-    cv::Mat hsImg_rgb;
-    std::array<cv::Mat, 3> hsAvg_rgb;
-    cv::Mat lapgz_rgb; // laplacian greater than zero
-    std::array<cv::Mat, 2> lapgz_avg_rgb;
 
+    std::list<webimg> webimgs;
     std::vector<HeatSource> hs;
 
     // these values are not copied to webserver

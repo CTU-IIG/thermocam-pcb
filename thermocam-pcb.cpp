@@ -155,7 +155,7 @@ void processNextFrame(img_stream &is, const thermo_img &ref, thermo_img &curr,
     printPOITemp(curr.get_poi(), poi_csv_file);
 
     if (curr.get_heat_sources_border().size() > 0) {
-        curr.calcHeatSources(ft2);
+        curr.calcHeatSources();
     }
 
     curr.draw_preview(curr_draw_mode, ft2);
@@ -170,7 +170,7 @@ void processNextFrame(img_stream &is, const thermo_img &ref, thermo_img &curr,
     if (gui_available) {
         Mat img = curr.get_preview();
         if (!curr.get_detail().empty()) {
-            vector<Mat> mats({ curr.get_detail(), curr.get_laplacian(), curr.get_hs_img(), curr.get_hs_avg()[0] });
+            vector<Mat> mats({ curr.get_detail(), curr.get_laplacian(), curr.get_hs_img(), curr.get_hs_avg() });
             int h = img.rows, w = img.cols;
             int hh = accumulate(begin(mats), end(mats), 0, [](int a, Mat &m){return max(a, m.rows + 1);});
             int ww = accumulate(begin(mats), end(mats), 0, [](int a, Mat &m){return a + m.cols + 1;});

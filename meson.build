@@ -59,6 +59,7 @@ webserver = static_library('webserver',
 	],
         dependencies: [
           opencv_dep,
+          dependency('nlohmann_json'),
           dependency('boost', modules : ['system']),
           dependency('threads')
         ],

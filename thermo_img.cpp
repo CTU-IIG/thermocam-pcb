@@ -7,6 +7,7 @@
 #include "Base64.h"
 #include <future>
 #include <iostream>
+#include <algorithm>
 
 using namespace std;
 using namespace cv;
@@ -30,6 +31,7 @@ void thermo_img::update(img_stream &is)
                       255.0 / (1.0 - double(is.max_rawtemp) / double(is.min_rawtemp)));
 
     this->is = &is;
+    webimgs.clear();
 }
 
 // Prints vector of strings at given point in a column
@@ -353,7 +355,7 @@ static void normalize_and_convert_to_uchar(Mat &mat_in, Mat &mat_out){
                      255.0 / (1.0 - max / min));
 }
 
-void thermo_img::calcHeatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
+void thermo_img::calcHeatSources()
 {
     for (auto &p : heat_sources_border) {
         if (p.x < 0 || p.x > width() || p.y < 0 || p.y > height()) {
@@ -369,14 +371,28 @@ void thermo_img::calcHeatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
     Mat raw_float, detail;
     rawtemp.convertTo(raw_float, CV_64F);
     warpPerspective(raw_float, detail, transform, sz);
+    {
+        double min, max;
+        stringstream ss;
+
+        minMaxLoc(detail, &min, &max);
+        ss << fixed << setprecision(2) << get_temperature(max) << "–" << get_temperature(min) << "=" <<
+            get_temperature(max) - get_temperature(min) << "°C";
+        webimgs.emplace_back("detail-current", "Detail", detail, ss.str());
+    }
+
 
     Mat blur, laplacian, hsImg;
     const double blur_sigma = 7;
     GaussianBlur(detail, blur, Size(0, 0), blur_sigma, blur_sigma);
     Laplacian(blur, laplacian, blur.depth());
     laplacian *= -1;
+    double lap_max = 0;
+    minMaxLoc(laplacian, nullptr, &lap_max);
+    webimgs.emplace_back("laplacian-current", "Laplacian", laplacian, "max: " + to_string(lap_max));
 
     vector<Point> lm = localMaxima(laplacian, hsImg);
+    webimgs.emplace_back("heat_sources-current", "Heat sources", hsImg);
 
     static array<Mat, 3> hsAvg;
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.999} }) {
@@ -384,21 +400,25 @@ void thermo_img::calcHeatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
             hsAvg[i] = hsImg * 0.0; // black image of the same type and size
         hsAvg[i] = alpha * hsAvg[i] + (1-alpha) * hsImg;
 
-        hsAvg_rgb[i] = hsAvg[i].clone();
+        Mat hs_log;
         // Make the dark colors more visible
-        cv::log(0.001+hsAvg_rgb[i], hsAvg_rgb[i]);
+        cv::log(0.001+hsAvg[i], hs_log);
         //cv::sqrt(hsAvg_out, hsAvg_out);
+        webimgs.emplace_back("hs-avg" + to_string(i), "HS avg. α=" + to_string(alpha), hs_log);
     }
 
+    const auto offset = 0.025;
     Mat lapgz;
-    Mat lapx = laplacian - 0.025;
+    Mat lapx = laplacian - offset;
     lapx.copyTo(lapgz, lapx > 0.0);
+    webimgs.emplace_back("lapgz", "Lapl. > " + to_string(offset), lapgz);
 
     static array<Mat, 2> lapgz_avg;
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99} }) {
         if (lapgz_avg[i].empty())
             lapgz_avg[i] = lapgz * 0.0; // black image of the same type and size
         lapgz_avg[i] = alpha * lapgz_avg[i] + (1-alpha) * lapgz;
+        webimgs.emplace_back("lapgz-avg" + to_string(i), "L> avg. α=" + to_string(alpha), lapgz_avg[i]);
     }
 
     hs.resize(lm.size());
@@ -410,36 +430,6 @@ void thermo_img::calcHeatSources(cv::Ptr<cv::freetype::FreeType2> ft2)
         if (hs[i].neg_laplacian > hs[max_hs].neg_laplacian)
             max_hs = i;
     }
-
-    for (auto [in, out] : {make_pair(&detail, &detail_rgb),
-                           {&laplacian, &laplacian_rgb},
-                           {&hsImg, &hsImg_rgb},
-                           {&hsAvg_rgb[0], &hsAvg_rgb[0]},
-                           {&hsAvg_rgb[1], &hsAvg_rgb[1]},
-                           {&hsAvg_rgb[2], &hsAvg_rgb[2]},
-                           {&lapgz, &lapgz_rgb},
-                           {&lapgz_avg[0], &lapgz_avg_rgb[0]},
-                           {&lapgz_avg[1], &lapgz_avg_rgb[1]},
-        }) {
-        normalize_and_convert_to_uchar(*in, *out);
-        applyColorMap(*out, *out, cv::COLORMAP_INFERNO);
-        resize(*out, *out, Size(), 2, 2);
-    }
-
-    {
-        double min, max;
-        stringstream ss;
-
-        minMaxLoc(detail, &min, &max);
-        ss << fixed << setprecision(2) << get_temperature(max) << "–" << get_temperature(min) << "=" <<
-            get_temperature(max) - get_temperature(min) << "°C";
-        copyMakeBorder(detail_rgb, detail_rgb, 0, 15, 0, 0, BORDER_CONSTANT, Scalar(255, 255, 255));
-        ft2->putText(detail_rgb, ss.str(), Point(5,200), 15, Scalar(0, 0, 0), -1, cv::LINE_AA, false);
-    }
-
-    copyMakeBorder(laplacian_rgb, laplacian_rgb, 0, 15, 0, 0, BORDER_CONSTANT, Scalar(255, 255, 255));
-    ft2->putText(laplacian_rgb, "max: " + to_string(hs[max_hs].neg_laplacian),
-                 Point(5,200), 15, Scalar(0, 0, 0), -1, cv::LINE_AA, false);
 }
 
 const std::vector<cv::Point2f> &thermo_img::get_heat_sources_border() const
@@ -467,24 +457,41 @@ int thermo_img::width() const
     return rawtemp.cols;
 }
 
-const cv::Mat &thermo_img::get_detail() const
+const std::list<thermo_img::webimg> &thermo_img::get_webimgs() const
 {
-    return detail_rgb;
+    return webimgs;
 }
 
-const cv::Mat &thermo_img::get_laplacian() const
+const thermo_img::webimg *thermo_img::get_webimg(string key) const
 {
-    return laplacian_rgb;
+    auto it = find_if(webimgs.begin(), webimgs.end(), [&](const webimg &wi){return wi.name == key;});
+    return (it != webimgs.end()) ? &(*it) : nullptr;
 }
 
-const cv::Mat &thermo_img::get_hs_img() const
+const Mat thermo_img::get_rgb(string key) const
 {
-    return hsImg_rgb;
+    const webimg *si = get_webimg(key);
+    return si ? si->rgb : Mat();
 }
 
-const std::array<cv::Mat, 3> &thermo_img::get_hs_avg() const
+const cv::Mat thermo_img::get_detail() const
 {
-    return hsAvg_rgb;
+    return get_rgb("detail-current");
+}
+
+const cv::Mat thermo_img::get_laplacian() const
+{
+    return get_rgb("laplacian-current");
+}
+
+const cv::Mat thermo_img::get_hs_img() const
+{
+    return get_rgb("heat_sources-current");
+}
+
+const cv::Mat thermo_img::get_hs_avg() const
+{
+    return get_rgb("hs-avg0");
 }
 
 const std::vector<HeatSource> &thermo_img::get_heat_sources() const
@@ -497,17 +504,24 @@ const cv::Mat &thermo_img::get_preview() const
     return preview;
 }
 
-cv::Mat thermo_img::getLapgz_rgb() const
-{
-    return lapgz_rgb;
-}
-
-const std::array<cv::Mat, 2> &thermo_img::getLapgz_avg_rgb() const
-{
-    return lapgz_avg_rgb;
-}
-
 cv::Mat_<uint16_t> thermo_img::get_rawtemp() const
 {
     return rawtemp;
+}
+
+thermo_img::webimg::webimg(string name, string title, const Mat &mat, string desc)
+    : name(name)
+    , title(title)
+    , mat(mat)
+    , rgb(normalize(mat))
+    , html_desc(desc)
+{}
+
+Mat thermo_img::webimg::normalize(Mat in)
+{
+    Mat out;
+    normalize_and_convert_to_uchar(in, out);
+    applyColorMap(out, out, cv::COLORMAP_INFERNO);
+    resize(out, out, Size(), 2, 2);
+    return out;
 }

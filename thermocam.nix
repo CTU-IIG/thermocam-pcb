@@ -9,6 +9,7 @@
 , usbutils
 , nix-gitignore
 , systemd
+, nlohmann_json
 , debug ? false
 }:
 stdenv.mkDerivation {
@@ -25,6 +26,7 @@ stdenv.mkDerivation {
     # for usbreset in systemd .service file
     usbutils
     systemd
+    nlohmann_json
   ] ++ lib.optionals with_wic [
     ebus_sdk
     wic_sdk
