@@ -355,6 +355,14 @@ static void normalize_and_convert_to_uchar(Mat &mat_in, Mat &mat_out){
                      255.0 / (1.0 - max / min));
 }
 
+// to string no trailing zeros
+std::string to_string_ntz(double v)
+{
+    string str = to_string(v);
+    str.erase(str.find_last_not_of('0') + 1, string::npos);
+    return str;
+}
+
 void thermo_img::calcHeatSources()
 {
     for (auto &p : heat_sources_border) {
@@ -404,21 +412,21 @@ void thermo_img::calcHeatSources()
         // Make the dark colors more visible
         cv::log(0.001+hsAvg[i], hs_log);
         //cv::sqrt(hsAvg_out, hsAvg_out);
-        webimgs.emplace_back("hs-avg" + to_string(i), "HS avg. α=" + to_string(alpha), hs_log);
+        webimgs.emplace_back("hs-avg" + to_string(i), "HS avg. α=" + to_string_ntz(alpha), hs_log);
     }
 
     const auto offset = 0.025;
     Mat lapgz;
     Mat lapx = laplacian - offset;
     lapx.copyTo(lapgz, lapx > 0.0);
-    webimgs.emplace_back("lapgz", "Lapl. > " + to_string(offset), lapgz);
+    webimgs.emplace_back("lapgz", "Lapl. > " + to_string_ntz(offset), lapgz);
 
     static array<Mat, 2> lapgz_avg;
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99} }) {
         if (lapgz_avg[i].empty())
             lapgz_avg[i] = lapgz * 0.0; // black image of the same type and size
         lapgz_avg[i] = alpha * lapgz_avg[i] + (1-alpha) * lapgz;
-        webimgs.emplace_back("lapgz-avg" + to_string(i), "L> avg. α=" + to_string(alpha), lapgz_avg[i]);
+        webimgs.emplace_back("lapgz-avg" + to_string(i), "L> avg. α=" + to_string_ntz(alpha), lapgz_avg[i]);
     }
 
     hs.resize(lm.size());
