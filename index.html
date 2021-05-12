@@ -36,25 +36,32 @@
 	  });
       };
 
-      let server = location.host;
       var wsProtocol = 'ws://';
       if (window.location.protocol === 'https:') {
           wsProtocol = 'wss://';
       }
-      let socket = new WebSocket(wsProtocol + server + "/ws");
+      var socket;
 
-      socket.onopen = ()=>{
-          console.log('open');
-      }
+      function reconnect(timeout = 3000) {
+	  setTimeout(() => {
+	      socket = new WebSocket(wsProtocol + location.host + "/ws");
 
-      socket.onclose = ()=>{
-          console.log('close');
-      }
+	      socket.onopen = ()=>{
+		  console.log('open');
+	      }
 
-      socket.onmessage = (event) => {
-	  let msg = JSON.parse(event.data);
-	  reloadAllImages(msg.imgs);
+	      socket.onclose = ()=>{
+		  console.log('close');
+		  reconnect();
+	      }
+
+	      socket.onmessage = (event) => {
+		  let msg = JSON.parse(event.data);
+		  reloadAllImages(msg.imgs);
+	      }
+	  }, timeout)
       }
+      reconnect(0);
     </script>
   </body>
 </html>
