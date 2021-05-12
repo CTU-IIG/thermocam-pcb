@@ -5,6 +5,9 @@
     <title>Thermocam-PCB</title>
     <style>
      #webimgs > div {margin-right: 1ex;}
+     #webimgs > div > h3 {display: inline;}
+     #webimgs > div > a {font-size: 50%;}
+     #webimgs > div > img {display: block;}
     </style>
   </head>
   <body>
@@ -25,11 +28,11 @@
 	      if (!div) {
 		  div = document.createElement("div");
 		  div.setAttribute("id", img.name)
-		  div.innerHTML = `<h3>${img.title}</h3><img/><div/>`;
+		  div.innerHTML = `<h3>${img.title}</h3> <a href='${img.name}.tiff'>raw</a><img/><div/>`;
 		  document.getElementById('webimgs').appendChild(div);
 	      }
-	      div.children[1].src = `${img.name}.jpg?c=${counter}`;
- 	      div.children[2].textContent = img.desc;
+	      div.getElementsByTagName('img')[0].src = `${img.name}.jpg?c=${counter}`;
+	      div.getElementsByTagName('div')[0].textContent = img.desc;
 	  });
       };
 
