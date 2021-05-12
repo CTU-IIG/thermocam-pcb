@@ -3,6 +3,7 @@
 #include <err.h>
 #include <nlohmann/json.hpp>
 #include "index.html.hpp"
+#include "script.js.hpp"
 
 using namespace std;
 using json = nlohmann::json;
@@ -153,9 +154,14 @@ void Webserver::start()
     app.loglevel(crow::LogLevel::Warning);
 
     CROW_ROUTE(app, "/")
-            ([]{
-        return index_html;
-    });
+        ([]{ return index_html; });
+
+    CROW_ROUTE(app, "/script.js")
+        ([]{
+            crow::response res(script_js);
+            res.set_header("Content-Type", "text/javascript");
+            return res;
+        });
 
     CROW_ROUTE(app, "/thermocam-current.jpg")
             ([this](){return send_img(ti.get_preview());});

@@ -55,7 +55,7 @@ file2cpp = generator(find_program('file2cpp'),
 webserver = static_library('webserver',
         [
 	  'webserver.cpp',
-	  file2cpp.process('index.html'),
+	  file2cpp.process('index.html', 'script.js'),
 	],
         dependencies: [
           opencv_dep,
