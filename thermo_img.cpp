@@ -530,6 +530,5 @@ Mat thermo_img::webimg::normalize(Mat in)
     Mat out;
     normalize_and_convert_to_uchar(in, out);
     applyColorMap(out, out, cv::COLORMAP_INFERNO);
-    resize(out, out, Size(), 2, 2);
     return out;
 }
