@@ -429,13 +429,15 @@ void thermo_img::calcHeatSources()
         webimgs.emplace_back("lapgz-avg" + to_string(i), "L> avg. α=" + to_string_ntz(alpha), lapgz_avg[i]);
     }
     Mat diff = lapgz_avg[0] - lapgz_avg[1];
+    double dmin, dmax;
+    minMaxLoc(diff, &dmin, &dmax);
     Mat diffgz;
     diff.copyTo(diffgz, diff > 0.0);
-    webimgs.emplace_back("lapgz-diff", "diff of 2 prev. > 0", diffgz);
+    webimgs.emplace_back("lapgz-diff", "diff of 2 prev. > 0", diffgz, "max: " + to_string(dmax));
 
     Mat difflz;
     diff.copyTo(difflz, diff < 0.0);
-    webimgs.emplace_back("lapgz-diff-neg", "diff of 2 prev. < 0", -difflz, "", cv::COLORMAP_OCEAN);
+    webimgs.emplace_back("lapgz-diff-neg", "diff of 2 prev. < 0", -difflz, "max: " + to_string(-dmin), cv::COLORMAP_OCEAN);
 
     hs.resize(lm.size());
     size_t max_hs = 0;
