@@ -74,7 +74,13 @@ void Webserver::update(const thermo_img &ti)
         for (const auto &webimg : webimgs) {
             string name = webimg.name;
             app.route_dynamic("/" + name + ".jpg")
-                    ([this, name](){return send_jpeg(this->ti.get_webimg(name)->rgb);});
+                    ([this, name](){return send_img(this->ti.get_webimg(name)->rgb);});
+            if (webimg.mat.type() == CV_64FC1)
+                app.route_dynamic("/" + name + ".tiff")
+                        ([this, name](){return send_img(this->ti.get_webimg(name)->mat, ".tiff");});
+            else if (webimg.mat.type() == CV_16UC1)
+                app.route_dynamic("/" + name + ".png")
+                        ([this, name](){return send_img(this->ti.get_webimg(name)->mat, ".png");});
         }
     }
     noticeClients();
@@ -126,7 +132,7 @@ void Webserver::noticeClients() {
     }
 }
 
-crow::response Webserver::send_jpeg(const cv::Mat &img)
+crow::response Webserver::send_img(const cv::Mat &img, const std::string &ext)
 {
     lock.lock();
     cv::Mat curr_img = img;
@@ -135,7 +141,7 @@ crow::response Webserver::send_jpeg(const cv::Mat &img)
     crow::response res;
     res.add_header("Cache-Control", "no-store");        // Images should always be fresh.
     std::vector<uchar> img_v;
-    cv::imencode(".jpg", img, img_v);
+    cv::imencode(ext, img, img_v);
     std::string img_s(img_v.begin(), img_v.end());
     res.write(img_s);
     return res;
@@ -152,7 +158,7 @@ void Webserver::start()
     });
 
     CROW_ROUTE(app, "/thermocam-current.jpg")
-            ([this](){return send_jpeg(ti.get_preview());});
+            ([this](){return send_img(ti.get_preview());});
 
     CROW_ROUTE(app, "/temperatures.txt")
     ([this](const crow::request& req, crow::response& res){

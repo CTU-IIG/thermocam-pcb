@@ -38,7 +38,7 @@ private:
     void start();
     void noticeClients();
 
-    crow::response send_jpeg(const cv::Mat &img);
+    crow::response send_img(const cv::Mat &img, const std::string &ext = ".jpg");
 
     std::string getHeatSourcesJsonArray();
 };
