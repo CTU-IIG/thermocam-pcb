@@ -363,6 +363,13 @@ std::string to_string_ntz(double v)
     return str;
 }
 
+std::string to_string_prec(double v, unsigned prec)
+{
+    stringstream ss;
+    ss << fixed << setprecision(prec) << v;
+    return ss.str();
+}
+
 void thermo_img::calcHeatSources()
 {
     for (auto &p : heat_sources_border) {
@@ -397,7 +404,7 @@ void thermo_img::calcHeatSources()
     laplacian *= -1;
     double lap_max = 0;
     minMaxLoc(laplacian, nullptr, &lap_max);
-    webimgs.emplace_back("laplacian-current", "Laplacian", laplacian, "max: " + to_string(lap_max));
+    webimgs.emplace_back("laplacian-current", "Laplacian", laplacian, "max: " + to_string_prec(lap_max, 3));
 
     vector<Point> lm = localMaxima(laplacian, hsImg);
     webimgs.emplace_back("heat_sources-current", "Heat sources", hsImg);
@@ -433,11 +440,11 @@ void thermo_img::calcHeatSources()
     minMaxLoc(diff, &dmin, &dmax);
     Mat diffgz;
     diff.copyTo(diffgz, diff > 0.0);
-    webimgs.emplace_back("lapgz-diff", "diff of 2 prev. > 0", diffgz, "max: " + to_string(dmax));
+    webimgs.emplace_back("lapgz-diff", "diff of 2 prev. > 0", diffgz, "max: " + to_string_prec(dmax, 3));
 
     Mat difflz;
     diff.copyTo(difflz, diff < 0.0);
-    webimgs.emplace_back("lapgz-diff-neg", "diff of 2 prev. < 0", -difflz, "max: " + to_string(-dmin), cv::COLORMAP_OCEAN);
+    webimgs.emplace_back("lapgz-diff-neg", "diff of 2 prev. < 0", -difflz, "max: " + to_string_prec(-dmin, 3), cv::COLORMAP_OCEAN);
 
     hs.resize(lm.size());
     size_t max_hs = 0;
