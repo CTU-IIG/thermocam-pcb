@@ -411,7 +411,7 @@ void thermo_img::calcHeatSources()
         Mat hs_log;
         // Make the dark colors more visible
         cv::log(0.001+hsAvg[i], hs_log);
-        //cv::sqrt(hsAvg_out, hsAvg_out);
+        //cv::sqrt(hsAvg[i], hs_log);
         webimgs.emplace_back("hs-avg" + to_string(i), "HS avg. α=" + to_string_ntz(alpha), hs_log);
     }
 
@@ -428,6 +428,14 @@ void thermo_img::calcHeatSources()
         lapgz_avg[i] = alpha * lapgz_avg[i] + (1-alpha) * lapgz;
         webimgs.emplace_back("lapgz-avg" + to_string(i), "L> avg. α=" + to_string_ntz(alpha), lapgz_avg[i]);
     }
+    Mat diff = lapgz_avg[0] - lapgz_avg[1];
+    Mat diffgz;
+    diff.copyTo(diffgz, diff > 0.0);
+    webimgs.emplace_back("lapgz-diff", "diff of 2 prev. > 0", diffgz);
+
+    Mat difflz;
+    diff.copyTo(difflz, diff < 0.0);
+    webimgs.emplace_back("lapgz-diff-neg", "diff of 2 prev. < 0", -difflz, "", cv::COLORMAP_OCEAN);
 
     hs.resize(lm.size());
     size_t max_hs = 0;
@@ -517,18 +525,22 @@ cv::Mat_<uint16_t> thermo_img::get_rawtemp() const
     return rawtemp;
 }
 
-thermo_img::webimg::webimg(string name, string title, const Mat &mat, string desc)
+thermo_img::webimg::webimg(string name, string title, const Mat &mat, string desc, ColormapTypes cmap)
     : name(name)
     , title(title)
     , mat(mat)
-    , rgb(normalize(mat))
+    , rgb(normalize(mat, cmap))
     , html_desc(desc)
-{}
+{
+    double min, max;
+    minMaxLoc(mat, &min, &max);
+    //html_desc = to_string(min) + "–" + to_string(max);
+}
 
-Mat thermo_img::webimg::normalize(Mat in)
+Mat thermo_img::webimg::normalize(Mat in, enum ColormapTypes cmap)
 {
     Mat out;
     normalize_and_convert_to_uchar(in, out);
-    applyColorMap(out, out, cv::COLORMAP_INFERNO);
+    applyColorMap(out, out, cmap);
     return out;
 }

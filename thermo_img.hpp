@@ -8,6 +8,7 @@
 #include <boost/accumulators/statistics/rolling_variance.hpp>
 #include <opencv2/freetype.hpp>
 #include <list>
+#include <opencv2/imgproc.hpp>
 
 struct HeatSource {
     cv::Point location;
@@ -44,9 +45,9 @@ public:
         cv::Mat rgb; // rgb image
         std::string html_desc;
 
-        webimg(std::string name, std::string title, const cv::Mat &mat, std::string desc = "");
+        webimg(std::string name, std::string title, const cv::Mat &mat, std::string desc = "", enum cv::ColormapTypes cmap = cv::COLORMAP_INFERNO);
     private:
-        static cv::Mat normalize(cv::Mat mat);
+        static cv::Mat normalize(cv::Mat mat, enum cv::ColormapTypes cmap);
     };
 
     void update(img_stream &is);
