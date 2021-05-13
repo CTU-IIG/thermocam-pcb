@@ -191,14 +191,6 @@ You can use multiple functions, many of them simultaneously:
 * Point tracking (if the board or camera moves, the tracked points
   stay at the same location on the board)
 
-For example, to import previously saved points, enter points by hand, export both into a single file and record video, run:
-
-`./build/thermocam-pcb -p import.json --enter-poi=export.json -r recording.avi`
-
-To show the saved points with the image at the time of saving (can be later used as a reference for tracking), run:
-
-`./build/thermocam-pcb -s points.json`
-
 ### Setting video as input instead of camera
 
 Add the path to your video to the arguments as `-v myvideo.avi`. 
@@ -216,10 +208,32 @@ There are 3 views available to display points and their temperature:
 
 You can change between these views by pressing Tab.
 
-### Enable point tracking
+### Point tracking
 
-Tracking is enabled by `-t` and forbids the entering of points via `-e`.
-The points to track and the reference image to compare to can be entered via `-p`.
+Point tracking allows to track positions of points of interest (POI)
+even when the board or camera moves. The POIs to track are specified
+via a reference image. You can create the reference image with POIs
+by:
+
+    ./build/thermocam-pcb --enter-poi=points.json
+
+The result can be later viewed by:
+
+    ./build/thermocam-pcb -s points.json
+
+The POIs can be edited by:
+
+	./build/thermocam-pcb -p points.json --enter-poi=points.json
+
+To enable point tracking use `-p` together with the `-t` switch.
+Several tracking modes can be specified via an optional argument:
+- `-t`: Synchronous tracking of every frame; most likely decreases
+  frame rate.
+- `-tonce`: Tracking is applied only to the first grabbed frame;
+	for later frames POI location remains constant.
+- `-tbg`: Tracking is computed in background. This results in full
+  frame rate, but when the board/camera moves, POI-related data may be
+  incorrect for a few frames.
 
 ### Detect heat source locations in a defined area
 

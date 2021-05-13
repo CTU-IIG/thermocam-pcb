@@ -134,16 +134,6 @@ void printPOITemp(vector<POI> poi, string file)
     }
 }
 
-void showPOIImg(string path){
-    thermo_img img;
-    img.read_from_poi_json(path);
-    Mat imdraw = drawPOI(img.get_gray(), ft2, img.get_poi(), draw_mode::NUM);
-    string title = "POI from " + path;
-    imshow(title,imdraw);
-    waitKey(0);
-    destroyAllWindows();
-}
-
 void processNextFrame(img_stream &is, const thermo_img &ref, thermo_img &curr,
                       string window_name, VideoWriter *vw,
                       string poi_csv_file, thermo_img::tracking track)
@@ -327,6 +317,26 @@ void init_font()
 	err(1, "Font load error: %s", font);
 }
 
+void show_pois(const cmd_arguments &cargs)
+{
+    bool is_exit;
+    thermo_img ref;
+    const auto window_name = "Thermocam-PCB: Show POI";
+    ref.read_from_poi_json(cargs.show_poi_path);
+
+    namedWindow(window_name, WINDOW_NORMAL);
+    if (cargs.enter_poi)
+        setMouseCallback(window_name, onMouse, &ref);
+
+    do {
+        ref.draw_preview(curr_draw_mode, ft2);
+        imshow(window_name, ref.get_preview());
+        is_exit = handle_input(cargs.enter_poi, ref);
+    } while (!is_exit);
+    if (!cargs.poi_export_path.empty())
+        ref.write_poi_json(cargs.poi_export_path, true);
+}
+
 int main(int argc, char **argv)
 {
     cmd_arguments args;
@@ -344,7 +354,7 @@ int main(int argc, char **argv)
     init_font();
 
     if (!args.show_poi_path.empty() && gui_available) {
-        showPOIImg(args.show_poi_path);
+        show_pois(args);
         exit(0);
     }
 
