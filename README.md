@@ -23,7 +23,6 @@ Tool for measuring temperature of PCB board with WorksWell thermo camera.
     - [Detect heat source locations in a defined area](#detect-heat-source-locations-in-a-defined-area)
     - [Access webserver](#access-webserver)
 - [Precise temperature measurement](#precise-temperature-measurement)
-    - [WIC SDK bug](#wic-sdk-bug)
 - [Command line reference](#command-line-reference)
 
 <!-- markdown-toc end -->
@@ -45,9 +44,9 @@ distribution. If you use Nix, skip to [Building and deploying with Nix](#buildin
 You can find the official documentation of the WIC SDK at `https://software.workswell.eu/wic_sdk/Linux`.
 
 #### Download & prerequisites
-To download the WIC SDK installer, go to `software.workswell.eu/wic_sdk/Linux`. You need to enter your email to get the download link. Then extract and run the executable for your chosen distribution (`WIC_SDK-Linux_Ubuntu_16.04_64b-1.1.0.run` for 64bit Ubuntu 16.04). 
+To download the WIC SDK installer, go to `software.workswell.eu/wic_sdk/Linux`. You need to enter your email to get the download link. Then extract and run the executable for your chosen distribution (`wic-sdk-1.2.1_Ubuntu16.06-x86_64_installer.run` for 64bit Ubuntu 16.04). 
 
-The packages `build-essential` and `libjpeg-dev` are requied to install the WIC SDK. The installer installs the WIC SDK and the eBUS SDK (required for the WIC SDK to work). 
+The packages `build-essential` and `libjpeg-dev` are requied to install the WIC SDK. The installer installs the WIC SDK and the eBUS SDK (required for the WIC SDK to work).
 
 #### Installation
 
@@ -265,16 +264,6 @@ The following URLs are available:
 The WIC specifications (see `https://workswell-thermal-camera.com/workswell-infrared-camera-wic`) state a measurement accuracy of ±2°C. If the measurement accuracy is lower than this, check that that the thermal emissivity of the measured object is equal to the value set in the WIC SDK - 0.95 by default. Masking the surface with black electrical insulating tape achieves an emissivity of 0.95-0.97.
 
 If you are getting wrong values even with the right emissivity settings, it may be due to a bug in the WIC SDK.
-
-### WIC SDK bug
-
-For version 1.1 of the WIC SDK, if you use the license file for the WIC thermal camera, you are going to get wrong temperatures when calculating Celsius values from the 14-bit raw values coming from the Tau2 core inside the camera.
-
-The reason for this is that there are various versions of the Workswell licence file (probably due to backwards-compatibility), this version number is stored in the license file. The version number read from the license file is 3, where it should be 2. This version number is set on line 3041 in function CameraSerialSettings::setCalibrationData in the CameraSerialSettings.cpp file.
-
-Thus the solution is to either hard set the variable versionNumber on line 3041 to 2 in the CameraSerialSettings.cpp file, or set the version number to 2 in the license file.
-
-The best solution would be to ask Workswell to fix this bug in the SDK and upload a new version to their website. Given how rarely they answer regarding this issue, this is unlikely to happen in the near future.
 
 ## Command line reference
 
