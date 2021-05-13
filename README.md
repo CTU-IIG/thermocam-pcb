@@ -263,8 +263,6 @@ The following URLs are available:
 
 The WIC specifications (see `https://workswell-thermal-camera.com/workswell-infrared-camera-wic`) state a measurement accuracy of ±2°C. If the measurement accuracy is lower than this, check that that the thermal emissivity of the measured object is equal to the value set in the WIC SDK - 0.95 by default. Masking the surface with black electrical insulating tape achieves an emissivity of 0.95-0.97.
 
-If you are getting wrong values even with the right emissivity settings, it may be due to a bug in the WIC SDK.
-
 ## Command line reference
 
 <!-- help start -->
