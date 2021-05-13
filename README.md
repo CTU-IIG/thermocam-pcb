@@ -19,10 +19,10 @@ Tool for measuring temperature of PCB board with WorksWell thermo camera.
     - [Additional functionality](#additional-functionality)
     - [Setting video as input instead of camera](#setting-video-as-input-instead-of-camera)
     - [Changing between views](#changing-between-views)
-    - [Enable point tracking](#enable-point-tracking)
-    - [Detect heat source locations in a defined area](#detect-heat-source-locations-in-a-defined-area)
+    - [Point tracking](#point-tracking)
+    - [Heat source detection in a defined area](#heat-source-detection-in-a-defined-area)
     - [Access webserver](#access-webserver)
-- [Precise temperature measurement](#precise-temperature-measurement)
+- [Precision of temperature measurement](#precision-of-temperature-measurement)
 - [Command line reference](#command-line-reference)
 
 <!-- markdown-toc end -->
@@ -225,6 +225,8 @@ The POIs can be edited by:
 
 	./build/thermocam-pcb -p points.json --enter-poi=points.json
 
+To change the names of the points, edit the resulting JSON file by hand.
+
 To enable point tracking use `-p` together with the `-t` switch.
 Several tracking modes can be specified via an optional argument:
 - `-t`: Synchronous tracking of every frame; most likely decreases
@@ -235,11 +237,19 @@ Several tracking modes can be specified via an optional argument:
   frame rate, but when the board/camera moves, POI-related data may be
   incorrect for a few frames.
 
-### Detect heat source locations in a defined area
+### Heat source detection in a defined area
 
-Define a border polygon (ideally an area with uniform emissivity) by entering points into a json file, in the format specified by the option `--enter-poi`. Heat source locations inside this polygon are sent to the webserver.
+Four of the POIs specified via `-p` can be used as a border of area
+for heat source detection. The names of the points need to be
+specified as a comma-separated list to `--heat-sources=` argument. For
+example:
 
-The heat source locations are calculated by applying a negative Laplacian kernel on the smoothed polygon area. This is based on the heat diffusion equation, by ignoring the temporal term and finding the local maxima of the negative Laplacian:
+    ./build/thermocam-pcb -p points.json --heat-sources=tl,tr,br,bl
+
+The heat source locations are calculated by applying a negative
+Laplacian kernel on the smoothed polygon area. This is based on the
+heat diffusion equation, by ignoring the temporal term and finding the
+local maxima of the negative Laplacian:
 
 ![heat_diffusion_equation](heat_diffusion_equation.png "Heat diffusion equation")
 
