@@ -359,7 +359,7 @@ int main(int argc, char **argv)
     processStream(is, ref, curr, args);
 
     if (!args.poi_export_path.empty())
-        curr.write_poi_json(args.poi_export_path, true);
+        ref.write_poi_json(args.poi_export_path, true);
 
     if (webserver)
         webserver->terminate();
