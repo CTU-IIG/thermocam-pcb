@@ -1,5 +1,5 @@
 # thermocam-pcb
-Tool for measuring temperature of PCB board with WorksWell thermo camera
+Tool for measuring temperature of PCB board with WorksWell thermo camera.
 
 <!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
 **Table of Contents**
@@ -101,9 +101,13 @@ Whichever solution works for you, you may want to insert it into your .bashrc to
 
 ### OpenCV
 
-For development, download and compile OpenCV source version 2.4 (the latest stable build on Ubuntu 16.04). For simply running the executable on an Ubuntu 16.04 machine it is enough to install the libopencv-dev library.
+Download and compile OpenCV source version 4.5.1 (or later). This
+might be tricky to do on Ubuntu 16.04. Therefore we recommend using
+the [Nix package manager](#building-and-deploying-with-nix).
 
-Recorded video is stored in a lossless HuffYUV(HFYU) format which OpenCV does not have built in, so its codec is needed to be installed externally, e.g. by part of `libavcodec`.
+Recorded video is stored in a lossless HuffYUV(HFYU) format which
+OpenCV does not have built in, so its codec is needed to be installed
+externally, e.g. by part of `libavcodec`.
 
 ### Webserver
 
@@ -149,7 +153,7 @@ is connected) run:
    ```
 2. Test whether the program runs there:
    ```shell
-   ssh ubuntu@turbot $(readlink result)/bin/run
+   ssh -X ubuntu@turbot $(readlink result)/bin/run
    ```
 3. If everything works well, install it permanently:
    ```sh
@@ -166,7 +170,7 @@ is connected) run:
 
 To simply display the thermocamera image, run the program without any arguments:
 
-`./build/thermocam-pcb`
+    ./build/thermocam-pcb
 
 or
 
@@ -176,13 +180,17 @@ This requires the WIC license file to be in the current directory. If your licen
 
 ### Additional functionality
 
-You can use multiple functions, most even at the same time:
+You can use multiple functions, many of them simultaneously:
 
 * Enter points on the image and print their temperature
 * Export or import these points to a json format
-* Record video or set video as input
-* Set delay between prints/display 
+* Record video
+* Use the recorded video as input instead of grabbing images from the camera
+* Set delay between prints/display
 * Display exported points and their corresponding camera image
+* Enable web server for live presentation of grabbed and processed data
+* Point tracking (if the board or camera moves, the tracked points
+  stay at the same location on the board)
 
 For example, to import previously saved points, enter points by hand, export both into a single file and record video, run:
 
@@ -226,11 +234,31 @@ The heat source locations are calculated by applying a negative Laplacian kernel
 
 The parameter `-w` starts a webserver on port `8080`.
 
-* `ip_address:8080` shows the current thermocamera stream
-* `ip_address:8080/temperatures.txt` returns the current POI Celsius temperatures in `name=temp` format
-* `ip_address:8080/heat-sources.txt` returns the heat source locations in the format `heat_sources=x0,y0,neg_laplacian0;x1,y1,neg_laplacian1; ...`
-* `ip_address:8080/points.txt` returns both POI temperatures and heat source locations in a single response
-* `ip_address:8080/position-std.txt` returns the current rolling standard deviations of POI positions in `name=position` format, which is 0 if tracking is not enabled.
+The following URLs are available:
+
+* `/` (e.g. http://localhost:8080/) Visit this with a web browser for
+  live visualisation of all data
+* `/ws` web socket where information about new frames is pushed. To
+  access the data from the command line, use e.g. the
+  [websocat](https://github.com/vi/websocat) tool. Thermocam-PCB sends
+  there JSON-formatted data. To access location of heat sources, use
+  e.g.:
+
+        websocat ws://turbot:8080/ws | jq -c .heat_sources
+
+* `/XXX.jpg` and `XXX.tiff`, where XXX is e.g. `laplacian-current`:
+  Images with preprocessed data from thermocamera. The `.jpg` is
+  color-full image for showing on the `/` webpage, the `.tiff` version
+  contains raw data (64bit float pixels).
+* `/temperatures.txt` returns the current POI Celsius temperatures in
+  `name=temp` format
+* `/heat-sources.txt` returns the heat source locations in the format
+  `heat_sources=x0,y0,neg_laplacian0;x1,y1,neg_laplacian1; ...`
+* `/points.txt` returns both POI temperatures and heat source
+  locations in a single response
+* `/position-std.txt` returns the current rolling standard deviations
+  of POI positions in `name=position` format, which is 0 if tracking
+  is not enabled.
 
 ## Precise temperature measurement
 
