@@ -276,7 +276,7 @@ The following URLs are available:
 * `/temperatures.txt` returns the current POI Celsius temperatures in
   `name=temp` format
 * `/heat-sources.txt` returns the heat source locations in the format
-  `heat_sources=x0,y0,neg_laplacian0;x1,y1,neg_laplacian1; ...`
+  `heat_sources=x₀,y₀,–∇²₀;x₁,y₁,–∇²₁; ...`
 * `/points.txt` returns both POI temperatures and heat source
   locations in a single response
 * `/position-std.txt` returns the current rolling standard deviations
