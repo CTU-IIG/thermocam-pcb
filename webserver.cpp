@@ -75,13 +75,22 @@ void Webserver::update(const thermo_img &ti)
         for (const auto &webimg : webimgs) {
             string name = webimg.name;
             app.route_dynamic("/" + name + ".jpg")
-                    ([this, name](){return send_img(this->ti.get_webimg(name)->rgb);});
+                    ([this, name](){
+                        auto img = this->ti.get_webimg(name);
+                        return img ? send_img(img->rgb) : crow::response(404);
+                    });
             if (webimg.mat.type() == CV_64FC1)
                 app.route_dynamic("/" + name + ".tiff")
-                        ([this, name](){return send_img(this->ti.get_webimg(name)->mat, ".tiff");});
+                        ([this, name](){
+                            auto img = this->ti.get_webimg(name);
+                            return img ? send_img(img->mat, ".tiff") : crow::response(404);
+                        });
             else if (webimg.mat.type() == CV_16UC1)
                 app.route_dynamic("/" + name + ".png")
-                        ([this, name](){return send_img(this->ti.get_webimg(name)->mat, ".png");});
+                        ([this, name](){
+                            auto img = this->ti.get_webimg(name);
+                            return img ? send_img(img->mat, ".png") : crow::response(404);
+                        });
         }
     }
     noticeClients();
