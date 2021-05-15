@@ -234,7 +234,7 @@ void processStream(img_stream &is, thermo_img &ref, thermo_img &curr, cmd_argume
 
     switch (args.tracking) {
     case cmd_arguments::tracking::off:
-        track = thermo_img::tracking::off;
+        track = args.enter_poi ? thermo_img::tracking::copy : thermo_img::tracking::off;
         break;
     case cmd_arguments::tracking::on:
         track = thermo_img::tracking::sync;

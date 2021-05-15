@@ -237,6 +237,8 @@ void thermo_img::track(const thermo_img &ref, tracking track)
 {
     switch (track) {
     case tracking::off:
+        break;
+    case tracking::copy:
         poi = ref.poi; // just copy to reference points
         break;
     case tracking::sync:

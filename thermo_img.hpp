@@ -37,7 +37,7 @@ enum draw_mode { FULL, TEMP, NUM };
 
 struct thermo_img {
 public:
-    enum class tracking { off, sync, async, finish };
+    enum class tracking { off, copy, sync, async, finish };
     struct webimg {
         std::string name;
         std::string title;
