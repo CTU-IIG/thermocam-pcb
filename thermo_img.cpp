@@ -292,7 +292,7 @@ double thermo_img::get_temperature(uint16_t pixel)
 
 double thermo_img::get_temperature(Point p)
 {
-    if (p.y < 0 || p.y > height() || p.x < 0 || p.x > width()) {
+    if (p.y < 0 || p.y >= height() || p.x < 0 || p.x >= width()) {
         cerr << "Point at (" << p.x << "," << p.y << ") out of image!" << endl;
         return nan("");
     }
