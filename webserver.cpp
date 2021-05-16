@@ -231,6 +231,13 @@ void Webserver::start()
                 this->users.erase(&conn);
             });
 
+    CROW_ROUTE(app, "/uptime.txt")
+        ([this]() {
+            using namespace std::chrono;
+            steady_clock::time_point now = std::chrono::steady_clock::now();
+            return to_string(duration_cast<seconds>(now - start_time).count());
+        });
+
     app.port(8080)
         .multithreaded()
         .run();

@@ -9,6 +9,7 @@
 #include <unordered_set>
 #include <string>
 #include "crow_all.h"
+#include <chrono>
 
 class Webserver
 {
@@ -34,6 +35,7 @@ private:
     std::thread web_thread;
     crow::SimpleApp app;
     bool img_routes_initialized = false;
+    std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
 
     void start();
     void noticeClients();

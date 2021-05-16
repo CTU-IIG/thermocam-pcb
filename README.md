@@ -282,6 +282,7 @@ The following URLs are available:
 * `/position-std.txt` returns the current rolling standard deviations
   of POI positions in `name=position` format, which is 0 if tracking
   is not enabled.
+* `/uptime.txt` contains server uptime in secods.
 
 ## Precision of temperature measurement
 
