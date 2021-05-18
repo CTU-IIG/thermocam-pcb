@@ -118,12 +118,7 @@ void printPOITemp(vector<POI> poi, string file)
     if (poi.size() == 0)
         return;
 
-    if (file.empty()) {
-        cout << "Temperature of points of interest:";
-        for (unsigned i = 0; i < poi.size(); i++)
-            cout << " " << poi[i].to_string();
-        cout << endl;
-    } else {
+    if (!file.empty()) {
         string str;
         if (access(file.c_str(), F_OK) == -1) // File does not exist
             str += csvHeaderPOI(poi);
