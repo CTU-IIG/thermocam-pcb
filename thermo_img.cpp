@@ -429,25 +429,25 @@ void thermo_img::calcHeatSources()
     Mat lapgz;
     Mat lapx = laplacian - offset;
     lapx.copyTo(lapgz, lapx > 0.0);
-    webimgs.emplace_back("lapgz", "Lapl. > " + to_string_ntz(offset), lapgz);
+    webimgs.emplace_back("lapgz", "L⁺ = Lapl. > " + to_string_ntz(offset), lapgz);
 
-    static array<Mat, 2> lapgz_avg;
-    for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99} }) {
+    static array<Mat, 3> lapgz_avg;
+    for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
         if (lapgz_avg[i].empty())
             lapgz_avg[i] = lapgz * 0.0; // black image of the same type and size
         lapgz_avg[i] = alpha * lapgz_avg[i] + (1-alpha) * lapgz;
-        webimgs.emplace_back("lapgz-avg" + to_string(i), "L> avg. α=" + to_string_ntz(alpha), lapgz_avg[i]);
+        webimgs.emplace_back("lapgz-avg" + to_string(i), "L⁺avg"+to_string(i)+" α=" + to_string_ntz(alpha), lapgz_avg[i]);
     }
-    Mat diff = lapgz_avg[0] - lapgz_avg[1];
+    Mat diff = lapgz_avg[1] - lapgz_avg[2];
     double dmin, dmax;
     minMaxLoc(diff, &dmin, &dmax);
     Mat diffgz;
     diff.copyTo(diffgz, diff > 0.0);
-    webimgs.emplace_back("lapgz-diff", "diff of 2 prev. > 0", diffgz, "max: " + to_string_prec(dmax, 3));
+    webimgs.emplace_back("lapgz-diff", "(L⁺avg1 – L⁺avg2) > 0", diffgz, "max: " + to_string_prec(dmax, 3));
 
     Mat difflz;
     diff.copyTo(difflz, diff < 0.0);
-    webimgs.emplace_back("lapgz-diff-neg", "diff of 2 prev. < 0", -difflz, "max: " + to_string_prec(-dmin, 3), cv::COLORMAP_OCEAN);
+    webimgs.emplace_back("lapgz-diff-neg", "(L⁺avg1 – L⁺avg2) < 0", -difflz, "max: " + to_string_prec(-dmin, 3), cv::COLORMAP_OCEAN);
 
     hs.resize(lm.size());
     size_t max_hs = 0;
