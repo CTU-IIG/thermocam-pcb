@@ -5,6 +5,7 @@
 , ninja
 , pkg-config
 , boost
+, zlib
 , with_wic ? true, wic_sdk, ebus_sdk
 , usbutils
 , nix-gitignore
@@ -27,6 +28,7 @@ stdenv.mkDerivation {
     usbutils
     systemd
     nlohmann_json
+    zlib.dev
   ] ++ lib.optionals with_wic [
     ebus_sdk
     wic_sdk

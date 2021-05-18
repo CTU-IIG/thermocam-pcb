@@ -1,3 +1,4 @@
+#define CROW_MAIN
 #include "webserver.hpp"
 #include <opencv2/highgui/highgui.hpp>
 #include <err.h>
