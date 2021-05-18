@@ -67,33 +67,6 @@ void Webserver::update(const thermo_img &ti)
         std::lock_guard<std::mutex> lk(lock);
         this->ti = ti;
     }
-    auto &webimgs = ti.get_webimgs();
-
-    // webimgs are set only after the first POI tracking is calculated
-    // (perhaps in background). Hence the check for size().
-    if (webimgs.size() > 0 && !img_routes_initialized) {
-        img_routes_initialized = true;
-        for (const auto &webimg : webimgs) {
-            string name = webimg.name;
-            app.route_dynamic("/" + name + ".jpg")
-                    ([this, name](){
-                        auto img = this->ti.get_webimg(name);
-                        return img ? send_img(img->rgb) : crow::response(404);
-                    });
-            if (webimg.mat.type() == CV_64FC1)
-                app.route_dynamic("/" + name + ".tiff")
-                        ([this, name](){
-                            auto img = this->ti.get_webimg(name);
-                            return img ? send_img(img->mat, ".tiff") : crow::response(404);
-                        });
-            else if (webimg.mat.type() == CV_16UC1)
-                app.route_dynamic("/" + name + ".png")
-                        ([this, name](){
-                            auto img = this->ti.get_webimg(name);
-                            return img ? send_img(img->mat, ".png") : crow::response(404);
-                        });
-        }
-    }
     noticeClients();
 }
 
@@ -241,6 +214,18 @@ void Webserver::start()
             steady_clock::time_point now = std::chrono::steady_clock::now();
             return to_string(duration_cast<seconds>(now - start_time).count());
         });
+
+    CROW_ROUTE(app, "/<path>")
+            ([this](const string &path) {
+                for (const auto &webimg : ti.get_webimgs()) {
+                    if (path == webimg.name + ".jpg") {
+                        return send_img(webimg.rgb);
+                    } else if (path == path + ".tiff") {
+                        return send_img(webimg.mat, ".tiff");
+                    };
+                }
+                return crow::response(404);
+            });
 
     app.port(8080)
         .multithreaded()
