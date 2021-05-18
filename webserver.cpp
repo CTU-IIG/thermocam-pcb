@@ -221,8 +221,11 @@ void Webserver::start()
 
     CROW_ROUTE(app, "/ws")
             .websocket()
+            .onaccept([&](const crow::request &req) {
+                std::cout << "New websocket connection from " << req.remoteIpAddress << std::endl;
+                return true;
+            })
             .onopen([&](crow::websocket::connection& conn){
-                std::cout << "New websocket connection." << std::endl;
                 std::lock_guard<std::mutex> _(this->usr_mtx);
                 this->users.insert(&conn);
             })
