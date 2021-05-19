@@ -407,7 +407,8 @@ void thermo_img::calcHeatSources()
     laplacian *= -1;
     double lap_max = 0;
     minMaxLoc(laplacian, nullptr, &lap_max);
-    webimgs.emplace_back("laplacian-current", "Laplacian", laplacian, "max: " + to_string_prec(lap_max, 3));
+    webimgs.emplace_back("laplacian-current", "Laplacian", laplacian, "max: " + to_string_prec(lap_max, 3),
+                         webimg::PosNegColorMap::scale_max);
 
     vector<Point> lm = localMaxima(laplacian, hsImg);
     webimgs.emplace_back("heat_sources-current", "Heat sources", hsImg);
@@ -441,13 +442,10 @@ void thermo_img::calcHeatSources()
     Mat diff = lapgz_avg[0] - lapgz_avg[1];
     double dmin, dmax;
     minMaxLoc(diff, &dmin, &dmax);
-    Mat diffgz;
-    diff.copyTo(diffgz, diff > 0.0);
-    webimgs.emplace_back("lapgz-diff", "(L⁺avg1 – L⁺avg2) > 0", diffgz, "max: " + to_string_prec(dmax, 3));
-
-    Mat difflz;
-    diff.copyTo(difflz, diff < 0.0);
-    webimgs.emplace_back("lapgz-diff-neg", "(L⁺avg1 – L⁺avg2) < 0", -difflz, "max: " + to_string_prec(-dmin, 3), cv::COLORMAP_OCEAN);
+    webimgs.emplace_back("lapl-diff", "L⁺avg0 – L⁺avg1", diff,
+                         "max: " + to_string_prec(dmax, 3) + ", " +
+                         "min: " + to_string_prec(dmin, 3),
+                         webimg::PosNegColorMap::scale_both);
 
     hs.resize(lm.size());
     size_t max_hs = 0;
@@ -537,7 +535,8 @@ cv::Mat_<uint16_t> thermo_img::get_rawtemp() const
     return rawtemp;
 }
 
-thermo_img::webimg::webimg(string name, string title, const Mat &mat, string desc, ColormapTypes cmap)
+template <typename CM>
+thermo_img::webimg::webimg(string name, string title, const Mat &mat, string desc, CM cmap)
     : name(name)
     , title(title)
     , mat(mat)
@@ -555,4 +554,25 @@ Mat thermo_img::webimg::normalize(Mat in, enum ColormapTypes cmap)
     normalize_and_convert_to_uchar(in, out);
     applyColorMap(out, out, cmap);
     return out;
+}
+
+Mat thermo_img::webimg::normalize(Mat mat, thermo_img::webimg::PosNegColorMap pn)
+{
+    double min, max;
+    minMaxLoc(mat, &min, &max);
+    double scale = (pn == PosNegColorMap::scale_both) ?
+                std::max(max, -min) : max;
+
+    Mat pos, neg, out;
+    mat.copyTo(pos, mat > 0);
+    mat.copyTo(neg, mat < 0);
+
+    Mat pos8, neg8;
+    for (auto [in, out, scl, cmap] : {
+            make_tuple(&pos, &pos8, +scale, COLORMAP_INFERNO),
+            make_tuple(&neg, &neg8, -scale, COLORMAP_OCEAN) }) {
+        in->convertTo(*out, CV_8UC1, 255.0 / scl, 0);
+        applyColorMap(*out, *out, cmap);
+    }
+    return pos8 + neg8;
 }

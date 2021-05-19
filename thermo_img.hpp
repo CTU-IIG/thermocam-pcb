@@ -45,9 +45,15 @@ public:
         cv::Mat rgb; // rgb image
         std::string html_desc;
 
-        webimg(std::string name, std::string title, const cv::Mat &mat, std::string desc = "", enum cv::ColormapTypes cmap = cv::COLORMAP_INFERNO);
+        enum class PosNegColorMap { scale_both, scale_max }; // for CM below
+
+        template <typename CM>
+        webimg(std::string name, std::string title, const cv::Mat &mat, std::string desc, CM cmap);
+        webimg(std::string name, std::string title, const cv::Mat &mat, std::string desc = "") :
+            webimg(name, title, mat, desc, cv::COLORMAP_INFERNO) {}
     private:
         static cv::Mat normalize(cv::Mat mat, enum cv::ColormapTypes cmap);
+        static cv::Mat normalize(cv::Mat mat, PosNegColorMap pn);
     };
 
     void update(img_stream &is);
