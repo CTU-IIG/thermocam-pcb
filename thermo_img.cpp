@@ -113,10 +113,18 @@ Mat drawPOI(Mat in, cv::Ptr<cv::freetype::FreeType2> ft2, vector<POI> poi, draw_
     return R;
 }
 
+static void normalize_and_convert_to_uchar(Mat &mat_in, Mat &mat_out){
+    double min, max;
+    minMaxLoc(mat_in, &min, &max);
+    mat_in.convertTo(mat_out, CV_8UC1,
+                     255.0 / (max - min),
+                     255.0 / (1.0 - max / min));
+}
+
 void thermo_img::draw_preview(draw_mode mode, cv::Ptr<cv::freetype::FreeType2> ft2)
 {
     Mat img;
-    gray.copyTo(img);
+    normalize_and_convert_to_uchar(rawtemp, img);
     applyColorMap(img, img, cv::COLORMAP_INFERNO);
     img = drawPOI(img, ft2, poi, mode);
 
@@ -349,14 +357,6 @@ static vector<Point> localMaxima(Mat I, Mat &hs)
     return locations;
 }
 
-
-static void normalize_and_convert_to_uchar(Mat &mat_in, Mat &mat_out){
-    double min, max;
-    minMaxLoc(mat_in, &min, &max);
-    mat_in.convertTo(mat_out, CV_8UC1,
-                     255.0 / (max - min),
-                     255.0 / (1.0 - max / min));
-}
 
 // to string no trailing zeros
 std::string to_string_ntz(double v)
