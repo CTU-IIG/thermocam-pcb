@@ -401,7 +401,7 @@ void thermo_img::calcHeatSources()
 
 
     Mat blur, laplacian, hsImg;
-    const double blur_sigma = 7;
+    const double blur_sigma = 6;
     GaussianBlur(detail, blur, Size(0, 0), blur_sigma, blur_sigma);
     Laplacian(blur, laplacian, blur.depth());
     laplacian *= -1;
