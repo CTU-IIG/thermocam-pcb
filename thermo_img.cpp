@@ -438,7 +438,7 @@ void thermo_img::calcHeatSources()
         lapgz_avg[i] = alpha * lapgz_avg[i] + (1-alpha) * lapgz;
         webimgs.emplace_back("lapgz-avg" + to_string(i), "L⁺avg"+to_string(i)+" α=" + to_string_ntz(alpha), lapgz_avg[i]);
     }
-    Mat diff = lapgz_avg[1] - lapgz_avg[2];
+    Mat diff = lapgz_avg[0] - lapgz_avg[1];
     double dmin, dmax;
     minMaxLoc(diff, &dmin, &dmax);
     Mat diffgz;
