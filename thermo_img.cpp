@@ -5,7 +5,6 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include "Base64.h"
-#include <future>
 #include <iostream>
 #include <algorithm>
 
@@ -254,18 +253,15 @@ void thermo_img::track(const thermo_img &ref, tracking track)
         updatePOICoords(ref);
         break;
     case tracking::async:
-        // TODO: Remove static - make it a member variable
-        static future<thermo_img> future;
-
-        if (!future.valid() ||
-            future.wait_for(chrono::seconds::zero()) == future_status::ready) {
-            if (future.valid()) {
-                thermo_img tracked = future.get();
+        if (!nc.future.valid() ||
+            nc.future.wait_for(chrono::seconds::zero()) == future_status::ready) {
+            if (nc.future.valid()) {
+                thermo_img tracked = nc.future.get();
                 poi = tracked.poi;
                 heat_sources_border = tracked.heat_sources_border;
             }
 
-            future = async([&](thermo_img copy) {
+            nc.future = async([&](thermo_img copy) {
                 copy.updateKpDesc();
                 copy.updatePOICoords(ref);
                 return copy;
@@ -273,7 +269,7 @@ void thermo_img::track(const thermo_img &ref, tracking track)
         }
         break;
     case tracking::finish:
-        future.wait();
+        nc.future.wait();
         break;
     }
 
@@ -413,16 +409,15 @@ void thermo_img::calcHeatSources()
     vector<Point> lm = localMaxima(laplacian, hsImg);
     webimgs.emplace_back("heat_sources-current", "Heat sources", hsImg);
 
-    static array<Mat, 3> hsAvg;
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.999} }) {
-        if (hsAvg[i].empty())
-            hsAvg[i] = hsImg * 0.0; // black image of the same type and size
-        hsAvg[i] = alpha * hsAvg[i] + (1-alpha) * hsImg;
+        if (nc.hsAvg[i].empty())
+            nc.hsAvg[i] = hsImg * 0.0; // black image of the same type and size
+        nc.hsAvg[i] = alpha * nc.hsAvg[i] + (1-alpha) * hsImg;
 
         Mat hs_log;
         // Make the dark colors more visible
-        cv::log(0.001+hsAvg[i], hs_log);
-        //cv::sqrt(hsAvg[i], hs_log);
+        cv::log(0.001+nc.hsAvg[i], hs_log);
+        //cv::sqrt(nc.hsAvg[i], hs_log);
         webimgs.emplace_back("hs-avg" + to_string(i), "HS avg. α=" + to_string_ntz(alpha), hs_log);
     }
 
@@ -432,14 +427,13 @@ void thermo_img::calcHeatSources()
     lapx.copyTo(lapgz, lapx > 0.0);
     webimgs.emplace_back("lapgz", "L⁺ = Lapl. > " + to_string_ntz(offset), lapgz);
 
-    static array<Mat, 3> lapgz_avg;
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
-        if (lapgz_avg[i].empty())
-            lapgz_avg[i] = lapgz * 0.0; // black image of the same type and size
-        lapgz_avg[i] = alpha * lapgz_avg[i] + (1-alpha) * lapgz;
-        webimgs.emplace_back("lapgz-avg" + to_string(i), "L⁺avg"+to_string(i)+" α=" + to_string_ntz(alpha), lapgz_avg[i]);
+        if (nc.lapgz_avg[i].empty())
+            nc.lapgz_avg[i] = lapgz * 0.0; // black image of the same type and size
+        nc.lapgz_avg[i] = alpha * nc.lapgz_avg[i] + (1-alpha) * lapgz;
+        webimgs.emplace_back("lapgz-avg" + to_string(i), "L⁺avg"+to_string(i)+" α=" + to_string_ntz(alpha), nc.lapgz_avg[i]);
     }
-    Mat diff = lapgz_avg[0] - lapgz_avg[1];
+    Mat diff = nc.lapgz_avg[0] - nc.lapgz_avg[1];
     double dmin, dmax;
     minMaxLoc(diff, &dmin, &dmax);
     webimgs.emplace_back("lapl-diff", "L⁺avg0 – L⁺avg1", diff,

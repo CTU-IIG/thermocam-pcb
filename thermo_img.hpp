@@ -9,6 +9,7 @@
 #include <opencv2/freetype.hpp>
 #include <list>
 #include <opencv2/imgproc.hpp>
+#include <future>
 
 struct HeatSource {
     cv::Point location;
@@ -110,9 +111,17 @@ private:
     struct nocopy {
         nocopy() = default;
         nocopy(const nocopy &nc) {} // noop copy constructor
+        nocopy& operator=(const nocopy&) { return *this; } // noop copy assignment operator
+
+        // Acumulators for calculation of average images
+        std::array<cv::Mat, 3> hsAvg;
+        std::array<cv::Mat, 3> lapgz_avg;
 
         std::vector<cv::KeyPoint> kp;
         cv::Mat desc;
+
+        // Result of background point tracking calculation (tracking::async)
+        std::future<thermo_img> future;
     } nc;
 
     std::vector<POI> poi; // Points of interest
