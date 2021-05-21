@@ -66,6 +66,7 @@ void Webserver::update(const thermo_img &ti)
     {
         std::lock_guard<std::mutex> lk(lock);
         this->ti = ti;
+        frame_cnt++;
     }
     noticeClients();
 }
@@ -214,6 +215,9 @@ void Webserver::start()
             steady_clock::time_point now = std::chrono::steady_clock::now();
             return to_string(duration_cast<seconds>(now - start_time).count());
         });
+
+    CROW_ROUTE(app, "/frame.txt")
+        ([this]() { return to_string(frame_cnt); });
 
     CROW_ROUTE(app, "/<path>")
             ([this](const string &path) {

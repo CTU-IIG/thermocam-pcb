@@ -283,6 +283,7 @@ The following URLs are available:
   of POI positions in `name=position` format, which is 0 if tracking
   is not enabled.
 * `/uptime.txt` contains server uptime in secods.
+* `/frame.txt` contains the number of processed frames.
 
 ## Precision of temperature measurement
 

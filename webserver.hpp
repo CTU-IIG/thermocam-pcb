@@ -36,6 +36,7 @@ private:
     crow::SimpleApp app;
     bool img_routes_initialized = false;
     std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
+    unsigned long frame_cnt = 0;
 
     void start();
     void noticeClients();
