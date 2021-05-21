@@ -369,6 +369,12 @@ std::string to_string_prec(double v, unsigned prec)
     return ss.str();
 }
 
+static double get_max(const Mat &mat) {
+        double min, max;
+        minMaxLoc(mat, &min, &max);
+        return max;
+}
+
 void thermo_img::calcHeatSources()
 {
     for (auto &p : heat_sources_border) {
@@ -401,8 +407,7 @@ void thermo_img::calcHeatSources()
     GaussianBlur(detail, blur, Size(0, 0), blur_sigma, blur_sigma);
     Laplacian(blur, laplacian, blur.depth());
     laplacian *= -1;
-    double lap_max = 0;
-    minMaxLoc(laplacian, nullptr, &lap_max);
+    double lap_max = get_max(laplacian);
     webimgs.emplace_back("laplacian-current", "Laplacian", laplacian, "max: " + to_string_prec(lap_max, 3),
                          webimg::PosNegColorMap::scale_max);
 
@@ -425,13 +430,15 @@ void thermo_img::calcHeatSources()
     Mat lapgz;
     Mat lapx = laplacian - offset;
     lapx.copyTo(lapgz, lapx > 0.0);
-    webimgs.emplace_back("lapgz", "L⁺ = Lapl. > " + to_string_ntz(offset), lapgz);
+    webimgs.emplace_back("lapgz", "L⁺ = Lapl. > " + to_string_ntz(offset), lapgz,
+                         "max: " + to_string_prec(get_max(lapgz), 3));
 
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
         if (nc.lapgz_avg[i].empty())
             nc.lapgz_avg[i] = lapgz * 0.0; // black image of the same type and size
         nc.lapgz_avg[i] = alpha * nc.lapgz_avg[i] + (1-alpha) * lapgz;
-        webimgs.emplace_back("lapgz-avg" + to_string(i), "L⁺avg"+to_string(i)+" α=" + to_string_ntz(alpha), nc.lapgz_avg[i]);
+        webimgs.emplace_back("lapgz-avg" + to_string(i), "L⁺avg"+to_string(i)+" α=" + to_string_ntz(alpha), nc.lapgz_avg[i],
+                             "max: " + to_string_prec(get_max(nc.lapgz_avg[i]), 3));
     }
     Mat diff = nc.lapgz_avg[0] - nc.lapgz_avg[1];
     double dmin, dmax;
