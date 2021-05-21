@@ -434,7 +434,8 @@ void thermo_img::calcHeatSources()
                          "max: " + to_string_prec(get_max(lapgz), 3));
 
     nc.hs_acc(lapgz);
-    webimgs.emplace_back("lapgz-mean", "L⁺ mean n=1000", acc::rolling_mean(nc.hs_acc));
+    webimgs.emplace_back("lapgz-mean", "L⁺ mean n=1000", acc::rolling_mean(nc.hs_acc),
+                         "max: " + to_string_prec(get_max(lapgz), 3));
 
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
         if (nc.lapgz_avg[i].empty())
