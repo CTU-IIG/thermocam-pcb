@@ -224,7 +224,7 @@ void Webserver::start()
                 for (const auto &webimg : ti.get_webimgs()) {
                     if (path == webimg.name + ".jpg") {
                         return send_img(webimg.rgb);
-                    } else if (path == path + ".tiff") {
+                    } else if (path == webimg.name + ".tiff") {
                         return send_img(webimg.mat, ".tiff");
                     };
                 }
