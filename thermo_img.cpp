@@ -11,6 +11,7 @@
 using namespace std;
 using namespace cv;
 namespace pt = boost::property_tree;
+namespace acc = boost::accumulators;
 
 string POI::to_string(bool print_name)
 {
@@ -328,7 +329,6 @@ void thermo_img::updatePOICoords(const thermo_img &ref)
         // Variance of sum of 2 random variables the same as sum of variances
         // So we only need to track 1 variance per point
         poi[i].r_var(poi[i].p.x + poi[i].p.y);
-        namespace acc = boost::accumulators;
         poi[i].rolling_std = sqrt(acc::rolling_variance(poi[i].r_var));
     }
 
@@ -432,6 +432,9 @@ void thermo_img::calcHeatSources()
     lapx.copyTo(lapgz, lapx > 0.0);
     webimgs.emplace_back("lapgz", "L⁺ = Lapl. > " + to_string_ntz(offset), lapgz,
                          "max: " + to_string_prec(get_max(lapgz), 3));
+
+    nc.hs_acc(lapgz);
+    webimgs.emplace_back("lapgz-mean", "L⁺ mean n=1000", acc::rolling_mean(nc.hs_acc));
 
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
         if (nc.lapgz_avg[i].empty())

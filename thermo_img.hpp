@@ -6,6 +6,7 @@
 #include <array>
 #include "img_stream.hpp"
 #include <boost/accumulators/statistics/rolling_variance.hpp>
+#include <boost/accumulators/statistics/rolling_mean.hpp>
 #include <opencv2/freetype.hpp>
 #include <list>
 #include <opencv2/imgproc.hpp>
@@ -107,6 +108,11 @@ private:
     std::list<webimg> webimgs;
     std::vector<HeatSource> hs;
 
+    struct MatAutoInit : public cv::Mat_<double> {
+        MatAutoInit() : cv::Mat_<double>(100, 100, 0.0) {};
+        using cv::Mat_<double>::Mat_;
+    };
+
     // these values are not copied to webserver
     struct nocopy {
         nocopy() = default;
@@ -114,6 +120,9 @@ private:
         nocopy& operator=(const nocopy&) { return *this; } // noop copy assignment operator
 
         // Acumulators for calculation of average images
+        using acc_mat_rolling_mean = boost::accumulators::accumulator_set<MatAutoInit, boost::accumulators::stats<boost::accumulators::tag::lazy_rolling_mean>>;
+        acc_mat_rolling_mean hs_acc {boost::accumulators::tag::rolling_window::window_size = 1000};
+
         std::array<cv::Mat, 3> hsAvg;
         std::array<cv::Mat, 3> lapgz_avg;
 
