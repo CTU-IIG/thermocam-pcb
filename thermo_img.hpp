@@ -109,7 +109,7 @@ private:
     std::vector<HeatSource> hs;
 
     struct MatAutoInit : public cv::Mat_<double> {
-        MatAutoInit() : cv::Mat_<double>(100, 100, 0.0) {};
+        MatAutoInit(double init_val = 0.0) : cv::Mat_<double>(100, 100, init_val) {};
         using cv::Mat_<double>::Mat_;
     };
 
@@ -123,6 +123,8 @@ private:
         using acc_mat_rolling_mean = boost::accumulators::accumulator_set<MatAutoInit, boost::accumulators::stats<boost::accumulators::tag::lazy_rolling_mean>>;
         acc_mat_rolling_mean hs_acc {boost::accumulators::tag::rolling_window::window_size = 1000};
 
+        std::array<MatAutoInit, 3> detail_avg {7231, 7231, 7231}; // Default value ≅ 15°C
+        std::array<MatAutoInit, 3> lapl_avg;
         std::array<MatAutoInit, 3> hsAvg;
         std::array<MatAutoInit, 3> lapgz_avg;
 

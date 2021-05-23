@@ -398,7 +398,21 @@ void thermo_img::calcHeatSources()
         minMaxLoc(detail, &min, &max);
         ss << fixed << setprecision(2) << get_temperature(max) << "–" << get_temperature(min) << "=" <<
             get_temperature(max) - get_temperature(min) << "°C";
-        webimgs.emplace_back(list{webimg("detail-current", "Detail", detail, ss.str())});
+
+        list<webimg> detail_list {webimg("detail-current", "Detail", detail, ss.str())};
+
+        for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
+            nc.detail_avg[i] = alpha * nc.detail_avg[i] + (1-alpha) * detail;
+            minMaxLoc(nc.detail_avg[i], &min, &max);
+            ss.str(""s);
+            ss << fixed << setprecision(2) << get_temperature(max) << "–" << get_temperature(min) << "=" <<
+                get_temperature(max) - get_temperature(min) << "°C";
+            detail_list.emplace_back("detail-avg" + to_string(i), "D. avg"+to_string(i)+" α=" + to_string_ntz(alpha),
+                                     nc.detail_avg[i], ss.str());
+        }
+
+
+        webimgs.emplace_back(detail_list);
     }
 
 
