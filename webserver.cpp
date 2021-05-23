@@ -100,11 +100,15 @@ std::string Webserver::getHeatSourcesJsonArray()
 
 void Webserver::noticeClients() {
     json msg;
-    json msg_wi = json::array();
+    json msg_lwi = json::array();
     msg["type"] = "update";
-    for (const auto& wi : ti.get_webimgs())
-        msg_wi.push_back({{"name", wi.name}, {"title", wi.title}, {"desc", wi.html_desc}});
-    msg["imgs"] = msg_wi;
+    for (const auto &lwi : ti.get_webimgs()) {
+        json msg_wi = json::array();
+        for (const auto& wi : lwi)
+            msg_wi.push_back({{"name", wi.name}, {"title", wi.title}, {"desc", wi.html_desc}});
+        msg_lwi.push_back(msg_wi);
+    }
+    msg["imgs"] = msg_lwi;
     json msg_hs = json::array();
     for (const auto &p : ti.get_heat_sources())
         msg_hs.push_back(json(p));
@@ -221,12 +225,14 @@ void Webserver::start()
 
     CROW_ROUTE(app, "/<path>")
             ([this](const string &path) {
-                for (const auto &webimg : ti.get_webimgs()) {
-                    if (path == webimg.name + ".jpg") {
-                        return send_img(webimg.rgb);
-                    } else if (path == webimg.name + ".tiff") {
-                        return send_img(webimg.mat, ".tiff");
-                    };
+                for (const auto &webimg_list : ti.get_webimgs()) {
+                    for (const auto &webimg : webimg_list) {
+                        if (path == webimg.name + ".jpg") {
+                            return send_img(webimg.rgb);
+                        } else if (path == webimg.name + ".tiff") {
+                            return send_img(webimg.mat, ".tiff");
+                        };
+                    }
                 }
                 return crow::response(404);
             });

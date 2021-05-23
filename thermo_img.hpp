@@ -84,7 +84,7 @@ public:
     int height() const;
     int width() const;
 
-    const std::list<webimg> &get_webimgs() const;
+    const std::list<std::list<webimg>> &get_webimgs() const;
     const webimg *get_webimg(std::string key) const;
     const cv::Mat get_rgb(std::string key) const;
 
@@ -105,7 +105,7 @@ private:
     cv::Mat preview;
     cv::Mat gray;
 
-    std::list<webimg> webimgs;
+    std::list<std::list<webimg>> webimgs;
     std::vector<HeatSource> hs;
 
     struct MatAutoInit : public cv::Mat_<double> {

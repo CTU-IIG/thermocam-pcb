@@ -398,7 +398,7 @@ void thermo_img::calcHeatSources()
         minMaxLoc(detail, &min, &max);
         ss << fixed << setprecision(2) << get_temperature(max) << "–" << get_temperature(min) << "=" <<
             get_temperature(max) - get_temperature(min) << "°C";
-        webimgs.emplace_back("detail-current", "Detail", detail, ss.str());
+        webimgs.emplace_back(list{webimg("detail-current", "Detail", detail, ss.str())});
     }
 
 
@@ -408,11 +408,12 @@ void thermo_img::calcHeatSources()
     Laplacian(blur, laplacian, blur.depth());
     laplacian *= -1;
     double lap_max = get_max(laplacian);
-    webimgs.emplace_back("laplacian-current", "Laplacian", laplacian, "max: " + to_string_prec(lap_max, 3),
-                         webimg::PosNegColorMap::scale_max);
+    webimgs.emplace_back(list{webimg("laplacian-current", "Laplacian", laplacian, "max: " + to_string_prec(lap_max, 3),
+                         webimg::PosNegColorMap::scale_max)});
 
     vector<Point> lm = localMaxima(laplacian, hsImg);
-    webimgs.emplace_back("heat_sources-current", "Heat sources", hsImg);
+
+    list<webimg> hs_list { webimg("heat_sources-current", "Heat sources", hsImg) };
 
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.999} }) {
         if (nc.hsAvg[i].empty())
@@ -423,34 +424,39 @@ void thermo_img::calcHeatSources()
         // Make the dark colors more visible
         cv::log(0.001+nc.hsAvg[i], hs_log);
         //cv::sqrt(nc.hsAvg[i], hs_log);
-        webimgs.emplace_back("hs-avg" + to_string(i), "HS avg. α=" + to_string_ntz(alpha), hs_log);
+        hs_list.emplace_back("hs-avg" + to_string(i), "HS avg. α=" + to_string_ntz(alpha), hs_log);
     }
+
+    webimgs.push_back(hs_list);
 
     const auto offset = 0.025;
     Mat lapgz;
     Mat lapx = laplacian - offset;
     lapx.copyTo(lapgz, lapx > 0.0);
-    webimgs.emplace_back("lapgz", "L⁺ = Lapl. > " + to_string_ntz(offset), lapgz,
-                         "max: " + to_string_prec(get_max(lapgz), 3));
+    list<webimg> lapgz_list { webimg("lapgz", "L⁺ = Lapl. > " + to_string_ntz(offset), lapgz,
+                                     "max: " + to_string_prec(get_max(lapgz), 3)) };
 
     nc.hs_acc(lapgz);
-    webimgs.emplace_back("lapgz-mean", "L⁺ mean n=1000", acc::rolling_mean(nc.hs_acc),
+    lapgz_list.emplace_back("lapgz-mean", "L⁺ mean n=1000", acc::rolling_mean(nc.hs_acc),
                          "max: " + to_string_prec(get_max(lapgz), 3));
 
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
         if (nc.lapgz_avg[i].empty())
             nc.lapgz_avg[i] = lapgz * 0.0; // black image of the same type and size
         nc.lapgz_avg[i] = alpha * nc.lapgz_avg[i] + (1-alpha) * lapgz;
-        webimgs.emplace_back("lapgz-avg" + to_string(i), "L⁺avg"+to_string(i)+" α=" + to_string_ntz(alpha), nc.lapgz_avg[i],
-                             "max: " + to_string_prec(get_max(nc.lapgz_avg[i]), 3));
+        lapgz_list.emplace_back("lapgz-avg" + to_string(i), "L⁺avg"+to_string(i)+" α=" + to_string_ntz(alpha), nc.lapgz_avg[i],
+                                "max: " + to_string_prec(get_max(nc.lapgz_avg[i]), 3));
     }
+
+    webimgs.push_back(lapgz_list);
+
     Mat diff = nc.lapgz_avg[0] - nc.lapgz_avg[1];
     double dmin, dmax;
     minMaxLoc(diff, &dmin, &dmax);
-    webimgs.emplace_back("lapl-diff", "L⁺avg0 – L⁺avg1", diff,
-                         "max: " + to_string_prec(dmax, 3) + ", " +
-                         "min: " + to_string_prec(dmin, 3),
-                         webimg::PosNegColorMap::scale_both);
+    webimgs.emplace_back(list{webimg("lapl-diff", "L⁺avg0 – L⁺avg1", diff,
+                              "max: " + to_string_prec(dmax, 3) + ", " +
+                              "min: " + to_string_prec(dmin, 3),
+                              webimg::PosNegColorMap::scale_both)});
 
     hs.resize(lm.size());
     size_t max_hs = 0;
@@ -488,15 +494,20 @@ int thermo_img::width() const
     return rawtemp.cols;
 }
 
-const std::list<thermo_img::webimg> &thermo_img::get_webimgs() const
+const std::list<std::list<thermo_img::webimg>> &thermo_img::get_webimgs() const
 {
     return webimgs;
 }
 
 const thermo_img::webimg *thermo_img::get_webimg(string key) const
 {
-    auto it = find_if(webimgs.begin(), webimgs.end(), [&](const webimg &wi){return wi.name == key;});
-    return (it != webimgs.end()) ? &(*it) : nullptr;
+    std::list<webimg>::const_iterator it;
+    for (const auto &lst : webimgs) {
+        it = find_if(lst.begin(), lst.end(), [&](const webimg &wi){return wi.name == key;});
+        if (it != lst.end())
+            return &(*it);
+    }
+    return nullptr;
 }
 
 const Mat thermo_img::get_rgb(string key) const
