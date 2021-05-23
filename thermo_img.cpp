@@ -436,10 +436,6 @@ void thermo_img::calcHeatSources()
     list<webimg> lapgz_list { webimg("lapgz", "L⁺ = Lapl. > " + to_string_ntz(offset), lapgz,
                                      "max: " + to_string_prec(get_max(lapgz), 3)) };
 
-    nc.hs_acc(lapgz);
-    lapgz_list.emplace_back("lapgz-mean", "L⁺ mean n=1000", acc::rolling_mean(nc.hs_acc),
-                         "max: " + to_string_prec(get_max(lapgz), 3));
-
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
         if (nc.lapgz_avg[i].empty())
             nc.lapgz_avg[i] = lapgz * 0.0; // black image of the same type and size
@@ -447,6 +443,10 @@ void thermo_img::calcHeatSources()
         lapgz_list.emplace_back("lapgz-avg" + to_string(i), "L⁺avg"+to_string(i)+" α=" + to_string_ntz(alpha), nc.lapgz_avg[i],
                                 "max: " + to_string_prec(get_max(nc.lapgz_avg[i]), 3));
     }
+
+    nc.hs_acc(lapgz);
+    lapgz_list.emplace_back("lapgz-mean", "L⁺ mean n=1000", acc::rolling_mean(nc.hs_acc),
+                         "max: " + to_string_prec(get_max(lapgz), 3));
 
     webimgs.push_back(lapgz_list);
 
