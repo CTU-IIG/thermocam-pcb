@@ -416,8 +416,6 @@ void thermo_img::calcHeatSources()
     list<webimg> hs_list { webimg("heat_sources-current", "Heat sources", hsImg) };
 
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.999} }) {
-        if (nc.hsAvg[i].empty())
-            nc.hsAvg[i] = hsImg * 0.0; // black image of the same type and size
         nc.hsAvg[i] = alpha * nc.hsAvg[i] + (1-alpha) * hsImg;
 
         Mat hs_log;
@@ -437,8 +435,6 @@ void thermo_img::calcHeatSources()
                                      "max: " + to_string_prec(get_max(lapgz), 3)) };
 
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
-        if (nc.lapgz_avg[i].empty())
-            nc.lapgz_avg[i] = lapgz * 0.0; // black image of the same type and size
         nc.lapgz_avg[i] = alpha * nc.lapgz_avg[i] + (1-alpha) * lapgz;
         lapgz_list.emplace_back("lapgz-avg" + to_string(i), "L⁺avg"+to_string(i)+" α=" + to_string_ntz(alpha), nc.lapgz_avg[i],
                                 "max: " + to_string_prec(get_max(nc.lapgz_avg[i]), 3));

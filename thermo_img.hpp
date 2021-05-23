@@ -123,8 +123,8 @@ private:
         using acc_mat_rolling_mean = boost::accumulators::accumulator_set<MatAutoInit, boost::accumulators::stats<boost::accumulators::tag::lazy_rolling_mean>>;
         acc_mat_rolling_mean hs_acc {boost::accumulators::tag::rolling_window::window_size = 1000};
 
-        std::array<cv::Mat, 3> hsAvg;
-        std::array<cv::Mat, 3> lapgz_avg;
+        std::array<MatAutoInit, 3> hsAvg;
+        std::array<MatAutoInit, 3> lapgz_avg;
 
         std::vector<cv::KeyPoint> kp;
         cv::Mat desc;
