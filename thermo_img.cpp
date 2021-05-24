@@ -401,16 +401,15 @@ void thermo_img::calcHeatSources()
 
         list<webimg> detail_list {webimg("detail-current", "Detail", detail, ss.str())};
 
-        for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
-            nc.detail_avg[i] = alpha * nc.detail_avg[i] + (1-alpha) * detail;
-            minMaxLoc(nc.detail_avg[i], &min, &max);
-            ss.str(""s);
-            ss << fixed << setprecision(2) << get_temperature(max) << "–" << get_temperature(min) << "=" <<
-                get_temperature(max) - get_temperature(min) << "°C";
-            detail_list.emplace_back("detail-avg" + to_string(i), "D. avg"+to_string(i)+" α=" + to_string_ntz(alpha),
-                                     nc.detail_avg[i], ss.str());
-        }
-
+//         for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
+//             nc.detail_avg[i] = alpha * nc.detail_avg[i] + (1-alpha) * detail;
+//             minMaxLoc(nc.detail_avg[i], &min, &max);
+//             ss.str(""s);
+//             ss << fixed << setprecision(2) << get_temperature(max) << "–" << get_temperature(min) << "=" <<
+//                 get_temperature(max) - get_temperature(min) << "°C";
+//             detail_list.emplace_back("detail-avg" + to_string(i), "D. avg"+to_string(i)+" α=" + to_string_ntz(alpha),
+//                                      nc.detail_avg[i], ss.str());
+//         }
 
         webimgs.emplace_back(detail_list);
     }
@@ -468,23 +467,23 @@ void thermo_img::calcHeatSources()
                               "min: " + to_string_prec(dmin, 3),
                               webimg::PosNegColorMap::scale_both)});
 
-    {
-        int i=0;
-        list<webimg> lap_list;
-        for (const Mat &detail : nc.detail_avg)
-        {
-            Mat blur, laplacian;
-            const double blur_sigma = 4;
-            GaussianBlur(detail, blur, Size(0, 0), blur_sigma, blur_sigma);
-            Laplacian(blur, laplacian, blur.depth());
-            laplacian *= -1;
-            double lap_max = get_max(laplacian);
-            lap_list.emplace_back("lap-det-avg"+to_string(i), "∇²(D.avg"+to_string(i)+")", laplacian, "max: " + to_string_prec(lap_max, 3),
-                                  webimg::PosNegColorMap::scale_max);
-            i++;
-        }
-        webimgs.push_back(lap_list);
-    }
+//     {
+//         int i=0;
+//         list<webimg> lap_list;
+//         for (const Mat &detail : nc.detail_avg)
+//         {
+//             Mat blur, laplacian;
+//             const double blur_sigma = 4;
+//             GaussianBlur(detail, blur, Size(0, 0), blur_sigma, blur_sigma);
+//             Laplacian(blur, laplacian, blur.depth());
+//             laplacian *= -1;
+//             double lap_max = get_max(laplacian);
+//             lap_list.emplace_back("lap-det-avg"+to_string(i), "∇²(D.avg"+to_string(i)+")", laplacian, "max: " + to_string_prec(lap_max, 3),
+//                                   webimg::PosNegColorMap::scale_max);
+//             i++;
+//         }
+//         webimgs.push_back(lap_list);
+//     }
 
     hs.resize(lm.size());
     size_t max_hs = 0;
