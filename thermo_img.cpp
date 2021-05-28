@@ -421,8 +421,16 @@ void thermo_img::calcHeatSources()
     Laplacian(blur, laplacian, blur.depth());
     laplacian *= -1;
     double lap_max = get_max(laplacian);
-    webimgs.emplace_back(list{webimg("laplacian-current", "Laplacian", laplacian, "max: " + to_string_prec(lap_max, 3),
-                         webimg::PosNegColorMap::scale_max)});
+    list<webimg> lapl_list { webimg("laplacian-current", "Laplacian", laplacian, "max: " + to_string_prec(lap_max, 3),
+                                    webimg::PosNegColorMap::scale_max) };
+    for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
+        nc.lapl_avg[i] = alpha * nc.lapl_avg[i] + (1-alpha) * laplacian;
+        lapl_list.emplace_back("lapl-avg" + to_string(i), "∇²avg"+to_string(i)+" α=" + to_string_ntz(alpha), nc.lapl_avg[i],
+                               "max: " + to_string_prec(get_max(nc.lapl_avg[i]), 3),
+                               webimg::PosNegColorMap::scale_max);
+    }
+    webimgs.push_back(lapl_list);
+
 
     vector<Point> lm = localMaxima(laplacian, hsImg);
 
