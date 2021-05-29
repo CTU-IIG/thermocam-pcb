@@ -467,14 +467,25 @@ void thermo_img::calcHeatSources()
 
     webimgs.push_back(lapgz_list);
 
-    Mat diff = nc.lapgz_avg[0] - nc.lapgz_avg[1];
-    double dmin, dmax;
-    minMaxLoc(diff, &dmin, &dmax);
-    webimgs.emplace_back(list{webimg("lapl-diff", "L⁺avg0 – L⁺avg1", diff,
-                              "max: " + to_string_prec(dmax, 3) + ", " +
-                              "min: " + to_string_prec(dmin, 3),
-                              webimg::PosNegColorMap::scale_both)});
+    list<webimg> diff_list;
 
+    Mat diff;
+    double dmin, dmax;
+
+    diff = nc.lapgz_avg[0] - nc.lapgz_avg[1];
+    minMaxLoc(diff, &dmin, &dmax);
+    diff_list.emplace_back("lapl-diff", "L⁺avg0 – L⁺avg1", diff,
+                           "max: " + to_string_prec(dmax, 3) + ", " +
+                           "min: " + to_string_prec(dmin, 3),
+                           webimg::PosNegColorMap::scale_both);
+
+    diff = nc.lapl_avg[0] - nc.lapl_avg[1];
+    minMaxLoc(diff, &dmin, &dmax);
+    diff_list.emplace_back("fulllapl-diff", "∇²avg0 – ∇²avg1", diff,
+                           "max: " + to_string_prec(dmax, 3) + ", " +
+                           "min: " + to_string_prec(dmin, 3),
+                           webimg::PosNegColorMap::scale_both);
+    webimgs.push_back(diff_list);
 //     {
 //         int i=0;
 //         list<webimg> lap_list;
