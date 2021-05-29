@@ -81,23 +81,6 @@ void to_json(json& j, const HeatSource& p) {
     j = json::array({p.location.x, p.location.y, int(p.neg_laplacian * 1000)/1000.0});
 }
 
-std::string Webserver::getHeatSourcesJsonArray()
-{
-    stringstream ss;
-    ss << "[";
-    {
-        ss << std::fixed << std::setprecision(3);
-        std::lock_guard<std::mutex> lk(lock);
-        for (auto p : ti.get_heat_sources())
-            ss << "[" << p.location.x << "," << p.location.y << "," << p.neg_laplacian << "],";
-    }
-    std::string hs = ss.str();
-    hs.pop_back();
-    hs += "]";
-
-    return hs;
-}
-
 void Webserver::noticeClients() {
     json msg;
     json msg_lwi = json::array();
