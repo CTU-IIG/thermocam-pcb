@@ -81,6 +81,7 @@ void to_json(json& j, const HeatSource& p) {
     j = json::array({p.location.x, p.location.y, int(p.neg_laplacian * 1000)/1000.0});
 }
 
+// Called from update() - no need to lock this->lock
 void Webserver::noticeClients() {
     json msg;
     json msg_lwi = json::array();
@@ -96,7 +97,13 @@ void Webserver::noticeClients() {
     for (const auto &p : ti.get_heat_sources())
         msg_hs.push_back(json(p));
     msg["heat_sources"] = msg_hs;
-    
+
+    json msg_pt = json::object();
+    for (const POI &poi : ti.get_poi()) {
+        msg_pt[poi.name] = int(poi.temp*100)/100.0;
+    }
+    msg["poi_temp"] = msg_pt;
+
     std::lock_guard<std::mutex> _(this->usr_mtx);
     std::string msg_str = msg.dump();
     for(crow::websocket::connection* u : this->users) {
