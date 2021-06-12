@@ -479,12 +479,15 @@ void thermo_img::calcHeatSources()
                            "min: " + to_string_prec(dmin, 3),
                            webimg::PosNegColorMap::scale_both);
 
-    diff = nc.lapl_avg[0] - nc.lapl_avg[1];
-    minMaxLoc(diff, &dmin, &dmax);
-    diff_list.emplace_back("fulllapl-diff", "∇²avg0 – ∇²avg1", diff,
-                           "max: " + to_string_prec(dmax, 3) + ", " +
-                           "min: " + to_string_prec(dmin, 3),
-                           webimg::PosNegColorMap::scale_both);
+    for (unsigned i : {1, 2}) {
+        diff = nc.lapl_avg[i-1] - nc.lapl_avg[i];
+        minMaxLoc(diff, &dmin, &dmax);
+        diff_list.emplace_back("fulllapl-diff" + ((i > 1) ? to_string(i-1) : ""),
+                               "∇²avg" + to_string(i-1) + " – ∇²avg" + to_string(i), diff,
+                               "max: " + to_string_prec(dmax, 3) + ", " +
+                               "min: " + to_string_prec(dmin, 3),
+                               webimg::PosNegColorMap::scale_both);
+    }
     webimgs.push_back(diff_list);
 //     {
 //         int i=0;
