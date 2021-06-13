@@ -6,7 +6,9 @@ function toggleUpdate(img) {
 
 function reloadAllImages(imgs) {
     counter++;
-    document.getElementById('camera').src='thermocam-current.jpg?c=' + counter;
+    imgel = document.getElementById('camera');
+    if (imgel.complete)
+	imgel.src='thermocam-current.jpg?c=' + counter;
     let x = 1;
     webimgs = document.getElementById('webimgs');
     imgs.forEach((img_list) => {
@@ -23,7 +25,8 @@ function reloadAllImages(imgs) {
             }
 	    imgel = div.getElementsByTagName('img')[0];
 	    if (div.getElementsByTagName('input')[0].checked) {
-		imgel.src = `${img.name}.jpg?c=${counter}`;
+		if (imgel.complete)
+		    imgel.src = `${img.name}.jpg?c=${counter}`;
 		imgel.style.filter = "";
 	    } else {
 		imgel.style.filter = "grayscale(100%)";
