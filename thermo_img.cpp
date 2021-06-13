@@ -243,6 +243,18 @@ void thermo_img::pop_poi()
 
 void thermo_img::track(const thermo_img &ref, tracking track)
 {
+    double min, max;
+    minMaxLoc(rawtemp, &min, &max);
+    if (is) {
+        double temp_diff = is->get_temperature(max) - is->get_temperature(min);
+
+        // Switch tracking off when there is too small temperature
+        // difference. Tracking does not work well and the tracked
+        // points jump wildly everywhere.
+        if (temp_diff < 7.0)
+            track = tracking::off;
+    }
+
     switch (track) {
     case tracking::off:
         break;
