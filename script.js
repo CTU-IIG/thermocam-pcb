@@ -1,5 +1,9 @@
 var counter = 0;
 
+function toggleUpdate(img) {
+    img.parentElement.getElementsByTagName('input')[0].checked ^= 1;
+}
+
 function reloadAllImages(imgs) {
     counter++;
     document.getElementById('camera').src='thermocam-current.jpg?c=' + counter;
@@ -12,7 +16,7 @@ function reloadAllImages(imgs) {
             if (!div) {
 		div = document.createElement("div");
 		div.setAttribute("id", img.name)
-		div.innerHTML = `<h3>${img.title}</h3> <a href='${img.name}.tiff'>raw</a><input type="checkbox" checked=true><img/><div/>`;
+		div.innerHTML = `<h3>${img.title}</h3> <a href='${img.name}.tiff'>raw</a><input type="checkbox" checked=true><img onclick="toggleUpdate(this)" /><div/>`;
 		div.style.gridColumn = `${x}`;
 		div.style.gridRow = `${y}`;
 		webimgs.append(div);
