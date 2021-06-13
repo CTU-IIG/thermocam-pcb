@@ -12,12 +12,18 @@ function reloadAllImages(imgs) {
             if (!div) {
 		div = document.createElement("div");
 		div.setAttribute("id", img.name)
-		div.innerHTML = `<h3>${img.title}</h3> <a href='${img.name}.tiff'>raw</a><img/><div/>`;
+		div.innerHTML = `<h3>${img.title}</h3> <a href='${img.name}.tiff'>raw</a><input type="checkbox" checked=true><img/><div/>`;
 		div.style.gridColumn = `${x}`;
 		div.style.gridRow = `${y}`;
 		webimgs.append(div);
             }
-            div.getElementsByTagName('img')[0].src = `${img.name}.jpg?c=${counter}`;
+	    imgel = div.getElementsByTagName('img')[0];
+	    if (div.getElementsByTagName('input')[0].checked) {
+		imgel.src = `${img.name}.jpg?c=${counter}`;
+		imgel.style.filter = "";
+	    } else {
+		imgel.style.filter = "grayscale(100%)";
+	    }
             div.getElementsByTagName('div')[0].textContent = img.desc;
 	    y++;
 	});
