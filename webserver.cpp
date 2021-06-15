@@ -213,6 +213,9 @@ void Webserver::start()
     CROW_ROUTE(app, "/frame.txt")
         ([this]() { return to_string(frame_cnt); });
 
+    CROW_ROUTE(app, "/users.txt")
+        ([this]() { return to_string(users.size()); });
+
     CROW_ROUTE(app, "/<path>")
             ([this](const string &path) {
                 for (const auto &webimg_list : ti.get_webimgs()) {

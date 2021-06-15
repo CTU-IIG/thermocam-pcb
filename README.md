@@ -284,6 +284,7 @@ The following URLs are available:
   is not enabled.
 * `/uptime.txt` contains server uptime in secods.
 * `/frame.txt` contains the number of processed frames.
+* `/users.txt` the number of active websocket connections.
 
 ## Precision of temperature measurement
 
