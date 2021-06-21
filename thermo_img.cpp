@@ -253,14 +253,15 @@ void thermo_img::track(const thermo_img &ref, tracking track)
         // difference. Tracking does not work well and the tracked
         // points jump wildly everywhere.
         if (temp_diff < 7.0)
-            track = tracking::off;
+            track = poi.empty() ? tracking::copy : tracking::off;
     }
 
     switch (track) {
     case tracking::off:
         break;
     case tracking::copy:
-        poi = ref.poi; // just copy to reference points
+        poi = ref.poi; // just copy the reference points
+        heat_sources_border = ref.heat_sources_border;
         break;
     case tracking::sync:
         updateKpDesc();
