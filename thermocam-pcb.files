@@ -2,6 +2,7 @@ Base64.h
 arg-parse.cpp
 arg-parse.hpp
 crow_all.h
+custom_accumulators.hpp
 img_stream.cpp
 img_stream.hpp
 point-tracking.cpp

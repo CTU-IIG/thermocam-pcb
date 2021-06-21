@@ -4,6 +4,7 @@
 #include "point-tracking.hpp"
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/accumulators/statistics/rolling_count.hpp>
 #include "Base64.h"
 #include <iostream>
 #include <algorithm>
@@ -413,6 +414,13 @@ void thermo_img::calcHeatSources()
 
         list<webimg> detail_list {webimg("detail-current", "Detail", detail, ss.str())};
 
+        nc.det_var(MatAutoInit(detail)); // We have to convert the class to enforce use of overloaded operators
+        Mat det_stddev;
+        cv::sqrt(acc::rolling_variance(nc.det_var), det_stddev);
+
+        detail_list.emplace_back("detail-stddev", "Det. stddev n="+to_string(acc::rolling_count(nc.det_var)), det_stddev);
+
+
 //         for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
 //             nc.detail_avg[i] = alpha * nc.detail_avg[i] + (1-alpha) * detail;
 //             minMaxLoc(nc.detail_avg[i], &min, &max);
@@ -435,6 +443,11 @@ void thermo_img::calcHeatSources()
     double lap_max = get_max(laplacian);
     list<webimg> lapl_list { webimg("laplacian-current", "Laplacian", laplacian, "max: " + to_string_prec(lap_max, 3),
                                     webimg::PosNegColorMap::scale_max) };
+    nc.lap_var(MatAutoInit(laplacian)); // We have to convert the class to enforce use of overloaded operators
+    Mat lap_stddev;
+    cv::sqrt(acc::rolling_variance(nc.lap_var), lap_stddev);
+    lapl_list.emplace_back("laplacian-stddev", "Lap. stddev n="+to_string(acc::rolling_count(nc.lap_var)), lap_stddev);
+
     for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
         nc.lapl_avg[i] = alpha * nc.lapl_avg[i] + (1-alpha) * laplacian;
         lapl_list.emplace_back("lapl-avg" + to_string(i), "∇²avg"+to_string(i)+" α=" + to_string_ntz(alpha), nc.lapl_avg[i],

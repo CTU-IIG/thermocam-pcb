@@ -7,6 +7,8 @@
 #include "img_stream.hpp"
 #include <boost/accumulators/statistics/rolling_variance.hpp>
 #include <boost/accumulators/statistics/rolling_mean.hpp>
+#include <boost/accumulators/statistics/rolling_moment.hpp>
+#include "custom_accumulators.hpp"
 #include <opencv2/freetype.hpp>
 #include <list>
 #include <opencv2/imgproc.hpp>
@@ -111,6 +113,12 @@ private:
     struct MatAutoInit : public cv::Mat_<double> {
         MatAutoInit(double init_val = 0.0) : cv::Mat_<double>(100, 100, init_val) {};
         using cv::Mat_<double>::Mat_;
+
+        // To use boost::accumulators::rolling_variance, we need * to
+        // be per-element multiplication, not matrix multiplication
+        MatAutoInit operator*(const MatAutoInit& rhs) { return this->mul(rhs); }
+        // ... and  division should return the same type, not MatExpr.
+        MatAutoInit operator/(std::size_t rhs) { return *this / rhs; }
     };
 
     // these values are not copied to webserver
@@ -119,9 +127,18 @@ private:
         nocopy(const nocopy &nc) {} // noop copy constructor
         nocopy& operator=(const nocopy&) { return *this; } // noop copy assignment operator
 
-        // Acumulators for calculation of average images
+        // Acumulators for calculation of average images (we use lazy
+        // variant, because the immediate one does not work with
+        // cv::Mat, perhaps because it's not possible to nest
+        // cv::MatExpr, which would result from the calculations used
+        // by the immediate version)
         using acc_mat_rolling_mean = boost::accumulators::accumulator_set<MatAutoInit, boost::accumulators::stats<boost::accumulators::tag::lazy_rolling_mean>>;
         acc_mat_rolling_mean hs_acc {boost::accumulators::tag::rolling_window::window_size = 1000};
+
+
+        using acc_mat_rolling_var = boost::accumulators::accumulator_set<MatAutoInit, boost::accumulators::stats<boost::accumulators::tag::really_lazy_rolling_variance>>;
+        acc_mat_rolling_var det_var {boost::accumulators::tag::rolling_window::window_size = 100};
+        acc_mat_rolling_var lap_var {boost::accumulators::tag::rolling_window::window_size = 100};
 
         std::array<MatAutoInit, 3> detail_avg {7231, 7231, 7231}; // Default value ≅ 15°C
         std::array<MatAutoInit, 3> lapl_avg;
@@ -142,5 +159,6 @@ private:
 };
 
 cv::Mat drawPOI(cv::Mat in, cv::Ptr<cv::freetype::FreeType2> ft2, std::vector<POI> poi, draw_mode mode);
+
 
 #endif // THERMO_IMG_HPP
