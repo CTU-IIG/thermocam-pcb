@@ -1,5 +1,5 @@
 # thermocam-pcb
-Tool for measuring temperature of PCB board with WorksWell thermo camera.
+Tool for measuring temperature of PCB board with WorksWell thermal camera.
 
 <!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
 **Table of Contents**
@@ -46,7 +46,7 @@ You can find the official documentation of the WIC SDK at `https://software.work
 #### Download & prerequisites
 To download the WIC SDK installer, go to `software.workswell.eu/wic_sdk/Linux`. You need to enter your email to get the download link. Then extract and run the executable for your chosen distribution (`wic-sdk-1.2.1_Ubuntu16.06-x86_64_installer.run` for 64bit Ubuntu 16.04). 
 
-The packages `build-essential` and `libjpeg-dev` are requied to install the WIC SDK. The installer installs the WIC SDK and the eBUS SDK (required for the WIC SDK to work).
+The packages `build-essential` and `libjpeg-dev` are required to install the WIC SDK. The installer installs the WIC SDK and the eBUS SDK (required for the WIC SDK to work).
 
 #### Installation
 
@@ -232,7 +232,7 @@ Several tracking modes can be specified via an optional argument:
 - `-t`: Synchronous tracking of every frame; most likely decreases
   frame rate.
 - `-tonce`: Tracking is applied only to the first grabbed frame;
-	for later frames POI location remains constant.
+  for later frames POI location remains constant.
 - `-tbg`: Tracking is computed in background. This results in full
   frame rate, but when the board/camera moves, POI-related data may be
   incorrect for a few frames.
@@ -282,7 +282,7 @@ The following URLs are available:
 * `/position-std.txt` returns the current rolling standard deviations
   of POI positions in `name=position` format, which is 0 if tracking
   is not enabled.
-* `/uptime.txt` contains server uptime in secods.
+* `/uptime.txt` contains server uptime in seconds.
 * `/frame.txt` contains the number of processed frames.
 * `/users.txt` the number of active websocket connections.
 
