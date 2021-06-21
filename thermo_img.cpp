@@ -636,7 +636,8 @@ thermo_img::webimg::webimg(string name, string title, const Mat &mat, string des
 {
     double min, max;
     minMaxLoc(mat, &min, &max);
-    //html_desc = to_string(min) + "–" + to_string(max);
+    if (html_desc.empty())      // default desc
+        html_desc = "max: " + to_string_prec(max, 3) + ", min: " + to_string_prec(min, 3);
 }
 
 Mat thermo_img::webimg::normalize(Mat in, enum ColormapTypes cmap)
