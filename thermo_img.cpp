@@ -422,18 +422,29 @@ void thermo_img::calcHeatSources()
         detail_list.emplace_back("detail-stddev", "Det. stddev n="+to_string(acc::rolling_count(nc.det_var)), det_stddev);
 
 
-//         for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
-//             nc.detail_avg[i] = alpha * nc.detail_avg[i] + (1-alpha) * detail;
-//             minMaxLoc(nc.detail_avg[i], &min, &max);
-//             ss.str(""s);
-//             ss << fixed << setprecision(2) << get_temperature(max) << "–" << get_temperature(min) << "=" <<
-//                 get_temperature(max) - get_temperature(min) << "°C";
-//             detail_list.emplace_back("detail-avg" + to_string(i), "D. avg"+to_string(i)+" α=" + to_string_ntz(alpha),
-//                                      nc.detail_avg[i], ss.str());
-//         }
+        for (auto [i, alpha] : { make_pair(0U, 0.9), {1, 0.99}, {2, 0.997} }) {
+            nc.detail_avg[i] = alpha * nc.detail_avg[i] + (1-alpha) * detail;
+            minMaxLoc(nc.detail_avg[i], &min, &max);
+            ss.str(""s);
+            ss << fixed << setprecision(2) << get_temperature(max) << "–" << get_temperature(min) << "=" <<
+                get_temperature(max) - get_temperature(min) << "°C";
+            detail_list.emplace_back("detail-avg" + to_string(i), "D. avg"+to_string(i)+" α=" + to_string_ntz(alpha),
+                                     nc.detail_avg[i], ss.str());
+        }
+
+        {
+            const double alpha = 0.997;
+            if (raw_avg.empty())
+                raw_float.copyTo(raw_avg);
+            else
+                raw_avg = alpha * raw_avg + (1-alpha) * raw_float;
+
+            detail_list.emplace_back("raw-avg", "raw avg. α=" + to_string_ntz(alpha), raw_avg);
+        }
 
         webimgs.emplace_back(detail_list);
     }
+
 
 
     Mat blur, laplacian, hsImg;
