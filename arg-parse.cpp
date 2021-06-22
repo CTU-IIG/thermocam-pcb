@@ -70,6 +70,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
     case 'w':
         args.webserver_active = true;
         break;
+    case OPT_COMPENZATION_IMG:
+        args.compenzation_img = arg;
+        break;
     case ARGP_KEY_END:
         if (args.license_dir.empty())
             args.license_dir = ".";
@@ -101,6 +104,7 @@ static struct argp_option options[] = {
     { "heat-sources",    'h', "PT_LIST",     0, "Enables heat sources detection. PT_LIST is a comma separated list of names of 4 points (specified with -p) that define detection area. Implies -t."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { "webserver",       'w', 0,             0, "Start webserver to display image and temperatures."},
+    { "compenzation-img", OPT_COMPENZATION_IMG, "FILE", 0, "Compenzation image (to subtract from grabbed image)"},
     { 0 }
 };
 

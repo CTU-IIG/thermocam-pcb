@@ -60,6 +60,10 @@ public:
         static cv::Mat normalize(cv::Mat mat, PosNegColorMap pn);
     };
 
+    thermo_img(cv::Mat_<double> compenzation_img = {});
+    thermo_img(const thermo_img&) = default;
+    thermo_img& operator =(const thermo_img&) = default;
+
     void update(img_stream &is);
 
     void draw_preview(draw_mode mode, cv::Ptr<cv::freetype::FreeType2> ft2);
@@ -106,6 +110,8 @@ private:
     cv::Mat_<uint16_t> rawtemp;
     cv::Mat preview;
     cv::Mat gray;
+    cv::Mat_<double> compenzation_img;
+    cv::Mat_<double> raw_avg;
 
     std::list<std::list<webimg>> webimgs;
     std::vector<HeatSource> hs;

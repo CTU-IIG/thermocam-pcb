@@ -353,8 +353,14 @@ int main(int argc, char **argv)
         exit(0);
     }
 
+    Mat_<double> compenzation_img;
+    if (args.compenzation_img.size() > 0) {
+        compenzation_img = cv::imread(args.compenzation_img, IMREAD_UNCHANGED);
+        compenzation_img -= mean(compenzation_img);
+    }
+
     img_stream is(args.vid_in_path, args.license_dir);
-    thermo_img ref, curr;
+    thermo_img ref, curr(compenzation_img);
     setRefStatus(ref, is, args.poi_import_path, args.tracking != cmd_arguments::tracking::off,
                  args.heat_sources_border_points);
 

@@ -9,6 +9,7 @@ enum opt {
     OPT_FOURCC = 1000,
     OPT_SAVE_IMG_DIR,
     OPT_SAVE_IMG_PER,
+    OPT_COMPENZATION_IMG,
 };
 
 /* Command line options */
@@ -30,6 +31,7 @@ struct cmd_arguments{
     enum class tracking {on, off, once, background};
     tracking tracking = tracking::off;
     std::string heat_sources_border_points;
+    std::string compenzation_img;
 };
 
 extern struct argp argp;

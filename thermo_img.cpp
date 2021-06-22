@@ -23,6 +23,11 @@ string POI::to_string(bool print_name)
     return ss.str();
 }
 
+thermo_img::thermo_img(cv::Mat_<double> compenzation_img)
+    : compenzation_img(compenzation_img)
+{
+}
+
 void thermo_img::update(img_stream &is)
 {
     is.get_image(rawtemp);
@@ -404,6 +409,11 @@ void thermo_img::calcHeatSources()
     Mat transform = getPerspectiveTransform(heat_sources_border, detail_rect);
     Mat raw_float, detail;
     rawtemp.convertTo(raw_float, CV_64F);
+
+    if (!compenzation_img.empty()) {
+        raw_float -= compenzation_img;
+    }
+
     warpPerspective(raw_float, detail, transform, sz);
     {
         double min, max;

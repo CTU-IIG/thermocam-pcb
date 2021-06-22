@@ -300,6 +300,8 @@ temperature. Writes the temperatures of entered POIs to stdout.
 
   -c, --csv-log=FILE         Log temperature of POIs to a csv file instead of
                              printing them to stdout.
+      --compenzation-img=FILE   Compenzation image (to subtract from grabbed
+                             image)
   -d, --delay=NUM            Set delay between each measurement/display in
                              seconds.
   -e, --enter-poi[=FILE]     Enter Points of interest by hand, optionally save
