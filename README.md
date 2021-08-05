@@ -1,5 +1,8 @@
 # thermocam-pcb
-Tool for measuring temperature of PCB board with WorksWell thermal camera.
+Tool for measuring temperature of PCB board with WorksWell thermal camera and for detection of heat sources.
+
+The web interface of this program in action is shown below. You can see the workload migrating between two CPUs every 1 second.
+![thermocam-pcb](https://user-images.githubusercontent.com/140542/128368657-89a24322-7181-4b47-893c-71b7a0477037.gif)
 
 <!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
 **Table of Contents**
