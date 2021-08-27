@@ -1,0 +1,15 @@
+name = "ThermocamPCB"
+uuid = "bb3c410e-45c4-4b29-8548-4414a5014acc"
+authors = ["Michal Sojka <michal.sojka@cvut.cz>"]
+version = "0.1.0"
+
+[deps]
+ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
+ColorVectorSpace = "c3611d14-8923-5661-9e6a-0046d554d3a4"
+Colors = "5ae59095-9a9b-59fe-a467-6f913c188581"
+Gnuplot = "dc211083-a33a-5b79-959f-2ff34033469d"
+ImageTransformations = "02fcd773-0e25-5acc-982a-7f6622650795"
+Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
+Pipe = "b98c9c47-44ae-5843-9183-064241ee97a0"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+TiffImages = "731e570b-9d59-4bfa-96dc-6df516fadf69"

@@ -289,6 +289,9 @@ The following URLs are available:
 * `/frame.txt` contains the number of processed frames.
 * `/users.txt` the number of active websocket connections.
 
+The `.tiff` images downloaded from the web server can be processed by
+[ThermocamPCB Julia package](./julia).
+
 ## Precision of temperature measurement
 
 The [WIC specifications](https://workswell-thermal-camera.com/workswell-infrared-camera-wic) state a measurement accuracy of ±2°C. If the measurement accuracy is lower than this, check that that the thermal emissivity of the measured object is equal to the value set in the WIC SDK - 0.95 by default. Masking the surface with black electrical insulating tape achieves an emissivity of 0.95-0.97.
