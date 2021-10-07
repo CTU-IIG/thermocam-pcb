@@ -316,7 +316,8 @@ temperature. Writes the temperatures of entered POIs to stdout.
                              MJPG, h264), default: HFYU
   -h, --heat-sources=PT_LIST Enables heat sources detection. PT_LIST is a comma
                              separated list of names of 4 points (specified
-                             with -p) that define detection area. Implies -t.
+                             with -p) that define detection area. In most
+                             cases, you'll want to enable -t too.
   -l, --license-dir=FILE     Path to directory containing WIC license file.
                              "." by default.
   -p, --poi-path=FILE        Path to config file containing saved POIs.

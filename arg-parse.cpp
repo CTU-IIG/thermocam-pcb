@@ -55,8 +55,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         }
         break;
     case 'h':
-        if (args.tracking == cmd_arguments::tracking::off)
-            args.tracking = cmd_arguments::tracking::on;
         args.heat_sources_border_points = arg;
         break;
     case OPT_SAVE_IMG_DIR:
@@ -101,7 +99,7 @@ static struct argp_option options[] = {
     { "save-img-period", OPT_SAVE_IMG_PER, "SECS", 0, "Period for saving an image with POIs to \"save-img-dir\".\n1s by default."},
     { "track-points",    't', "once",        OPTION_ARG_OPTIONAL, "Turn on tracking of points. If \"once\" is specified, tacking happens only for the first image. "
                                                                   "This allows faster processing if the board doesn't move. If \"bg\" is specified, calculations run in a background thread."},
-    { "heat-sources",    'h', "PT_LIST",     0, "Enables heat sources detection. PT_LIST is a comma separated list of names of 4 points (specified with -p) that define detection area. Implies -t."},
+    { "heat-sources",    'h', "PT_LIST",     0, "Enables heat sources detection. PT_LIST is a comma separated list of names of 4 points (specified with -p) that define detection area. In most cases, you'll want to enable -t too."},
     { "delay",           'd', "NUM",         0, "Set delay between each measurement/display in seconds."},
     { "webserver",       'w', 0,             0, "Start webserver to display image and temperatures."},
     { "compenzation-img", OPT_COMPENZATION_IMG, "FILE", 0, "Compenzation image (to subtract from grabbed image)"},
