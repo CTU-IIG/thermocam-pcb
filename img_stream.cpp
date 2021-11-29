@@ -3,16 +3,18 @@
 #include <opencv2/imgproc.hpp>
 #include <unistd.h>
 #include <fcntl.h>
+#include <iostream>
 
 using namespace cv;
 using namespace std;
 
-img_stream::img_stream(string vid_in_path, string license_dir)
+img_stream::img_stream(string vid_in_path, string license_file)
     : tmp(0)
 #ifdef WITH_WIC_SDK
     , is_video(!vid_in_path.empty())
-    , cc(init_camera_center(license_dir))
-    , camera(init_camera())
+    , license(license_file)
+    , wic(init_wic())
+    , grabber(init_grabber())
 #endif
     // In case of video, set the same values as those returned by our camera
     , min_rawtemp(is_video ? 7231 : findRawtempC(RECORD_MIN_C))
@@ -22,10 +24,6 @@ img_stream::img_stream(string vid_in_path, string license_dir)
         if (access(vid_in_path.c_str(), F_OK) == -1) // File does not exist
             throw runtime_error("Video open: " + vid_in_path);
         video = new VideoCapture(vid_in_path);
-    } else {
-#ifdef WITH_WIC_SDK
-        camera->startAcquisition();
-#endif
     }
 }
 
@@ -35,10 +33,8 @@ img_stream::~img_stream()
         delete video;
     } else {
 #ifdef WITH_WIC_SDK
-        camera->stopAcquisition();
-        camera->disconnect();
-        camera = nullptr;
-        delete cc;
+        grabber = nullptr;
+        delete wic;
 #endif
     }
 }
@@ -50,9 +46,9 @@ std::vector<std::pair<string, double> > img_stream::getCameraComponentTemps()
                                                       { "camera_housing", 0 } };
     if (!is_video) {
 #ifdef WITH_WIC_SDK
-        v[0].second = camera->getSettings()->getShutterTemperature();
-        v[1].second = camera->getSettings()->getSensorTemperature();
-        v[2].second = camera->getSettings()->getHousingTemperature();
+        v[0].second = wic->getCameraTemperature(wic::CameraTemperature::ShutterTemp).second.value_or(0.0);
+        v[1].second = wic->getCameraTemperature(wic::CameraTemperature::SensorTemp).second.value_or(0.0);
+        v[2].second = wic->getCameraTemperature(wic::CameraTemperature::HousingTemp).second.value_or(0.0);
 #endif
     }
     return v;
@@ -74,30 +70,20 @@ void img_stream::get_image(Mat_<uint16_t> &result)
                        min_rawtemp);
     } else {
 #ifdef WITH_WIC_SDK
-        if (camera->getSettings()->doNothing() < 0) {
-            camera->disconnect();
+        if (!grabber->isConnected()) {
             err(1,"Lost connection to camera, exiting.");
         }
-        int height = camera->getSettings()->getResolutionY();
-        int width = camera->getSettings()->getResolutionX();
-        uint16_t *tmp = (uint16_t *)camera->retrieveBuffer();
-        result.create(height, width);
-        memcpy(result.data, tmp, result.total()*result.elemSize());
-        camera->releaseBuffer();
 
-        static uint16_t *last_buffer = NULL;
-        static unsigned same_buffer_cnt = 0;
-        if (tmp == last_buffer) {
-            if (same_buffer_cnt++ > 10) {
-                warnx("Frozen frame detected!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                camera->stopAcquisition();
-                camera->startAcquisition();
-                same_buffer_cnt = 0;
-            }
-        } else {
-            last_buffer = tmp;
-            same_buffer_cnt = 0;
-        }
+        // sensor temp should be polled often
+	auto coreTemp = wic->getCameraTemperature(wic::CameraTemperature::SensorTemp);
+        vector<uint8_t> buffer = grabber->getBuffer(1000);
+        auto buffer16 = reinterpret_cast<uint16_t*>(buffer.data());
+        wic->calibrateRawInplace(buffer16, buffer.size() / 2, coreTemp.second.value_or(0));
+
+        auto [width, height] = wic->getResolution();
+        result.create(height, width);
+        memcpy(result.data, buffer.data(),
+               std::min(result.total()*result.elemSize(), buffer.size()));
 #endif
     }
 }
@@ -109,42 +95,83 @@ double img_stream::get_temperature(uint16_t pixel_value)
                 (RECORD_MAX_C - RECORD_MIN_C) *
                 double(pixel_value - min_rawtemp) / (max_rawtemp - min_rawtemp);
 #ifdef WITH_WIC_SDK
-    else
-        return camera->calculateTemperatureC(pixel_value);
+    else {
+        // TODO: Do we need to call getCurrentTemperatureResolution
+        // for every pixel? Currently, it doesn't seem to be
+        // performance critical, but still...
+        auto tempRes = wic->getCurrentTemperatureResolution();
+        return wic::rawToCelsius(pixel_value, tempRes);
+    }
 #endif
 }
 
 #ifdef WITH_WIC_SDK
-CameraCenter *img_stream::init_camera_center(string license_dir)
+wic::WIC *img_stream::init_wic()
 {
-    return is_video ? nullptr : new CameraCenter(license_dir);
+    if (!license.isOk())
+        errx(1, "wic license invalid");
+
+    auto wic = wic::findAndConnect(license);
+
+    auto defaultRes = wic->doDefaultWICSettings();
+    if (defaultRes.first != wic::ResponseStatus::Ok) {
+        std::cerr << "DoDefaultWICSettings error: "
+                  << wic::responseStatusToStr(defaultRes.first) << std::endl;
+        exit(1);
+    }
+
+    auto resolution = wic->getResolution();
+    if (resolution.first == 0 || resolution.second == 0) {
+        std::cerr << "Invalid resolution, core detection error." << std::endl;
+        exit(1);
+    }
+
+    auto rangeAndLens = wic->getRangeAndLens();
+
+    // if no lens were detected, set desired lens from license file
+    // this may take a few minutes, especially with validateMemory flag on
+    if (rangeAndLens.second.empty() &&
+        !license.calibrationData().lensCalibrationData().empty()) {
+        auto lens =
+            license.calibrationData().lensCalibrationData().begin()->lens();
+        cerr << "wic::setRangeAndLensRes..." << endl;
+        auto setRangeAndLensRes =
+            wic->setRangeAndLens(wic::Range::Low, lens, false, false);
+
+        if (setRangeAndLensRes.second) {
+            std::cerr << "Errors occurred while uploading calibration. " << wic::responseStatusToStr(setRangeAndLensRes.first)
+                      << std::endl
+                      << "lens: " << lens << "; error count: "
+                      << setRangeAndLensRes.second.value_or(0) << " out of "
+                      << 2 * resolution.first * resolution.second / 128 << endl;
+            exit(1);
+        }
+        cerr << "done" << endl;
+    }
+    return is_video ? nullptr : wic;
 }
 
-Camera *img_stream::init_camera()
+wic::FrameGrabber *img_stream::init_grabber()
 {
     if (is_video)
         return nullptr;
 
-    if (!cc || cc->getCameras().size() == 0)
+    if (!wic)
         err(1,"No camera found");
 
-    Camera *c = cc->getCameras().at(0);
-    if (!c || c->connect() != 0)
+    wic::FrameGrabber *grabber = wic->frameGrabber();
+    if (!grabber)
         errx(1,"Error connecting camera");
 
-    return c;
+    grabber->setup();
+
+    return grabber;
 }
 
-// Find the closest raw value corresponding to a Celsius temperature
-// Linear search for simplicity
-// Only use for initialization, or rewrite to log complexity!
-uint16_t img_stream::findRawtempC(double temp)
+uint16_t img_stream::findRawtempC(double celsius)
 {
-    uint16_t raw;
-    for (raw = 0; raw <= UINT16_MAX; raw++)
-        if (camera->calculateTemperatureC(raw) >= temp)
-            return raw;
-    return UINT16_MAX;
+    auto tempRes = wic->getCurrentTemperatureResolution();
+    return wic::celsiusToRaw(celsius, tempRes);
 }
 #else
 uint16_t img_stream::findRawtempC(double temp) { return 0; }

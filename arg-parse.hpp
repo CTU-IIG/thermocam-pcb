@@ -18,7 +18,7 @@ struct cmd_arguments{
     std::string poi_export_path;
     std::string poi_import_path;
     std::string show_poi_path;
-    std::string license_dir;
+    std::string license_file;
     std::string vid_in_path;
     std::string vid_out_path;
     std::string fourcc = "HFYU";

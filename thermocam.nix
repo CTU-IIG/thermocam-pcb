@@ -6,7 +6,7 @@
 , pkg-config
 , boost
 , zlib
-, with_wic ? true, wic_sdk, ebus_sdk
+, with_wic ? true, wic_sdk, ebus_sdk, tbb
 , usbutils
 , nix-gitignore
 , systemd
@@ -32,6 +32,7 @@ stdenv.mkDerivation {
   ] ++ lib.optionals with_wic [
     ebus_sdk
     wic_sdk
+    tbb
   ];
   preConfigure = ''
     patchShebangs file2cpp

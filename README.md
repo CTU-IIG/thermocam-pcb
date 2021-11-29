@@ -320,8 +320,7 @@ temperature. Writes the temperatures of entered POIs to stdout.
                              separated list of names of 4 points (specified
                              with -p) that define detection area. In most
                              cases, you'll want to enable -t too.
-  -l, --license-dir=FILE     Path to directory containing WIC license file.
-                             "." by default.
+  -l, --license-file=FILE    Path of WIC license file.
   -p, --poi-path=FILE        Path to config file containing saved POIs.
   -r, --record-video=FILE    Record video and store it with entered filename
   -s, --show-poi=FILE        Show camera image taken at saving POIs.

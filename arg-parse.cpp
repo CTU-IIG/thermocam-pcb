@@ -21,7 +21,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         args.show_poi_path = arg;
         break;
     case 'l':
-        args.license_dir = arg;
+        args.license_file = arg;
         break;
     case 'r':
         args.vid_out_path = arg;
@@ -72,8 +72,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *argp_state)
         args.compenzation_img = arg;
         break;
     case ARGP_KEY_END:
-        if (args.license_dir.empty())
-            args.license_dir = ".";
         if (args.save_img && args.save_img_dir.empty())
             args.save_img_dir = ".";
         if (args.save_img &&args.save_img_period == 0)
@@ -90,7 +88,7 @@ static struct argp_option options[] = {
     { "enter-poi",       'e', "FILE",        OPTION_ARG_OPTIONAL, "Enter Points of interest by hand, optionally save them to json file at supplied path." },
     { "poi-path",        'p', "FILE",        0, "Path to config file containing saved POIs." },
     { "show-poi",        's', "FILE",        0, "Show camera image taken at saving POIs." },
-    { "license-dir",     'l', "FILE",        0, "Path to directory containing WIC license file.\n\".\" by default." },
+    { "license-file",    'l', "FILE",        0, "Path of WIC license file." },
     { "record-video",    'r', "FILE",        0, "Record video and store it with entered filename"},
     { "fourcc",          OPT_FOURCC, "CODE", 0, "4-letter code for video codec used by -r (e.g. MJPG, h264), default: HFYU"},
     { "load-video",      'v', "FILE",        0, "Load and process video instead of camera feed"},

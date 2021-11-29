@@ -7,11 +7,11 @@ cxx = meson.get_compiler('cpp')
 # Get rid of some warnings from WIC SDK and Crow
 add_global_arguments('-Wno-unknown-pragmas', '-Wno-non-virtual-dtor', language : 'cpp')
 
-if cxx.has_header('CameraCenter.h', args : '-I@0@/include'.format(get_option('wic_home')))
+if cxx.has_header('wic/wic.h', args : '-I@0@/include'.format(get_option('wic_home')))
 
   if cxx.has_header('EbVersion.h', args : '-I@0@/include'.format(get_option('ebus_home')))
     libs = []
-    foreach lib : 'PvBase PvDevice PvBuffer PvGenICam PvTransmitter PvVirtualDevice PvAppUtils PvPersistence PvSerial PvStream'.split()
+    foreach lib : 'PvBase PvDevice PvBuffer PvGenICam PvTransmitter PvVirtualDevice PvAppUtils PvPersistence PvSerial PvStream PvSystem'.split()
       libs += cxx.find_library(lib, dirs : '@0@/lib'.format(get_option('ebus_home')))
     endforeach
     ebus_dep = declare_dependency(
@@ -29,9 +29,9 @@ if cxx.has_header('CameraCenter.h', args : '-I@0@/include'.format(get_option('wi
   wic_dep = declare_dependency(
     include_directories : include_directories(get_option('wic_home') / 'include'),
     dependencies : [
-      cxx.find_library('WIC_SDK', dirs : '@0@/lib'.format(get_option('wic_home'))),
-      cxx.find_library('WT-lib', dirs : '@0@/lib'.format(get_option('wic_home'))),
+      cxx.find_library('WIC', dirs : '@0@/lib'.format(get_option('wic_home'))),
       ebus_dep,
+      dependency('tbb'),
     ],
     compile_args : [ '-DWITH_WIC_SDK' ],
   )

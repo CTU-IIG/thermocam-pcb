@@ -361,7 +361,7 @@ int main(int argc, char **argv)
         compenzation_img -= mean(compenzation_img);
     }
 
-    img_stream is(args.vid_in_path, args.license_dir);
+    img_stream is(args.vid_in_path, args.license_file);
     thermo_img ref, curr(compenzation_img);
     setRefStatus(ref, is, args.poi_import_path, args.tracking != cmd_arguments::tracking::off,
                  args.heat_sources_border_points);

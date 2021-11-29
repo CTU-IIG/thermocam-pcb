@@ -5,7 +5,7 @@ Description=Thermocam PCB
 Restart=always
 RestartSec=5
 Environment="LD_LIBRARY_PATH=@WIC_HOME@/lib:@EBUS_HOME@/lib:@EBUS_HOME@/lib/genicam/bin/Linux64_x64:@OPENCV_HOME@/lib" "GENICAM_ROOT_V3_0=@EBUS_HOME@/lib/genicam"
-ExecStart=@PREFIX@/bin/thermocam-pcb -l %h/thermocam-pcb -p %h/thermocam-pcb/points.json --save-img-dir=%h/thermocam-pcb/img-log --save-img-period=60 -w --heat-sources=tl,tr,br,bl --track-points=bg --compenzation-img=%h/thermocam-pcb/raw-avg.tiff
+ExecStart=@PREFIX@/bin/thermocam-pcb -l %h/thermocam-pcb/license_163C1908.wlic -p %h/thermocam-pcb/points.json --save-img-dir=%h/thermocam-pcb/img-log --save-img-period=60 -w --heat-sources=tl,tr,br,bl --track-points=bg --compenzation-img=%h/thermocam-pcb/raw-avg.tiff
 ExecStopPost=/usr/bin/env usbreset 28b7:0001
 #StandardOutput=null
 WatchdogSec=60

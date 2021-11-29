@@ -2,7 +2,10 @@
 #define IMG_STREAM_HPP
 
 #ifdef WITH_WIC_SDK
-#include "CameraCenter.h"
+#include <wic/calibrationdata.h>
+#include <wic/camerafinder.h>
+#include <wic/framegrabber.h>
+#include <wic/wic.h>
 #endif
 #include <opencv2/videoio.hpp>
 #include <vector>
@@ -13,9 +16,12 @@
 #define RECORD_MIN_C 15
 #define RECORD_MAX_C 120
 
+// TODO: Split this class to camera dependent and independent parts.
+// Ideally we want to support different thermal cameras.
+
 struct img_stream {
 public:
-    img_stream(std::string vid_in_path, std::string license_dir);
+    img_stream(std::string vid_in_path, std::string license_file);
     ~img_stream();
 
     std::vector<std::pair<std::string, double>> getCameraComponentTemps();
@@ -34,8 +40,9 @@ private:
     bool is_video = true;
     cv::VideoCapture *video = nullptr;
 #ifdef WITH_WIC_SDK
-    CameraCenter *cc = nullptr;
-    Camera *camera = nullptr;
+    wic::LicenseFile license;
+    wic::WIC *wic = nullptr;
+    wic::FrameGrabber *grabber = nullptr;
 #endif
 
 public:
@@ -44,8 +51,8 @@ public:
 
 private:
 #ifdef WITH_WIC_SDK
-    CameraCenter *init_camera_center(std::string license_dir);
-    Camera *init_camera();
+    wic::WIC *init_wic();
+    wic::FrameGrabber *init_grabber();
 #endif
     uint16_t findRawtempC(double temp);
 };
