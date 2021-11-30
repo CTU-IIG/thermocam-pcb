@@ -12,7 +12,7 @@ The web interface of this program in action is shown below. You can see the work
     - [WIC SDK](#wic-sdk)
         - [Download & prerequisites](#download--prerequisites)
         - [Installation](#installation)
-        - [Environment setup](#environment-setup)
+        - [Environment variables](#environment-variables)
     - [OpenCV](#opencv)
     - [Webserver](#webserver)
 - [Compilation](#compilation)
@@ -24,7 +24,7 @@ The web interface of this program in action is shown below. You can see the work
     - [Changing between views](#changing-between-views)
     - [Point tracking](#point-tracking)
     - [Heat source detection in a defined area](#heat-source-detection-in-a-defined-area)
-    - [Access webserver](#access-webserver)
+    - [Built-in webserver](#built-in-webserver)
 - [Precision of temperature measurement](#precision-of-temperature-measurement)
 - [Command line reference](#command-line-reference)
 
@@ -35,11 +35,12 @@ The web interface of this program in action is shown below. You can see the work
 
 ### Operating System
 
-32/64b x86  Linux, preferably Ubuntu 16.04, for maximum compatibility with the eBUS SDK. 
-
-Alternatively, we recommend to use the [Nix][] package manager, which
-can be used on any Linux distribution. If you use Nix, skip to
-[Building and deploying with Nix](#building-and-deploying-with-nix).
+WIC SDK for x86 seems to be supported only on *Ubuntu 16.04* due to
+requirements of the eBUS SDK. Since Ubuntu 16.04 is no longer
+officially supported, we recommend to use the [Nix][] package manager,
+which can be used on any Linux distribution and solves all dependency
+problems. If you use Nix, skip to [Building and deploying with
+Nix](#building-and-deploying-with-nix).
 
 [Nix]: https://nixos.org/
 
@@ -49,59 +50,31 @@ You can find the official documentation of the WIC SDK at `https://software.work
 
 #### Download & prerequisites
 
-To download the WIC SDK installer, go to `software.workswell.eu/wic_sdk/Linux`. You need to enter your email to get the download link. Then extract and run the executable for your chosen distribution (`wic-sdk-1.2.1_Ubuntu16.06-x86_64_installer.run` for 64bit Ubuntu 16.04). 
+Download the [WIC SDK](https://software.workswell.eu/wic_sdk/Linux).
+You need to enter your email to get the download link.
 
-The packages `build-essential` and `libjpeg-dev` are required to install the WIC SDK. The installer installs the WIC SDK and the eBUS SDK (required for the WIC SDK to work).
+The packages `build-essential` and `libjpeg-dev` are required to
+install the WIC SDK. The installer installs the WIC SDK and the eBUS
+SDK (required for the WIC SDK to work).
 
 #### Installation
 
-All files are installed in /opt folder.
+Extract the downloaded `WIC_SDK_Linux.zip` archive and install the
+eBUS SDK by running:
 
-* The WIC SDK is found in folder: /opt/workswell/wic_sdk
-* The eBUS SDK is found in folder: /opt/pleora/ebus_sdk/YOUR_LINUX_DISTRIBUTION
+    sudo dpkg -i eBUS_SDK_Ubuntu-x86_64-5.1.10-4642.deb
 
-During the installation of the eBUS SDK:
 
-* Select to add eBUS libraries to the path
-* Don't install eBUS for Ethernet
-* Select to install the eBUS daemon
+Install other needed packages:
 
- You can select for manual or automatic startup of the daemon - if you select manual, don't forget to run `service eBUSd start` before running the program.
+    apt install build-essential libjpeg-dev libboost-dev libtbb-dev
 
-If you selected `auto` running during installation, the daemon may still not start properly on startup. You may check its status with `systemctl status eBUSd`. If status shows "inactive (dead)", add runlevels at the following line to the daemon script located in `/etc/init.d/eBUSd`: 
+#### Environment variables
 
-`Default-Start:     2 3 4 5`
-
-Adding runlevels to the script will enable `update-rc.d` to work with it. Make sure to run `sudo update-rc.d eBUSd defaults` and `sudo update-rc.d eBUSd enable` afterwards so the daemon runs at startup.
-
-#### Environment setup
-
-You need to set up your environment variables to run the program and use the WIC and eBUS SDKs. Run `/opt/workswell/wic_sdk/set_env_variables` to do so.
-
-For me the script did not set all environment variables correctly. If this is the case for you, you may try use the `build/run` script produced by meson, which sets up the environment according to the meson configuration and runs the compiled binary.
-
-Alternatively, write the script yourself according to the following (make sure to enter the folder name with your Linux distribution in the second command):
-
-```
-LD_LIBRARY_PATH=/opt/workswell/wic_sdk/lib:${LD_LIBRARY_PATH}
-
-export PUREGEV_ROOT=/opt/pleora/ebus_sdk/YOUR_LINUX_DISTRIBUTION
-export GENICAM_ROOT=$PUREGEV_ROOT/lib/genicam
-export GENICAM_ROOT_V2_4=$GENICAM_ROOT
-export GENICAM_LOG_CONFIG=$GENICAM_ROOT/log/config/DefaultLogging.properties
-export GENICAM_LOG_CONFIG_V2_4=$GENICAM_LOG_CONFIG
-if [ "$HOME" = "/" ]; then
-export GENICAM_CACHE_V2_4=/.config/Pleora/genicam_cache_v2_4
-else
-export GENICAM_CACHE_V2_4=$HOME/.config/Pleora/genicam_cache_v2_4
-fi
-export GENICAM_CACHE=$GENICAM_CACHE_V2_4
-export GENICAM_LIB_DIR=$GENICAM_ROOT/bin/Linux64_x64
-mkdir -p $GENICAM_CACHE
-export GENICAM_ROOT_V3_0=$GENICAM_ROOT
-```
-
-Whichever solution works for you, you may want to insert it into your .bashrc to be loaded each time the console starts.
+You need to set up your environment variables to run the programs
+using the WIC and eBUS SDKs. Correct values of the needed variables
+will be found in the [`./run`](./run.in) script. After compiling
+thermocam-pcb, it will be located at `build/run`.
 
 ### OpenCV
 
@@ -125,9 +98,9 @@ To compile the program, run:
 	ninja -C build
 
 Useful `options` are:
-- `-Dpkg_config_path=$HOME/opt/opencv-2.4/lib/pkgconfig` to specify
+- `-Dpkg_config_path=$HOME/opt/opencv-4.5.4/lib/pkgconfig` to specify
   path to specific OpenCV installation.
-- `-Debus_home=` or `-Dwic_home` to specify paths to the WIC SDK
+- `-Debus_home=` or `-Dwic_home` to specify paths to the eBUS and WIC SDKs
 - `-Dcpp_link_args=-static-libstdc++` if you compile on a system with
   newer libstdc++ and running the resulting binary on the target
   systems fails with: /usr/lib/x86_64-linux-gnu/libstdc++.so.6:
@@ -136,19 +109,20 @@ Useful `options` are:
 
 ## Building and deploying with Nix
 
-Compiling thermocam-pcb with Nix package manager is simpler than the
-above procedure, as Nix automatically handles all the dependencies.
+Compiling thermocam-pcb with the Nix package manager is simpler than
+the above procedure, as Nix automatically handles all the
+dependencies.
 
 1. Install Nix, e.g. `sh <(curl -L https://nixos.org/nix/install) --daemon`
 2. (optional) Enable THERMAC binary cache to get prebuilt OpenCV
    - `nix-env -iA cachix -f https://cachix.org/api/v1/install`
    - `cachix use thermac`
 3. Add WIC SDK to the nix store:
-   - `nix-store --add-fixed sha256 wic-sdk-1.2.1_Ubuntu16.06-x86_64_installer.run`
+   - `nix-store --add-fixed WIC_SDK_Linux.zip`
 4. Run `nix-build`
 5. Run the program with `./result/bin/run` or `./result/bin/thermocam-pcb`.
 
-To deploy the compiled program to the turbot board (where the camera
+To deploy the compiled program to the turbot board (where our camera
 is connected) run:
 
 1. Copy the program and all dependencies to turbot:
@@ -172,15 +146,14 @@ is connected) run:
 
 ### Basic functionality
 
-To simply display the thermocamera image, run the program without any arguments:
+To simply display the thermocamera image, run the program and specify
+the WIC camera license file:
 
-    ./build/thermocam-pcb
+    ./build/thermocam-pcb -l license_XXXXXXXX.wlic
 
 or
 
-    ./build/run
-
-This requires the WIC license file to be in the current directory. If your license file is elsewhere, you need to specify its directory with `--license-dir` to be able to use the camera.
+    ./build/run -l license_XXXXXXXX.wlic
 
 ### Additional functionality
 
@@ -245,9 +218,9 @@ Several tracking modes can be specified via an optional argument:
 ### Heat source detection in a defined area
 
 Four of the POIs specified via `-p` can be used as a border of area
-for heat source detection. The names of the points need to be
-specified as a comma-separated list to `--heat-sources=` argument. For
-example:
+for heat source detection. The names of the points (as stored in the
+`.json` file) need to be specified as a comma-separated list to
+`--heat-sources=` argument. For example:
 
     ./build/thermocam-pcb -p points.json --heat-sources=tl,tr,br,bl
 
@@ -258,7 +231,7 @@ local maxima of the negative Laplacian:
 
 ![heat_diffusion_equation](heat_diffusion_equation.png "Heat diffusion equation")
 
-### Access webserver
+### Built-in webserver
 
 The parameter `-w` starts a webserver on port `8080`.
 
