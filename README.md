@@ -37,16 +37,18 @@ The web interface of this program in action is shown below. You can see the work
 
 32/64b x86  Linux, preferably Ubuntu 16.04, for maximum compatibility with the eBUS SDK. 
 
-Alternatively, [Nix][] package manager can be used on any Linux
-distribution. If you use Nix, skip to [Building and deploying with Nix](#building-and-deploying-with-nix).
+Alternatively, we recommend to use the [Nix][] package manager, which
+can be used on any Linux distribution. If you use Nix, skip to
+[Building and deploying with Nix](#building-and-deploying-with-nix).
 
-[Nix]: https://github.com/nix-community/home-manager
+[Nix]: https://nixos.org/
 
 ### WIC SDK
 
 You can find the official documentation of the WIC SDK at `https://software.workswell.eu/wic_sdk/Linux`.
 
 #### Download & prerequisites
+
 To download the WIC SDK installer, go to `software.workswell.eu/wic_sdk/Linux`. You need to enter your email to get the download link. Then extract and run the executable for your chosen distribution (`wic-sdk-1.2.1_Ubuntu16.06-x86_64_installer.run` for 64bit Ubuntu 16.04). 
 
 The packages `build-essential` and `libjpeg-dev` are required to install the WIC SDK. The installer installs the WIC SDK and the eBUS SDK (required for the WIC SDK to work).
