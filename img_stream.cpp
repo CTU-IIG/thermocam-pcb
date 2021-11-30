@@ -80,6 +80,16 @@ void img_stream::get_image(Mat_<uint16_t> &result)
         auto buffer16 = reinterpret_cast<uint16_t*>(buffer.data());
         wic->calibrateRawInplace(buffer16, buffer.size() / 2, coreTemp.second.value_or(0));
 
+        static unsigned empty_buffer_cnt = 0;
+        if (buffer.size() == 0) {
+            if (empty_buffer_cnt++ > 10) {
+                // Exit and let systemd restart us
+                errx(1, "Empty buffer detected!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            }
+        } else {
+            empty_buffer_cnt = 0;
+        }
+
         auto [width, height] = wic->getResolution();
         result.create(height, width);
         memcpy(result.data, buffer.data(),
