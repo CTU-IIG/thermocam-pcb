@@ -143,7 +143,7 @@ above procedure, as Nix automatically handles all the dependencies.
    - `cachix use thermac`
 3. Add WIC SDK to the nix store:
    - `nix-store --add-fixed sha256 wic-sdk-1.2.1_Ubuntu16.06-x86_64_installer.run`
-4. Run `nix build`
+4. Run `nix-build`
 5. Run the program with `./result/bin/run` or `./result/bin/thermocam-pcb`.
 
 To deploy the compiled program to the turbot board (where the camera
