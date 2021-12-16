@@ -190,6 +190,15 @@ void thermo_img::read_from_poi_json(string poi_filename, string heat_sources_bor
     poi = readPOI(poi_filename);
     rawtemp.create(gray.size()); // to make width() and height() return expected values
 
+    // Copied from img_stream.cpp. FIXME: We should implement this more generically.
+    uint16_t min_rawtemp = 7231;
+    uint16_t max_rawtemp = 9799;
+
+    gray.convertTo(rawtemp, CV_16U,
+                   (max_rawtemp - min_rawtemp)/256.0,
+                   min_rawtemp);
+
+
     if (!heat_sources_border_points.empty()) {
         vector<string> pt_names = split(heat_sources_border_points, ",");
         if (pt_names.size() != 4)
