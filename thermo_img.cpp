@@ -362,6 +362,14 @@ void thermo_img::updatePOICoords(const thermo_img &ref)
 
     if (ref.heat_sources_border.size() > 0)
         perspectiveTransform(ref.heat_sources_border, heat_sources_border, H);
+
+    if (poi.size() > 0 && poi[0].rolling_std > 10) {
+        // Tracking is significantly unstable => just copy the reference points
+        for (size_t i = 0; i < poi.size(); i++)
+            poi[i].p = ref.poi[i].p;
+        heat_sources_border = ref.heat_sources_border;
+        // TODO: Mark the image somehow so that users understand, why tracking doesn't work
+    }
 }
 
 static vector<Point> localMaxima(Mat I, Mat &hs)
