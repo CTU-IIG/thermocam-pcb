@@ -123,6 +123,9 @@ wic::WIC *img_stream::init_wic()
 
     auto wic = wic::findAndConnect(license);
 
+    if (!wic)
+        errx(1, "wic::findAndConnect: Camera not found");
+
     auto defaultRes = wic->doDefaultWICSettings();
     if (defaultRes.first != wic::ResponseStatus::Ok) {
         std::cerr << "DoDefaultWICSettings error: "
