@@ -5,8 +5,11 @@
 #include <nlohmann/json.hpp>
 #include "index.html.hpp"
 #include "script.js.hpp"
+#include <filesystem>
+
 
 using namespace std;
+namespace fs = std::filesystem;
 using json = nlohmann::json;
 
 void sendPOITemp(crow::response &res, std::vector<POI> poi)
@@ -50,8 +53,17 @@ void sendPOIPosStd(crow::response &res, std::vector<POI> poi)
     res.write(ss.str());
 }
 
-Webserver::Webserver()
-    : web_thread(&Webserver::start, this)
+std::string get_poi_name(const std::string &poi_path)
+{
+    fs::path p(poi_path);
+    if (fs::is_symlink(p))
+        p = fs::read_symlink(p);
+    return p.stem();
+}
+
+Webserver::Webserver(const std::string &poi_path)
+    : poi_name(get_poi_name(poi_path))
+    , web_thread(&Webserver::start, this)
 {}
 
 void Webserver::terminate()
@@ -124,6 +136,25 @@ crow::response Webserver::send_img(const cv::Mat &img, const std::string &ext)
     std::string img_s(img_v.begin(), img_v.end());
     res.write(img_s);
     return res;
+}
+
+std::string Webserver::prometheus_metics()
+{
+    this->lock.lock();
+    std::vector<POI> curr_poi = ti.get_poi();
+    std::vector<std::pair<std::string,double>> curr_cct = this->cameraComponentTemps;
+    this->lock.unlock();
+
+    std::stringstream ss;
+    ss << "# TYPE thermocam_point_temp gauge\n";
+    for (auto p : curr_poi)
+        ss << "thermocam_point_temp{name=\""<< poi_name <<"\", point=\""<< p.name <<"\"} " << std::fixed << std::setprecision(2) << p.temp << "\n";
+
+    ss << "# TYPE thermocam_temp gauge\n";
+    for (auto el : cameraComponentTemps)
+        ss << "thermocam_temp{component=\""<< el.first <<"\"} " << std::fixed << std::setprecision(2) << el.second << "\n";
+
+    return ss.str();
 }
 
 void Webserver::start()
@@ -215,6 +246,9 @@ void Webserver::start()
 
     CROW_ROUTE(app, "/users.txt")
         ([this]() { return to_string(users.size()); });
+
+    CROW_ROUTE(app, "/metrics")
+        ([this]() { return prometheus_metics(); });
 
     CROW_ROUTE(app, "/<path>")
             ([this](const string &path) {

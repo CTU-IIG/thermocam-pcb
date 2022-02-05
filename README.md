@@ -263,6 +263,7 @@ The following URLs are available:
 * `/uptime.txt` contains server uptime in seconds.
 * `/frame.txt` contains the number of processed frames.
 * `/users.txt` the number of active websocket connections.
+* `/metrics` – POI temperatures and other information as [Prometheus](https://prometheus.io/) metrics.
 
 The `.tiff` images downloaded from the web server can be processed by
 [ThermocamPCB Julia package](./julia).

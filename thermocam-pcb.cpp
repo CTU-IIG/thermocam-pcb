@@ -367,7 +367,7 @@ int main(int argc, char **argv)
                  args.heat_sources_border_points);
 
     if (args.webserver_active)
-        webserver = new Webserver();
+        webserver = new Webserver(args.poi_import_path);
 
     processStream(is, ref, curr, args);
 

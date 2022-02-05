@@ -20,11 +20,12 @@ private:
     std::vector<std::pair<std::string,double>> cameraComponentTemps;
     std::unordered_set<crow::websocket::connection*> users;
     std::mutex usr_mtx;
+    const std::string poi_name;
 
 public:
     std::atomic<bool> finished{ false };
 
-    Webserver();
+    Webserver(const std::string &poi_path);
     void terminate();
 
     void update(const thermo_img &ti);
@@ -42,6 +43,7 @@ private:
     void noticeClients();
 
     crow::response send_img(const cv::Mat &img, const std::string &ext = ".jpg");
+    std::string prometheus_metics();
 };
 
 #endif
