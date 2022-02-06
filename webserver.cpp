@@ -150,9 +150,26 @@ std::string Webserver::prometheus_metics()
     for (auto p : curr_poi)
         ss << "thermocam_point_temp{name=\""<< poi_name <<"\", point=\""<< p.name <<"\"} " << std::fixed << std::setprecision(2) << p.temp << "\n";
 
+    ss << "# TYPE thermocam_point_pos_stddev gauge\n";
+    for (auto p : curr_poi)
+        ss << "thermocam_point_pos_stddev{name=\""<< poi_name <<"\", point=\""<< p.name <<"\"} " << std::fixed << std::setprecision(4) << p.rolling_std << "\n";
+
     ss << "# TYPE thermocam_temp gauge\n";
     for (auto el : cameraComponentTemps)
         ss << "thermocam_temp{component=\""<< el.first <<"\"} " << std::fixed << std::setprecision(2) << el.second << "\n";
+
+    {
+        using namespace std::chrono;
+        steady_clock::time_point now = std::chrono::steady_clock::now();
+        ss << "# TYPE thermocam_uptime gauge\n";
+        ss << "thermocam_uptime " << duration_cast<seconds>(now - start_time).count() << "\n";
+    }
+
+    ss << "# TYPE thermocam_frame counter\n";
+    ss << "thermocam_frame " << frame_cnt << "\n";
+
+    ss << "# TYPE thermocam_users gauge\n";
+    ss << "thermocam_users " << users.size() << "\n";
 
     return ss.str();
 }
