@@ -131,7 +131,7 @@ is connected) run:
    ```
 2. Test whether the program runs there:
    ```shell
-   ssh -X ubuntu@turbot $(readlink result)/bin/run
+   ssh -X ubuntu@turbot $(readlink result)/bin/run -l license_163C1908.wlic
    ```
 3. If everything works well, install it permanently:
    ```sh
