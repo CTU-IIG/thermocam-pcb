@@ -12,5 +12,10 @@ WatchdogSec=60
 TimeoutStopSec=10
 WorkingDirectory=%h/thermocam-pcb
 
+# Memory leaks in the SDK can exhaust all memory. Make OOM killer kill
+# the app when memory usage goes too high. Then, the unit will be
+# restarted due to Restart=always.
+MemoryMax=1G
+
 [Install]
 WantedBy=default.target
